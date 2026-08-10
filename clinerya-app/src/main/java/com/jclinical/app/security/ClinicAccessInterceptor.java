@@ -1,6 +1,5 @@
 package com.jclinical.app.security;
 
-import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.ClinicMembershipPort;
 import com.jclinical.users.infra.security.CurrentUserResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,11 +22,12 @@ public class ClinicAccessInterceptor implements HandlerInterceptor {
 
     @Override
     @SuppressWarnings("unchecked")
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
         Object attribute = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         if (!(attribute instanceof Map<?, ?> rawVars)) {
             return true;
         }
+
         Map<String, String> pathVariables = (Map<String, String>) rawVars;
         String clinicIdValue = pathVariables.get("clinicId");
         if (clinicIdValue == null) {
@@ -37,7 +38,8 @@ public class ClinicAccessInterceptor implements HandlerInterceptor {
         UUID userId = currentUserResolver.getCurrentUserId();
 
         if (!clinicMembershipPort.isActiveStaffMember(userId, clinicId)) {
-            throw new ClinicAccessDeniedException("No perteneces al personal de esta clínica.");
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "No perteneces al personal de esta clinica.");
+            return false;
         }
 
         return true;
