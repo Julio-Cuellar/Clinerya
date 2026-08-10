@@ -15,6 +15,7 @@ import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ClinicStaffService implements ManageClinicStaffUseCase {
+    private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final ClinicStaffRepositoryPort clinicStaffRepository;
     private final DoctorProfileRepositoryPort doctorProfileRepository;
@@ -379,10 +381,9 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
 
     private String generateInvitationToken() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        java.security.SecureRandom random = new java.security.SecureRandom();
         StringBuilder sb = new StringBuilder(12);
         for (int i = 0; i < 12; i++) {
-            sb.append(chars.charAt(random.nextInt(chars.length())));
+            sb.append(chars.charAt(TOKEN_RANDOM.nextInt(chars.length())));
         }
         return sb.toString();
     }

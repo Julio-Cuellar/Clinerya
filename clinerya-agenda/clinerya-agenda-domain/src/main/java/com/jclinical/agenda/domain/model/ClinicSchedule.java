@@ -31,7 +31,7 @@ public class ClinicSchedule {
     }
 
     public static ClinicSchedule defaultFor(UUID clinicId, DayOfWeek dayOfWeek) {
-        boolean isSunday = dayOfWeek == DayOfWeek.SUNDAY;
+        boolean isSunday = DayOfWeek.SUNDAY.equals(dayOfWeek);
         return ClinicSchedule.builder()
                 .clinicId(clinicId)
                 .dayOfWeek(dayOfWeek)

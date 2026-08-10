@@ -100,10 +100,12 @@ class NotificationServiceTest {
         UUID clinicId = UUID.randomUUID();
 
         assertThrows(IllegalArgumentException.class, () -> service.publish(null));
-        assertThrows(IllegalArgumentException.class, () -> service.publish(
-                new PublishNotificationCommand(clinicId, "inventory", "key", "LOUD", "Titulo", "Mensaje", null, null)));
+        PublishNotificationCommand invalidSeverityCommand =
+                new PublishNotificationCommand(clinicId, "inventory", "key", "LOUD", "Titulo", "Mensaje", null, null);
+        assertThrows(IllegalArgumentException.class, () -> service.publish(invalidSeverityCommand));
         assertThrows(IllegalArgumentException.class, () -> service.list(null, false, 10));
-        assertThrows(IllegalArgumentException.class, () -> service.markRead(clinicId, UUID.randomUUID()));
+        UUID missingNotificationId = UUID.randomUUID();
+        assertThrows(IllegalArgumentException.class, () -> service.markRead(clinicId, missingNotificationId));
     }
 
     @Test

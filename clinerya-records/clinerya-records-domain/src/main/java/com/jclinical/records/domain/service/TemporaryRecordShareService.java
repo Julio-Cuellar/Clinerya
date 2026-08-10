@@ -13,10 +13,12 @@ import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 
 import java.time.LocalDateTime;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.UUID;
 
 public class TemporaryRecordShareService implements ManageTemporaryShareUseCase {
+    private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
 
     private final TemporaryRecordShareRepositoryPort repository;
     private final ClinicalNoteRepositoryPort noteRepository;
@@ -92,10 +94,9 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
 
     private String generateSecureToken() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        java.security.SecureRandom random = new java.security.SecureRandom();
         StringBuilder sb = new StringBuilder(32);
         for (int i = 0; i < 32; i++) {
-            sb.append(chars.charAt(random.nextInt(chars.length())));
+            sb.append(chars.charAt(TOKEN_RANDOM.nextInt(chars.length())));
         }
         return sb.toString();
     }
