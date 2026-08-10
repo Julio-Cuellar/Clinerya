@@ -74,8 +74,9 @@ class CashSessionAndExpenseServiceTest {
         staffValidator.activeStaffId = staffId;
         sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
 
+        CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalStateException.class,
-                () -> sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO)));
+                () -> sessionService.openSession(clinicId, command));
     }
 
     @Test
@@ -83,8 +84,9 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
 
+        CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalArgumentException.class,
-                () -> sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO)));
+                () -> sessionService.openSession(clinicId, command));
     }
 
     @Test

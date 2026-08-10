@@ -212,7 +212,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
     private void seedSchedule(UUID clinicId) {
         List<ManageClinicScheduleUseCase.DayScheduleCommand> schedule = new ArrayList<>();
         for (DayOfWeek day : DayOfWeek.values()) {
-            boolean open = day != DayOfWeek.SUNDAY;
+            boolean open = !DayOfWeek.SUNDAY.equals(day);
             schedule.add(new ManageClinicScheduleUseCase.DayScheduleCommand(
                     day,
                     open,
@@ -906,7 +906,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
         LocalDate cursor = start;
         while (remaining > 0) {
             cursor = cursor.plusDays(direction);
-            if (cursor.getDayOfWeek() != DayOfWeek.SUNDAY) {
+            if (!DayOfWeek.SUNDAY.equals(cursor.getDayOfWeek())) {
                 remaining--;
             }
         }

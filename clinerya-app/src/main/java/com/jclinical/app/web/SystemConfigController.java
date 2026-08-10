@@ -124,6 +124,10 @@ public class SystemConfigController {
         } catch (java.io.IOException ioe) {
             log.error("No se pudo ejecutar pg_dump desde la ruta configurada {}.", pgDumpPath, ioe);
             writeError(response, HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo ejecutar pg_dump desde la ruta configurada. Valida app.backup.pg-dump-path y que el archivo exista en el servidor.");
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            log.error("La generacion del respaldo fue interrumpida.", interruptedException);
+            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR, "La generacion del respaldo fue interrumpida.");
         } catch (Exception e) {
             log.error("Error al generar respaldo manual", e);
             writeError(response, HttpStatus.INTERNAL_SERVER_ERROR, "Error al generar el respaldo.");

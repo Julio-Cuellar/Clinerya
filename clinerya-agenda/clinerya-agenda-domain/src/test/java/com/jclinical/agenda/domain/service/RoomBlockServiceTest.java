@@ -50,8 +50,9 @@ class RoomBlockServiceTest {
         when(roomBlockRepository.existsOverlappingActiveByRoom(roomId, clinicId, startsAt, endsAt)).thenReturn(false);
         when(appointmentRepository.existsOverlappingAppointmentByRoom(roomId, clinicId, startsAt, endsAt, null)).thenReturn(true);
 
-        assertThrows(IllegalStateException.class, () -> service.createBlock(clinicId,
-                new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.MAINTENANCE, "Cambio de equipo", null)));
+        CreateRoomBlockCommand command =
+                new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.MAINTENANCE, "Cambio de equipo", null);
+        assertThrows(IllegalStateException.class, () -> service.createBlock(clinicId, command));
     }
 
     @Test
