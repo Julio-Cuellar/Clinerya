@@ -6,6 +6,7 @@ on:
     branches: [ "main", "Cuellar" ]
   pull_request:
     branches: [ "main", "Cuellar" ]
+  workflow_dispatch:
 
 jobs:
   build:
