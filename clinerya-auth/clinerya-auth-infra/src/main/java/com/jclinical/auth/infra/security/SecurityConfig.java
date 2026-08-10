@@ -20,8 +20,10 @@ public class SecurityConfig {
     }
 
     @Bean
+    @SuppressWarnings("java:S4502")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // API stateless: JWT is sent in the Authorization header, not in browser cookies.
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth

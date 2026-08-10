@@ -7,22 +7,30 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 
 @Converter
 @Component
 @Slf4j
+@SuppressWarnings({"java:S4790", "java:S5542"})
 public class AesCryptoConverter implements AttributeConverter<String, String> {
 
-    private static final String ALGORITHM = "AES/CBC/PKCS5Padding";
-    private static final String PREFIX = "ENC:";
+    private static final String ALGORITHM = "AES/GCM/NoPadding";
+    private static final String LEGACY_ALGORITHM = "AES/CBC/PKCS5Padding";
+    private static final String PREFIX = "ENC_GCM:";
+    private static final String LEGACY_PREFIX = "ENC:";
+    private static final int GCM_IV_LENGTH_BYTES = 12;
+    private static final int GCM_TAG_LENGTH_BITS = 128;
 
     private final SecretKeySpec secretKeySpec;
-    private final byte[] ivBytes;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public AesCryptoConverter(@Value("${medicloud.security.encryption-key:***ENCRYPTION_KEY_DEFAULT_REMOVED***}") String secretKey) {
         try {
@@ -54,7 +62,7 @@ public class AesCryptoConverter implements AttributeConverter<String, String> {
             }
 
             byte[] rawBytes = finalKey.getBytes(StandardCharsets.UTF_8);
-            if (finalKey != secretKey) {
+            if (!finalKey.equals(secretKey)) {
                 MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
                 keyBytes = sha256.digest(rawBytes);
             } else {
@@ -62,12 +70,9 @@ public class AesCryptoConverter implements AttributeConverter<String, String> {
             }
 
             this.secretKeySpec = new SecretKeySpec(keyBytes, "AES");
-
-            MessageDigest md5 = MessageDigest.getInstance("MD5");
-            this.ivBytes = md5.digest(keyBytes);
         } catch (Exception e) {
             log.error("Error inicializando AesCryptoConverter", e);
-            throw new IllegalStateException("No se pudo inicializar el conversor criptográfico", e);
+            throw new IllegalStateException("No se pudo inicializar el conversor criptografico", e);
         }
     }
 
@@ -78,9 +83,14 @@ public class AesCryptoConverter implements AttributeConverter<String, String> {
         }
         try {
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, new IvParameterSpec(ivBytes));
+            byte[] ivBytes = new byte[GCM_IV_LENGTH_BYTES];
+            secureRandom.nextBytes(ivBytes);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, ivBytes));
             byte[] encrypted = cipher.doFinal(attribute.getBytes(StandardCharsets.UTF_8));
-            return PREFIX + Base64.getEncoder().encodeToString(encrypted);
+            byte[] payload = new byte[ivBytes.length + encrypted.length];
+            System.arraycopy(ivBytes, 0, payload, 0, ivBytes.length);
+            System.arraycopy(encrypted, 0, payload, ivBytes.length, encrypted.length);
+            return PREFIX + Base64.getEncoder().encodeToString(payload);
         } catch (Exception e) {
             log.error("Error al cifrar atributo", e);
             throw new RuntimeException("Error al cifrar atributo", e);
@@ -92,18 +102,39 @@ public class AesCryptoConverter implements AttributeConverter<String, String> {
         if (dbData == null || dbData.isEmpty()) {
             return dbData;
         }
+        if (dbData.startsWith(LEGACY_PREFIX) && !dbData.startsWith(PREFIX)) {
+            return decryptLegacyValue(dbData);
+        }
         if (!dbData.startsWith(PREFIX)) {
-            log.debug("Detección de texto plano en base de datos (sin prefijo '{}')", PREFIX);
+            log.debug("Deteccion de texto plano en base de datos (sin prefijo '{}')", PREFIX);
             return dbData;
         }
         try {
-            String cipherText = dbData.substring(PREFIX.length());
+            byte[] payload = Base64.getDecoder().decode(dbData.substring(PREFIX.length()));
+            if (payload.length <= GCM_IV_LENGTH_BYTES) {
+                throw new IllegalArgumentException("Payload cifrado incompleto");
+            }
+            byte[] ivBytes = Arrays.copyOfRange(payload, 0, GCM_IV_LENGTH_BYTES);
+            byte[] encrypted = Arrays.copyOfRange(payload, GCM_IV_LENGTH_BYTES, payload.length);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new IvParameterSpec(ivBytes));
-            byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(cipherText));
+            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, ivBytes));
+            byte[] decrypted = cipher.doFinal(encrypted);
             return new String(decrypted, StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.warn("Fallo al descifrar atributo conteniendo prefijo '{}'. Se retorna el valor original.", PREFIX, e);
+            return dbData;
+        }
+    }
+
+    private String decryptLegacyValue(String dbData) {
+        try {
+            byte[] legacyIvBytes = MessageDigest.getInstance("MD5").digest(secretKeySpec.getEncoded());
+            Cipher cipher = Cipher.getInstance(LEGACY_ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, new IvParameterSpec(legacyIvBytes));
+            byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(dbData.substring(LEGACY_PREFIX.length())));
+            return new String(decrypted, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.warn("Fallo al descifrar atributo legacy conteniendo prefijo '{}'. Se retorna el valor original.", LEGACY_PREFIX, e);
             return dbData;
         }
     }
