@@ -27,6 +27,13 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     private static final int MAX_TREND_BUCKETS = 6;
     private static final String DIRECT_COST_ACCOUNT = "51000";
     private static final String WASTE_ACCOUNT = "52100";
+    private static final String DEBIT_NATURE = "DEBIT";
+    private static final String CREDIT_NATURE = "CREDIT";
+    private static final String CUSTOM_CATEGORY = "CUSTOM";
+    private static final String REQUIRED_CLINIC_MESSAGE = "La clinica es obligatoria.";
+    private static final String REQUIRED_FROM_MESSAGE = "La fecha inicial es obligatoria.";
+    private static final String REQUIRED_TO_MESSAGE = "La fecha final es obligatoria.";
+    private static final String INVALID_PERIOD_MESSAGE = "La fecha inicial no puede ser posterior a la fecha final.";
 
     private final JournalEntryRepositoryPort repository;
 
@@ -40,12 +47,7 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
             LocalDate from,
             LocalDate to,
             boolean includeComparison) {
-        Objects.requireNonNull(clinicId, "La clinica es obligatoria.");
-        Objects.requireNonNull(from, "La fecha inicial es obligatoria.");
-        Objects.requireNonNull(to, "La fecha final es obligatoria.");
-        if (from.isAfter(to)) {
-            throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final.");
-        }
+        validatePeriod(clinicId, from, to);
 
         long periodDays = ChronoUnit.DAYS.between(from, to) + 1;
         LocalDate comparisonTo = from.minusDays(1);
@@ -77,40 +79,13 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
 
     @Override
     public TrialBalanceReport generateTrialBalance(UUID clinicId, LocalDate from, LocalDate to) {
-        Objects.requireNonNull(clinicId, "La clinica es obligatoria.");
-        Objects.requireNonNull(from, "La fecha inicial es obligatoria.");
-        Objects.requireNonNull(to, "La fecha final es obligatoria.");
-        if (from.isAfter(to)) {
-            throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final.");
-        }
+        validatePeriod(clinicId, from, to);
 
         Map<String, TrialAccount> accounts = new LinkedHashMap<>();
         for (JournalEntry entry : repository.findByClinicId(clinicId)) {
-            if (entry.getLines() == null || entry.getEntryDate() == null) {
-                continue;
-            }
-            boolean before = entry.getEntryDate().isBefore(from);
-            boolean within = !entry.getEntryDate().isBefore(from) && !entry.getEntryDate().isAfter(to);
-            if (!before && !within) {
-                continue;
-            }
-            for (JournalLine line : entry.getLines()) {
-                BigDecimal debit = value(line.getDebit());
-                BigDecimal credit = value(line.getCredit());
-                TrialAccount account = accounts.computeIfAbsent(line.getAccountCode(), code ->
-                        new TrialAccount(code, line.getAccountName(), metadataOf(code)));
-                if (before) {
-                    account.initialSigned = account.initialSigned.add(account.isDebitNature()
-                            ? debit.subtract(credit)
-                            : credit.subtract(debit));
-                } else if (within) {
-                    account.debit = account.debit.add(debit);
-                    account.credit = account.credit.add(credit);
-                    if (debit.signum() != 0 || credit.signum() != 0) {
-                        account.movements.add(new TrialBalanceReport.Movement(
-                                line.getId(), entry.getId(), entry.getEntryDate(), entry.getDescription(),
-                                entry.getSourceEventType(), debit, credit));
-                    }
+            if (isTrialEntry(entry, to)) {
+                for (JournalLine line : entry.getLines()) {
+                    applyTrialLine(accounts, entry, line, from);
                 }
             }
         }
@@ -138,27 +113,18 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
 
     @Override
     public WasteReport generateWasteReport(UUID clinicId, LocalDate from, LocalDate to) {
-        Objects.requireNonNull(clinicId, "La clinica es obligatoria.");
-        Objects.requireNonNull(from, "La fecha inicial es obligatoria.");
-        Objects.requireNonNull(to, "La fecha final es obligatoria.");
-        if (from.isAfter(to)) {
-            throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final.");
-        }
+        validatePeriod(clinicId, from, to);
 
         List<WasteReport.Line> lines = new ArrayList<>();
-        for (JournalEntry entry : repository.findByClinicIdAndEntryDateBetween(clinicId, from, to)) {
-            if (entry.getLines() == null) {
-                continue;
-            }
-            BigDecimal amount = entry.getLines().stream()
-                    .filter(line -> WASTE_ACCOUNT.equals(line.getAccountCode()))
-                    .map(line -> value(line.getDebit()).subtract(value(line.getCredit())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        repository.findByClinicIdAndEntryDateBetween(clinicId, from, to).stream()
+                .filter(entry -> entry.getLines() != null)
+                .forEach(entry -> {
+                    BigDecimal amount = wasteAmount(entry);
             if (amount.signum() > 0) {
                 lines.add(new WasteReport.Line(
                         entry.getId(), entry.getSourceEventId(), entry.getEntryDate(), entry.getDescription(), amount));
             }
-        }
+                });
 
         BigDecimal totalAmount = lines.stream()
                 .map(WasteReport.Line::amount)
@@ -167,15 +133,55 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     }
 
     private AccountMetadata metadataOf(String code) {
-        if (code == null || code.isBlank()) return new AccountMetadata("DEBIT", "CUSTOM");
+        if (code == null || code.isBlank()) {
+            return new AccountMetadata(DEBIT_NATURE, CUSTOM_CATEGORY);
+        }
         return switch (code.substring(0, 1)) {
-            case "1" -> new AccountMetadata("DEBIT", "ASSET");
-            case "2" -> new AccountMetadata("CREDIT", "LIABILITY");
-            case "3" -> new AccountMetadata("CREDIT", "EQUITY");
-            case "4" -> new AccountMetadata("CREDIT", "INCOME");
-            case "5" -> new AccountMetadata("DEBIT", "EXPENSE");
-            default -> new AccountMetadata("DEBIT", "CUSTOM");
+            case "1" -> new AccountMetadata(DEBIT_NATURE, "ASSET");
+            case "2" -> new AccountMetadata(CREDIT_NATURE, "LIABILITY");
+            case "3" -> new AccountMetadata(CREDIT_NATURE, "EQUITY");
+            case "4" -> new AccountMetadata(CREDIT_NATURE, "INCOME");
+            case "5" -> new AccountMetadata(DEBIT_NATURE, "EXPENSE");
+            default -> new AccountMetadata(DEBIT_NATURE, CUSTOM_CATEGORY);
         };
+    }
+
+    private void validatePeriod(UUID clinicId, LocalDate from, LocalDate to) {
+        Objects.requireNonNull(clinicId, REQUIRED_CLINIC_MESSAGE);
+        Objects.requireNonNull(from, REQUIRED_FROM_MESSAGE);
+        Objects.requireNonNull(to, REQUIRED_TO_MESSAGE);
+        if (from.isAfter(to)) {
+            throw new IllegalArgumentException(INVALID_PERIOD_MESSAGE);
+        }
+    }
+
+    private boolean isTrialEntry(JournalEntry entry, LocalDate to) {
+        return entry.getLines() != null
+                && entry.getEntryDate() != null
+                && !entry.getEntryDate().isAfter(to);
+    }
+
+    private BigDecimal wasteAmount(JournalEntry entry) {
+        return entry.getLines().stream()
+                .filter(line -> WASTE_ACCOUNT.equals(line.getAccountCode()))
+                .map(line -> value(line.getDebit()).subtract(value(line.getCredit())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void applyTrialLine(
+            Map<String, TrialAccount> accounts,
+            JournalEntry entry,
+            JournalLine line,
+            LocalDate from) {
+        BigDecimal debit = value(line.getDebit());
+        BigDecimal credit = value(line.getCredit());
+        TrialAccount account = accounts.computeIfAbsent(line.getAccountCode(), code ->
+                new TrialAccount(code, line.getAccountName(), metadataOf(code)));
+        if (entry.getEntryDate().isBefore(from)) {
+            account.addInitialBalance(debit, credit);
+            return;
+        }
+        account.addMovement(entry, line, debit, credit);
     }
 
     private record AccountMetadata(String nature, String category) {}
@@ -195,31 +201,66 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
             this.metadata = metadata;
         }
 
-        private boolean isDebitNature() { return "DEBIT".equals(metadata.nature()); }
+        private boolean isDebitNature() { return DEBIT_NATURE.equals(metadata.nature()); }
+
+        private void addInitialBalance(BigDecimal debit, BigDecimal credit) {
+            BigDecimal amount = isDebitNature() ? debit.subtract(credit) : credit.subtract(debit);
+            initialSigned = initialSigned.add(amount);
+        }
+
+        private void addMovement(JournalEntry entry, JournalLine line, BigDecimal movementDebit, BigDecimal movementCredit) {
+            debit = debit.add(movementDebit);
+            credit = credit.add(movementCredit);
+            if (movementDebit.signum() != 0 || movementCredit.signum() != 0) {
+                movements.add(new TrialBalanceReport.Movement(
+                        line.getId(), entry.getId(), entry.getEntryDate(), entry.getDescription(),
+                        entry.getSourceEventType(), movementDebit, movementCredit));
+            }
+        }
 
         private TrialBalanceReport.AccountLine toReport() {
-            BigDecimal initialDebit = initialSigned.signum() >= 0 && isDebitNature() ? initialSigned : BigDecimal.ZERO;
-            BigDecimal initialCredit = initialSigned.signum() < 0 && isDebitNature() ? initialSigned.abs() : BigDecimal.ZERO;
-            if (!isDebitNature()) {
-                initialDebit = initialSigned.signum() < 0 ? initialSigned.abs() : BigDecimal.ZERO;
-                initialCredit = initialSigned.signum() >= 0 ? initialSigned : BigDecimal.ZERO;
-            }
+            BigDecimal initialDebit = initialDebit();
+            BigDecimal initialCredit = initialCredit();
             BigDecimal finalSigned = isDebitNature()
                     ? initialSigned.add(debit).subtract(credit)
                     : initialSigned.add(credit).subtract(debit);
             BigDecimal balanceAmount = finalSigned.abs();
-            String balanceNature = isDebitNature()
-                    ? (finalSigned.signum() >= 0 ? "DEBIT" : "CREDIT")
-                    : (finalSigned.signum() >= 0 ? "CREDIT" : "DEBIT");
+            String balanceNature = balanceNature(finalSigned);
             return new TrialBalanceReport.AccountLine(
                     code, name, metadata.nature(), metadata.category(), initialSigned, debit, credit, finalSigned,
                     initialDebit, initialCredit, balanceAmount, balanceNature,
-                    "DEBIT".equals(balanceNature) ? "CREDIT" : "DEBIT",
+                    oppositeNature(balanceNature),
                     max(debit.add(initialDebit), credit.add(initialCredit)),
                     debit.add(credit), List.copyOf(movements));
         }
 
         private static BigDecimal max(BigDecimal left, BigDecimal right) { return left.max(right); }
+
+        private BigDecimal initialDebit() {
+            if (isDebitNature()) {
+                return initialSigned.signum() >= 0 ? initialSigned : BigDecimal.ZERO;
+            }
+            return initialSigned.signum() < 0 ? initialSigned.abs() : BigDecimal.ZERO;
+        }
+
+        private BigDecimal initialCredit() {
+            if (isDebitNature()) {
+                return initialSigned.signum() < 0 ? initialSigned.abs() : BigDecimal.ZERO;
+            }
+            return initialSigned.signum() >= 0 ? initialSigned : BigDecimal.ZERO;
+        }
+
+        private String balanceNature(BigDecimal finalSigned) {
+            boolean positive = finalSigned.signum() >= 0;
+            if (isDebitNature()) {
+                return positive ? DEBIT_NATURE : CREDIT_NATURE;
+            }
+            return positive ? CREDIT_NATURE : DEBIT_NATURE;
+        }
+
+        private String oppositeNature(String nature) {
+            return DEBIT_NATURE.equals(nature) ? CREDIT_NATURE : DEBIT_NATURE;
+        }
     }
 
     private List<JournalEntry> inPeriod(List<JournalEntry> entries, LocalDate from, LocalDate to) {
@@ -232,20 +273,18 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     private Aggregation aggregate(List<JournalEntry> entries) {
         Aggregation aggregation = new Aggregation();
         for (JournalEntry entry : entries) {
-            if (entry.getLines() == null) {
-                continue;
-            }
-            for (JournalLine line : entry.getLines()) {
-                Category category = categoryOf(line.getAccountCode());
-                if (category == null) {
-                    continue;
+            if (entry.getLines() != null) {
+                for (JournalLine line : entry.getLines()) {
+                    Category category = categoryOf(line.getAccountCode());
+                    if (category != null) {
+                        BigDecimal debit = value(line.getDebit());
+                        BigDecimal credit = value(line.getCredit());
+                        BigDecimal amount = category == Category.INCOME
+                                ? credit.subtract(debit)
+                                : debit.subtract(credit);
+                        aggregation.add(line.getAccountCode(), line.getAccountName(), category, amount);
+                    }
                 }
-                BigDecimal debit = value(line.getDebit());
-                BigDecimal credit = value(line.getCredit());
-                BigDecimal amount = category == Category.INCOME
-                        ? credit.subtract(debit)
-                        : debit.subtract(credit);
-                aggregation.add(line.getAccountCode(), line.getAccountName(), category, amount);
             }
         }
         return aggregation;
@@ -291,9 +330,10 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
         }
         for (JournalEntry entry : entries) {
             int elapsedDays = Math.toIntExact(ChronoUnit.DAYS.between(from, entry.getEntryDate()));
-            int bucketIndex = Math.min(
-                    bucketCount - 1,
-                    (elapsedDays * bucketCount + totalDays - 1) / totalDays);
+            int bucketIndex = Math.clamp(
+                    (elapsedDays * bucketCount + totalDays - 1) / totalDays,
+                    0,
+                    bucketCount - 1);
             buckets.get(bucketIndex).add(entry);
         }
 
