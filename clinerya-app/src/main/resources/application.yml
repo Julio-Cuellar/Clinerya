@@ -54,6 +54,8 @@ app:
       enabled: ${APP_EMAIL_VERIFICATION_ENABLED:false}
   file-upload:
     directory: ${APP_FILE_UPLOAD_DIRECTORY:./uploads}
+  backup:
+    pg-dump-path: ${APP_BACKUP_PG_DUMP_PATH:/usr/bin/pg_dump}
   dev-seed:
     enabled: ${APP_DEV_SEED_ENABLED:true}
     email: ${APP_DEV_SEED_EMAIL:demo@medicloud.local}

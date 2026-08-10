@@ -1,15 +1,23 @@
 package com.jclinical.app.web;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.zip.GZIPOutputStream;
@@ -30,6 +38,9 @@ public class SystemConfigController {
 
     @Value("${spring.datasource.password}")
     private String dbPassword;
+
+    @Value("${app.backup.pg-dump-path:/usr/bin/pg_dump}")
+    private String pgDumpPath;
 
     @GetMapping("/{key}")
     public ResponseEntity<SystemConfigResponse> getConfig(@PathVariable String key) {
@@ -55,18 +66,17 @@ public class SystemConfigController {
     }
 
     @PostMapping("/backups/trigger")
-    public void triggerBackup(jakarta.servlet.http.HttpServletResponse response) {
+    @SuppressWarnings("java:S4036")
+    public void triggerBackup(HttpServletResponse response) {
         try {
-            // Parse jdbc:postgresql://host:port/database
             String cleanUrl = dbUrl.replace("jdbc:postgresql://", "");
             int slashIdx = cleanUrl.indexOf('/');
             if (slashIdx == -1) {
-                throw new IllegalArgumentException("URL de base de datos inválida");
+                throw new IllegalArgumentException("URL de base de datos invalida");
             }
             String hostPort = cleanUrl.substring(0, slashIdx);
             String dbName = cleanUrl.substring(slashIdx + 1);
-            
-            // Si tiene parámetros query al final, los removemos (ej. ?currentSchema=core)
+
             if (dbName.contains("?")) {
                 dbName = dbName.substring(0, dbName.indexOf('?'));
             }
@@ -79,8 +89,13 @@ public class SystemConfigController {
                 port = parts[1];
             }
 
+            Path pgDumpExecutable = Paths.get(pgDumpPath).normalize();
+            if (!pgDumpExecutable.isAbsolute()) {
+                throw new IllegalStateException("La ruta de pg_dump debe ser absoluta y no resolverse desde PATH");
+            }
+
             ProcessBuilder pb = new ProcessBuilder(
-                    "pg_dump",
+                    pgDumpExecutable.toString(),
                     "-h", host,
                     "-p", port,
                     "-U", dbUsername,
@@ -92,7 +107,7 @@ public class SystemConfigController {
             response.setContentType("application/gzip");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
 
-            log.info("Iniciando pg_dump manual para base de datos {} en {}:{}", dbName, host, port);
+            log.info("Iniciando pg_dump manual para base de datos {} en {}:{} usando {}", dbName, host, port, pgDumpExecutable);
             Process process = pb.start();
 
             try (InputStream pgIn = process.getInputStream();
@@ -102,36 +117,35 @@ public class SystemConfigController {
 
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                log.error("pg_dump manual falló con código de salida {}", exitCode);
+                log.error("pg_dump manual fallo con codigo de salida {}", exitCode);
             } else {
                 log.info("pg_dump manual completado exitosamente y transmitido al cliente.");
             }
         } catch (java.io.IOException ioe) {
-            log.error("No se pudo ejecutar el comando pg_dump. Valida que esté instalado y en el PATH.", ioe);
-            try {
-                if (!response.isCommitted()) {
-                    response.reset();
-                    response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                    response.setContentType("application/json;charset=UTF-8");
-                    String json = "{\"message\":\"El comando 'pg_dump' no está instalado en el sistema o no se encuentra en el PATH. " +
-                                  "En producción con Docker esto funciona de manera nativa. Si estás en desarrollo local, debes instalar las herramientas cliente de PostgreSQL.\"}";
-                    response.getOutputStream().write(json.getBytes(StandardCharsets.UTF_8));
-                }
-            } catch (Exception ignored) {}
+            log.error("No se pudo ejecutar pg_dump desde la ruta configurada {}.", pgDumpPath, ioe);
+            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo ejecutar pg_dump desde la ruta configurada. Valida app.backup.pg-dump-path y que el archivo exista en el servidor.");
         } catch (Exception e) {
             log.error("Error al generar respaldo manual", e);
-            try {
-                if (!response.isCommitted()) {
-                    response.reset();
-                    response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                    response.setContentType("application/json;charset=UTF-8");
-                    String json = "{\"message\":\"Error al generar el respaldo: " + e.getMessage() + "\"}";
-                    response.getOutputStream().write(json.getBytes(StandardCharsets.UTF_8));
-                }
-            } catch (Exception ignored) {}
+            writeError(response, HttpStatus.INTERNAL_SERVER_ERROR, "Error al generar el respaldo.");
         }
     }
 
-    public record SystemConfigResponse(String key, String value, String description) {}
-    public record UpdateConfigRequest(String value, String description) {}
+    private void writeError(HttpServletResponse response, HttpStatus status, String message) {
+        try {
+            if (!response.isCommitted()) {
+                response.reset();
+                response.setStatus(status.value());
+                response.setContentType("application/json;charset=UTF-8");
+                String json = "{\"message\":\"" + message + "\"}";
+                response.getOutputStream().write(json.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    public record SystemConfigResponse(String key, String value, String description) {
+    }
+
+    public record UpdateConfigRequest(String value, String description) {
+    }
 }
