@@ -16,6 +16,7 @@ import com.jclinical.core.events.PayrollPaymentRegisteredEvent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -76,7 +77,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("ConsumoConciliado")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -145,7 +146,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("PagoRegistrado")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(lines)
                 .build();
 
@@ -177,7 +178,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("MermaCaducidad")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -237,7 +238,7 @@ public class JournalEntryService implements ManageJournalUseCase {
         entry.setClinicId(clinicId);
         entry.setSourceEventType("Manual");
         entry.setSourceEventId(UUID.randomUUID());
-        entry.setCreatedAt(LocalDateTime.now());
+        entry.setCreatedAt(now());
 
         if (entry.getLines() != null) {
             entry.getLines().forEach(line -> {
@@ -271,7 +272,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("EgresoCaja")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -316,7 +317,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("EgresoCajaAnulado")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -399,7 +400,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(eventDate(event.occurredAt()))
                 .sourceEventType("PedidoInsumos")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -472,7 +473,7 @@ public class JournalEntryService implements ManageJournalUseCase {
                 .entryDate(event.paymentDate() != null ? event.paymentDate() : LocalDate.now())
                 .sourceEventType("PagoNomina")
                 .sourceEventId(event.eventId())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(lines)
                 .build();
 
@@ -486,5 +487,9 @@ public class JournalEntryService implements ManageJournalUseCase {
 
     private LocalDate eventDate(LocalDateTime occurredAt) {
         return occurredAt != null ? occurredAt.toLocalDate() : LocalDate.now();
+    }
+
+    private static LocalDateTime now() {
+        return LocalDateTime.now(ZoneId.systemDefault());
     }
 }

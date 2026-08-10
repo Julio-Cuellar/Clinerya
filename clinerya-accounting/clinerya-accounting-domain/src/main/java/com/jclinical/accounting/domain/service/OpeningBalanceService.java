@@ -15,6 +15,7 @@ import com.jclinical.accounting.domain.ports.out.OpeningBalanceSetupRepositoryPo
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -78,7 +79,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
             throw new IllegalArgumentException("Registra al menos un saldo inicial mayor a cero.");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         UUID setupId = UUID.randomUUID();
         UUID journalEntryId = UUID.randomUUID();
         UUID sourceEventId = UUID.randomUUID();
@@ -205,7 +206,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
         validateClinicAndCommand(clinicId, command);
 
         LocalDate entryDate = command.openingDate() != null ? command.openingDate() : LocalDate.now();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         BankAccount account = buildBankAccount(
                 clinicId,
                 entryDate,
@@ -242,7 +243,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
                     command.notes()
             );
             account.setOpeningJournalEntryId(entry.getId());
-            account.setUpdatedAt(LocalDateTime.now());
+            account.setUpdatedAt(now());
             account = bankAccountRepository.save(account);
         }
         return account;
@@ -290,7 +291,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
                 command.creditNoInterestPayment(),
                 command.creditCurrentPaymentDue()
         );
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         account.setLastModifiedAt(now);
         account.setLastModificationReason(reason);
         account.setUpdatedAt(now);
@@ -321,9 +322,9 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
             );
         }
         account.setActive(false);
-        account.setDeactivatedAt(LocalDateTime.now());
+        account.setDeactivatedAt(now());
         account.setDeactivationReason(reason);
-        account.setUpdatedAt(LocalDateTime.now());
+        account.setUpdatedAt(now());
         return bankAccountRepository.save(account);
     }
 
@@ -419,7 +420,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
                 .entryDate(entryDate)
                 .sourceEventType("TransferenciaCuentaOperativa")
                 .sourceEventId(UUID.randomUUID())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(List.of(
                         JournalLine.builder()
                                 .id(UUID.randomUUID())
@@ -691,7 +692,7 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
                 .entryDate(entryDate)
                 .sourceEventType(sourceEventType)
                 .sourceEventId(UUID.randomUUID())
-                .createdAt(LocalDateTime.now())
+                .createdAt(now())
                 .lines(lines)
                 .build();
         entry.validateBalanced();
@@ -809,5 +810,9 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
             return null;
         }
         return value.trim();
+    }
+
+    private static LocalDateTime now() {
+        return LocalDateTime.now(ZoneId.systemDefault());
     }
 }
