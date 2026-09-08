@@ -8,7 +8,10 @@ import {
   type StaffActivityResponse,
   type StaffActivityType,
   type StaffAttendanceResponse,
+  type StaffCompensationRequest,
   type StaffInvitationResponse,
+  type StaffPayFrequency,
+  type StaffPaymentMethod,
   type StaffPermission,
   type StaffPermissionChange,
   type StaffPermissionOverrideState,
@@ -18,6 +21,7 @@ import {
 import type { AccessLevel, ExternalAccessGrantResponse, ExternalAccessStatus } from "@modules/collaboration/types";
 import type { PatientResponse } from "@modules/patients/types";
 import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryPanel";
+import { CurrencyInput } from "@modules/staff/components/payroll/CurrencyInput";
 import { PayrollPanel } from "@modules/staff/components/payroll/PayrollPanel";
 import { StaffDetailScreen } from "@modules/staff/screens/StaffDetailScreen";
 
@@ -646,6 +650,7 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
       {showAddStaffModal && clinicId && (
         <AddStaffModal
           clinicId={clinicId}
+          canManagePayroll={canManagePayroll}
           onClose={() => setShowAddStaffModal(false)}
           onSaved={() => {
             setShowAddStaffModal(false);
@@ -873,17 +878,37 @@ function StaffActivityPanel({
   );
 }
 
+const payFrequencyLabels: Record<StaffPayFrequency, string> = {
+  WEEKLY: "Semanal",
+  BIWEEKLY: "Quincenal",
+  MONTHLY: "Mensual"
+};
+
+const paymentMethodLabels: Record<StaffPaymentMethod, string> = {
+  BANK_TRANSFER: "Transferencia",
+  CASH: "Efectivo"
+};
+
 function AddStaffModal({
   clinicId,
+  canManagePayroll,
   onClose,
   onSaved
 }: {
   clinicId: string;
+  canManagePayroll: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [baseSalary, setBaseSalary] = useState<number | null>(null);
+  const [payFrequency, setPayFrequency] = useState<StaffPayFrequency>("BIWEEKLY");
+  const [paymentMethod, setPaymentMethod] = useState<StaffPaymentMethod>("BANK_TRANSFER");
+  const [paymentAccountClabe, setPaymentAccountClabe] = useState("");
+  const [rfc, setRfc] = useState("");
+  const [curp, setCurp] = useState("");
+  const [nss, setNss] = useState("");
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -893,8 +918,23 @@ function AddStaffModal({
     const email = String(form.get("email") ?? "").trim();
     const role = String(form.get("role") ?? "DOCTOR");
 
+    const compensation: StaffCompensationRequest | null = canManagePayroll
+      ? {
+          baseSalary: baseSalary ?? 0,
+          payFrequency,
+          paymentMethod,
+          paymentAccountClabe: paymentAccountClabe.trim() || null,
+          rfc: rfc.trim() || null,
+          curp: curp.trim() || null,
+          nss: nss.trim() || null
+        }
+      : null;
+
     try {
-      await staffApi.invite(clinicId, { email, role });
+      const invitation = await staffApi.invite(clinicId, { email, role });
+      if (compensation) {
+        await staffApi.setInvitationCompensation(clinicId, invitation.invitationId, compensation);
+      }
       onSaved();
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -936,6 +976,51 @@ function AddStaffModal({
               <option value="CLEANING">Personal de limpieza</option>
             </select>
           </label>
+
+          {canManagePayroll && (
+            <>
+              <div className="field field-full">
+                <strong style={{ fontSize: "13px" }}>Datos de nómina</strong>
+                <small className="description">Se aplican al confirmar el registro del empleado.</small>
+              </div>
+              <label className="field">
+                <span>Sueldo base</span>
+                <CurrencyInput ariaLabel="Sueldo base" value={baseSalary} onValueChange={setBaseSalary} />
+              </label>
+              <label className="field">
+                <span>Periodicidad</span>
+                <select value={payFrequency} onChange={(event) => setPayFrequency(event.target.value as StaffPayFrequency)}>
+                  {(Object.keys(payFrequencyLabels) as StaffPayFrequency[]).map((value) => (
+                    <option key={value} value={value}>{payFrequencyLabels[value]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Método de pago</span>
+                <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as StaffPaymentMethod)}>
+                  {(Object.keys(paymentMethodLabels) as StaffPaymentMethod[]).map((value) => (
+                    <option key={value} value={value}>{paymentMethodLabels[value]}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>CLABE</span>
+                <input value={paymentAccountClabe} maxLength={18} placeholder="18 dígitos" onChange={(event) => setPaymentAccountClabe(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>RFC</span>
+                <input value={rfc} maxLength={13} onChange={(event) => setRfc(event.target.value.toUpperCase())} />
+              </label>
+              <label className="field">
+                <span>CURP</span>
+                <input value={curp} maxLength={18} onChange={(event) => setCurp(event.target.value.toUpperCase())} />
+              </label>
+              <label className="field">
+                <span>NSS</span>
+                <input value={nss} maxLength={11} onChange={(event) => setNss(event.target.value)} />
+              </label>
+            </>
+          )}
 
           {error && <p className="alert error">{error}</p>}
           <div className="form-actions" style={{ marginTop: "20px" }}>

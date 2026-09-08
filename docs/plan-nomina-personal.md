@@ -150,36 +150,71 @@ totales añadido en `styles.css`. `tsc -b` + `vite build` limpios.
 
 ---
 
-### P1 — Compensación por empleado
+### P1 — Compensación por empleado — HECHA (2026-09-08)
 
-- **Esfuerzo:** M
-- **Migración:** `V41__staff_compensation.sql`
-- **Objetivo:** dejar de recapturar el sueldo cada periodo.
+- **Migración:** `V41__staff_compensation.sql` — tabla nueva
+  `staff.staff_compensation` (1-1 con `staff.clinic_staff`) en vez de columnas en
+  `clinic_staff`, para no tocar archivos con WIP previo.
+  Campos: `base_salary`, `pay_frequency`, `payment_method`,
+  `payment_account_clabe`, `rfc`, `curp`, `nss`.
 
-**Migración**
+**Backend** (todo en archivos nuevos, cero cambios a `ClinicStaff*`)
 
-Columnas en `core.clinic_staff` (o tabla `staff.staff_compensation` 1-1 si se
-prefiere aislar):
-
-- `base_salary NUMERIC(14,2)`
-- `pay_frequency VARCHAR(20)`
-- `payment_method VARCHAR(20)`
-- `payment_account_clabe VARCHAR(18)`
-- `rfc VARCHAR`, `curp VARCHAR`, `nss VARCHAR`
-
-**Backend**
-
-- Añadir campos a `ClinicStaff` + `ClinicStaffEntity` + repos SQL/SpringData.
-- Extender `ManageClinicStaffUseCase.update` (o nuevo `updateCompensation`) con
-  `requirePermission(MANAGE_PAYROLL)`.
-- Exponer en el `StaffSummary` / response.
+- [x] Dominio: `StaffCompensation`, enums `StaffPayFrequency` / `StaffPaymentMethod`,
+  `ManageStaffCompensationUseCase` (get / listByClinic / updateCompensation),
+  `StaffCompensationRepositoryPort`, `StaffCompensationService` (exige
+  `MANAGE_PAYROLL` vía el `StaffPermissionCheckerPort` de P0; valida que el
+  empleado pertenece a la clínica; devuelve valores por defecto si no hay registro).
+- [x] Infra: `StaffCompensationEntity`, `SpringData…` + `SqlStaffCompensationRepository`,
+  `StaffCompensationController`
+  (`GET /staff/compensation`, `GET|PUT /staff/{staffId}/compensation`),
+  `StaffCompensationConfig` (clase de wiring propia).
+- [x] `StaffCompensationServiceTest` (5 casos). Build `clinerya-staff` + `clinerya-app` OK.
 
 **Frontend**
 
-- Sección "Datos de nómina" en `StaffDetailScreen`.
-- Nueva vista **Configuración de nómina** con el personal y su sueldo base editable.
+- [x] `api.ts`: `listStaffCompensation` / `getStaffCompensation` /
+  `updateStaffCompensation` + tipos (los reads los usará P2).
+- [~] Sub-vista **Configuracion** en `PayrollPanel` — **retirada** (decisión del
+  usuario, 2026-09-08): la compensación se captura en el alta, no en una pestaña
+  aparte. `PayrollCompensation.tsx` y `useStaffCompensation.ts` eliminados.
 
-**Dependencias:** ninguna dura; habilita P2.
+**Dependencias:** habilita P2 (generar líneas leyendo `base_salary`).
+
+---
+
+### P1b — Compensación en el alta de personal — HECHA (2026-09-08)
+
+Decisión del usuario: el **admin captura todos los datos de nómina al invitar**;
+los datos viven en la tabla 1-1 `staff_compensation`; sin sub-vista de
+configuración. Permisos: `MANAGE_STAFF` para dar de alta + `MANAGE_PAYROLL` para
+fijar el sueldo (los campos de nómina del form se muestran solo con ese permiso,
+así se puede delegar RH concediendo ambos permisos).
+
+Para **no re-entrelazar** con el WIP de `ClinicStaff*` / `UserController`:
+
+- **Migración** `V42__staff_invitation_compensation.sql` — tabla puente que
+  guarda la compensación entre invitar y confirmar.
+- **Backend (archivos nuevos):** `StaffInvitationCompensation` +
+  `StaffInvitationCompensationRepositoryPort`; `ManageStaffOnboardingUseCase` +
+  `StaffOnboardingService` (envuelve `ManageClinicStaffUseCase` +
+  `ManageStaffCompensationUseCase`; verifica `MANAGE_PAYROLL` antes de crear nada);
+  infra: `StaffInvitationCompensationEntity` + repos, `StaffOnboardingController`
+  (`POST /staff/onboarding/invitations`, `POST /staff/onboarding`),
+  `StaffOnboardingConfig`.
+- **`UserController.registerStaff`** (WIP file): **1 línea** —
+  `staffOnboardingUseCase.applyInvitationCompensation(...)` tras crear el
+  `ClinicStaff`, copia la compensación pendiente a `staff_compensation` y borra la
+  puente. (1 field + 1 import + 1 línea.)
+- **`StaffOnboardingServiceTest`** (5 casos). `mvn` staff = 23 tests verdes;
+  `clinerya-app` compila.
+- **Frontend:** `api.ts` `onboardInvite` + tipo; `AddStaffModal` con sección
+  "Datos de nómina" (sueldo con `CurrencyInput`, periodicidad, método,
+  CLABE/RFC/CURP/NSS) visible solo si `canManagePayroll`; apunta a
+  `/staff/onboarding/invitations`. `tsc -b` + `vite build` limpios.
+
+**Pendiente:** el form de "agregar usuario existente" (endpoint
+`POST /staff/onboarding`) no tiene UI todavía — hoy `AddStaffModal` solo invita.
 
 ---
 

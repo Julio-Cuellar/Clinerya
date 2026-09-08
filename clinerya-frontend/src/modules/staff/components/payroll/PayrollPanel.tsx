@@ -12,7 +12,7 @@ type PayrollView = "periods" | "new-period" | "capture" | "payment";
 
 /**
  * Self-contained payroll module: owns its data via {@link usePayroll} and splits
- * the work into three focused views (Periodos / Captura / Pago).
+ * the work into focused views (Periodos / Captura / Pago).
  */
 export function PayrollPanel({ clinicId, staff }: { clinicId?: string; staff: ClinicStaffResponse[] }) {
   const [view, setView] = useState<PayrollView>("periods");

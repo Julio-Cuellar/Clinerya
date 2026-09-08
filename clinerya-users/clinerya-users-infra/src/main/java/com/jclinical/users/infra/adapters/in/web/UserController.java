@@ -5,6 +5,7 @@ import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
 import com.jclinical.staff.domain.model.DoctorProfile;
 import com.jclinical.staff.domain.model.StaffRole;
+import com.jclinical.staff.domain.ports.in.ManageStaffOnboardingUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffInvitationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
@@ -46,6 +47,7 @@ public class UserController {
     private final ClinicStaffRepositoryPort clinicStaffRepository;
     private final DoctorProfileRepositoryPort doctorProfileRepository;
     private final PasswordHasherPort passwordHasher;
+    private final ManageStaffOnboardingUseCase staffOnboardingUseCase;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@RequestBody RegisterUserRequest request) {
@@ -136,6 +138,9 @@ public class UserController {
                 .build();
 
         clinicStaffRepository.save(staff);
+
+        // 4b. Copiar la compensacion capturada al invitar (si la hubo)
+        staffOnboardingUseCase.applyInvitationCompensation(invitation.getId(), staff.getId(), invitation.getClinicId());
 
         // 5. Si el rol es DOCTOR, crear perfil de doctor
         if (invitation.getRole() == StaffRole.DOCTOR) {

@@ -752,6 +752,11 @@ export const staffApi = {
       method: "POST",
       body: JSON.stringify(body)
     }),
+  setInvitationCompensation: (clinicId: string, invitationId: string, body: StaffCompensationRequest | null) =>
+    request<void>(`/v1/clinics/${clinicId}/staff/onboarding/invitations/${invitationId}/compensation`, {
+      method: "PUT",
+      body: JSON.stringify(body ?? {})
+    }),
   listInvitations: (clinicId: string) =>
     request<StaffInvitationResponse[]>(`/v1/clinics/${clinicId}/staff/invitations`),
   registerStaff: (body: RegisterStaffInvitationRequest) =>
@@ -834,6 +839,15 @@ export const staffApi = {
   payPayrollPeriod: (clinicId: string, periodId: string, body: PayrollPaymentRequest) =>
     request<StaffPayrollPeriodResponse>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/pay`, {
       method: "POST",
+      body: JSON.stringify(body)
+    }),
+  listStaffCompensation: (clinicId: string) =>
+    request<StaffCompensationResponse[]>(`/v1/clinics/${clinicId}/staff/compensation`),
+  getStaffCompensation: (clinicId: string, staffId: string) =>
+    request<StaffCompensationResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/compensation`),
+  updateStaffCompensation: (clinicId: string, staffId: string, body: StaffCompensationRequest) =>
+    request<StaffCompensationResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/compensation`, {
+      method: "PUT",
       body: JSON.stringify(body)
     })
 };
@@ -1050,6 +1064,31 @@ export interface StaffPayrollLineResponse {
   grossAmount: number;
   netAmount: number;
   notes?: string | null;
+}
+
+export type StaffPayFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+export type StaffPaymentMethod = "BANK_TRANSFER" | "CASH";
+
+export interface StaffCompensationRequest {
+  baseSalary: number;
+  payFrequency: StaffPayFrequency;
+  paymentMethod: StaffPaymentMethod;
+  paymentAccountClabe?: string | null;
+  rfc?: string | null;
+  curp?: string | null;
+  nss?: string | null;
+}
+
+export interface StaffCompensationResponse {
+  staffId: string;
+  clinicId: string;
+  baseSalary: number;
+  payFrequency: StaffPayFrequency;
+  paymentMethod: StaffPaymentMethod;
+  paymentAccountClabe?: string | null;
+  rfc?: string | null;
+  curp?: string | null;
+  nss?: string | null;
 }
 
 export const accountingApi = {
