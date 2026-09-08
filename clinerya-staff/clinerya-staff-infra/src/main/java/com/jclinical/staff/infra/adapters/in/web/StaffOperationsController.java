@@ -105,9 +105,11 @@ public class StaffOperationsController {
     @PostMapping("/payroll/periods")
     public ResponseEntity<PayrollPeriodSummary> createPayrollPeriod(
             @PathVariable UUID clinicId,
-            @RequestBody PayrollPeriodRequest request) {
+            @RequestBody PayrollPeriodRequest request,
+            Principal principal) {
         PayrollPeriodSummary summary = operationsUseCase.createPayrollPeriod(
                 clinicId,
+                currentUserId(principal),
                 request.name(),
                 request.periodStart(),
                 request.periodEnd());
@@ -125,9 +127,11 @@ public class StaffOperationsController {
             @PathVariable UUID clinicId,
             @PathVariable UUID periodId,
             @PathVariable UUID staffId,
-            @RequestBody PayrollLineRequest request) {
+            @RequestBody PayrollLineRequest request,
+            Principal principal) {
         PayrollLineSummary summary = operationsUseCase.upsertPayrollLine(
                 clinicId,
+                currentUserId(principal),
                 periodId,
                 staffId,
                 request.baseSalary(),
@@ -143,8 +147,9 @@ public class StaffOperationsController {
     public ResponseEntity<PayrollPeriodSummary> deletePayrollLine(
             @PathVariable UUID clinicId,
             @PathVariable UUID periodId,
-            @PathVariable UUID staffId) {
-        return ResponseEntity.ok(operationsUseCase.deletePayrollLine(clinicId, periodId, staffId));
+            @PathVariable UUID staffId,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.deletePayrollLine(clinicId, currentUserId(principal), periodId, staffId));
     }
 
     @GetMapping("/payroll/periods/{periodId}/lines")
@@ -157,8 +162,9 @@ public class StaffOperationsController {
     @PostMapping("/payroll/periods/{periodId}/close")
     public ResponseEntity<PayrollPeriodSummary> closePayrollPeriod(
             @PathVariable UUID clinicId,
-            @PathVariable UUID periodId) {
-        return ResponseEntity.ok(operationsUseCase.closePayrollPeriod(clinicId, periodId));
+            @PathVariable UUID periodId,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.closePayrollPeriod(clinicId, currentUserId(principal), periodId));
     }
 
     @PostMapping("/payroll/periods/{periodId}/pay")
@@ -166,9 +172,11 @@ public class StaffOperationsController {
     public ResponseEntity<PayrollPeriodSummary> payPayrollPeriod(
             @PathVariable UUID clinicId,
             @PathVariable UUID periodId,
-            @RequestBody PayrollPaymentRequest request) {
+            @RequestBody PayrollPaymentRequest request,
+            Principal principal) {
         return ResponseEntity.ok(operationsUseCase.payPayrollPeriod(
                 clinicId,
+                currentUserId(principal),
                 periodId,
                 request.bankAccountId(),
                 request.paymentDate()));
@@ -189,18 +197,22 @@ public class StaffOperationsController {
         if (staffId == null) {
             throw new IllegalArgumentException("El empleado es obligatorio.");
         }
-        if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
-            throw new IllegalStateException("Usuario no autenticado.");
-        }
-        UUID currentUserId = userDirectory.findByEmail(principal.getName())
-                .map(UserDirectoryPort.UserSummary::id)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado."));
+        UUID currentUserId = currentUserId(principal);
         boolean belongsToCurrentUser = clinicStaffRepository.findByClinicIdAndUserId(clinicId, currentUserId)
                 .filter(staff -> staff.isActive() && staff.getId().equals(staffId))
                 .isPresent();
         if (!belongsToCurrentUser) {
             throw new IllegalStateException("Solo puedes registrar tu propia entrada y salida.");
         }
+    }
+
+    private UUID currentUserId(Principal principal) {
+        if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
+            throw new IllegalStateException("Usuario no autenticado.");
+        }
+        return userDirectory.findByEmail(principal.getName())
+                .map(UserDirectoryPort.UserSummary::id)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado."));
     }
 
     public record ClockInRequest(

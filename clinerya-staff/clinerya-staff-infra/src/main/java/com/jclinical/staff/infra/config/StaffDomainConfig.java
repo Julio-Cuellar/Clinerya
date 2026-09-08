@@ -14,6 +14,7 @@ import com.jclinical.staff.domain.ports.out.StaffAttendanceRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
+import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
 import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 import com.jclinical.staff.domain.service.ClinicStaffService;
@@ -53,14 +54,16 @@ public class StaffDomainConfig {
             StaffActivityRepositoryPort activityRepository,
             StaffPayrollPeriodRepositoryPort payrollPeriodRepository,
             StaffPayrollLineRepositoryPort payrollLineRepository,
-            PayrollAccountingPort payrollAccounting) {
+            PayrollAccountingPort payrollAccounting,
+            StaffPermissionCheckerPort staffPermissionChecker) {
         return new StaffOperationsService(
                 clinicStaffRepository,
                 attendanceRepository,
                 activityRepository,
                 payrollPeriodRepository,
                 payrollLineRepository,
-                payrollAccounting);
+                payrollAccounting,
+                staffPermissionChecker);
     }
 
     @Bean

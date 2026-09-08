@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { IconCheck, IconClock, IconEye, IconPlus, IconReceipt, IconTrash, IconUserPlus, IconX, IconPencil, IconShieldLock } from "@tabler/icons-react";
+import { IconCheck, IconClock, IconEye, IconPlus, IconTrash, IconUserPlus, IconX, IconPencil, IconShieldLock } from "@tabler/icons-react";
 import {
   collaborationApi,
-  accountingApi,
   getFriendlyError,
   staffApi,
   type ClinicStaffResponse,
@@ -10,8 +9,6 @@ import {
   type StaffActivityType,
   type StaffAttendanceResponse,
   type StaffInvitationResponse,
-  type StaffPayrollLineResponse,
-  type StaffPayrollPeriodResponse,
   type StaffPermission,
   type StaffPermissionChange,
   type StaffPermissionOverrideState,
@@ -19,9 +16,9 @@ import {
 } from "@shared/api/api";
 
 import type { AccessLevel, ExternalAccessGrantResponse, ExternalAccessStatus } from "@modules/collaboration/types";
-import type { BankAccountResponse } from "@modules/accounting/types";
 import type { PatientResponse } from "@modules/patients/types";
 import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryPanel";
+import { PayrollPanel } from "@modules/staff/components/payroll/PayrollPanel";
 import { StaffDetailScreen } from "@modules/staff/screens/StaffDetailScreen";
 
 
@@ -87,10 +84,6 @@ const permissionStateLabels: Record<StaffPermissionOverrideState, string> = {
 
 type PersonalTab = "directory" | "attendance" | "activity" | "payroll";
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function staffIdFromPath() {
   const [section, staffId] = window.location.pathname.split("/").filter(Boolean);
   return section === "personal" ? staffId : undefined;
@@ -126,6 +119,7 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
   const [received, setReceived] = useState<ExternalAccessGrantResponse[]>([]);
   const [staff, setStaff] = useState<ClinicStaffResponse[]>([]);
   const [invitations, setInvitations] = useState<StaffInvitationResponse[]>([]);
+  const [myPermissions, setMyPermissions] = useState<StaffPermissionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -137,25 +131,9 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [attendance, setAttendance] = useState<StaffAttendanceResponse[]>([]);
   const [activities, setActivities] = useState<StaffActivityResponse[]>([]);
-  const [payrollPeriods, setPayrollPeriods] = useState<StaffPayrollPeriodResponse[]>([]);
-  const [payrollLines, setPayrollLines] = useState<StaffPayrollLineResponse[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccountResponse[]>([]);
-  const [selectedPayrollBankAccountId, setSelectedPayrollBankAccountId] = useState("");
   const [attendanceStaffId, setAttendanceStaffId] = useState("");
   const [activityStaffId, setActivityStaffId] = useState("");
-  const [payrollStaffId, setPayrollStaffId] = useState("");
-  const [selectedPayrollPeriodId, setSelectedPayrollPeriodId] = useState("");
-  const [editingPayrollLineId, setEditingPayrollLineId] = useState("");
   const operationsLoadVersion = useRef(0);
-
-  const applyPayrollLines = (lines: StaffPayrollLineResponse[]) => {
-    setPayrollLines(lines);
-    const grossAmount = lines.reduce((total, line) => total + (line.grossAmount ?? 0), 0);
-    const netAmount = lines.reduce((total, line) => total + (line.netAmount ?? 0), 0);
-    setPayrollPeriods((periods) => periods.map((period) => period.id === selectedPayrollPeriodId
-      ? { ...period, grossAmount, netAmount }
-      : period));
-  };
 
   const load = () => {
     if (!clinicId) {
@@ -199,18 +177,16 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
 
 
 
-  const loadOperations = async (periodIdOverride?: string) => {
+  const loadOperations = async () => {
     if (!clinicId) return;
     const loadVersion = ++operationsLoadVersion.current;
     const isLatestLoad = () => loadVersion === operationsLoadVersion.current;
     setOperationsLoading(true);
     setError("");
     try {
-      const [attendanceResult, activityResult, periodsResult, bankAccountsResult] = await Promise.allSettled([
+      const [attendanceResult, activityResult] = await Promise.allSettled([
         staffApi.listAttendance(clinicId),
-        staffApi.listActivities(clinicId),
-        staffApi.listPayrollPeriods(clinicId),
-        accountingApi.listBankAccounts(clinicId)
+        staffApi.listActivities(clinicId)
       ]);
       if (!isLatestLoad()) return;
       if (attendanceResult.status === "fulfilled") {
@@ -219,32 +195,9 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
       if (activityResult.status === "fulfilled") {
         setActivities(activityResult.value);
       }
-      if (bankAccountsResult.status === "fulfilled") {
-        const activeOperationalAccounts = bankAccountsResult.value.filter((account) => account.active && account.accountType === "DEBIT");
-        setBankAccounts(activeOperationalAccounts);
-        setSelectedPayrollBankAccountId((current) => current || activeOperationalAccounts[0]?.id || "");
-      }
-      if (periodsResult.status === "rejected") {
-        throw periodsResult.reason;
-      }
-      const periods = periodsResult.value;
-      const periodId = periodIdOverride || selectedPayrollPeriodId || periods[0]?.id || "";
-      setPayrollPeriods(periods);
-      setSelectedPayrollPeriodId(periodId);
-      if (!periodId) {
-        setPayrollLines([]);
-        return;
-      }
-      try {
-        const lines = await staffApi.listPayrollLines(clinicId, periodId);
-        if (isLatestLoad()) {
-          setPayrollLines(lines);
-        }
-      } catch (caught) {
-        if (isLatestLoad()) {
-          setPayrollLines([]);
-          setError(getFriendlyError(caught));
-        }
+      const failure = [attendanceResult, activityResult].find((result) => result.status === "rejected");
+      if (failure && failure.status === "rejected") {
+        throw failure.reason;
       }
     } catch (caught) {
       if (isLatestLoad()) {
@@ -304,143 +257,6 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
     }
   };
 
-  const submitPayrollPeriod = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!clinicId) return;
-    operationsLoadVersion.current += 1;
-    setOperationsLoading(false);
-    setError("");
-    const form = new FormData(event.currentTarget);
-    try {
-      const period = await staffApi.createPayrollPeriod(clinicId, {
-        name: String(form.get("name") ?? "").trim(),
-        periodStart: String(form.get("periodStart") ?? ""),
-        periodEnd: String(form.get("periodEnd") ?? "")
-      });
-      event.currentTarget.reset();
-      setPayrollPeriods((current) => [period, ...current.filter((item) => item.id !== period.id)]);
-      setSelectedPayrollPeriodId(period.id);
-      setPayrollLines([]);
-      setEditingPayrollLineId("");
-      setStatus("Periodo de nomina creado.");
-    } catch (caught) {
-      setError(getFriendlyError(caught));
-    }
-  };
-
-  const submitPayrollLine = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!clinicId || !selectedPayrollPeriodId || !payrollStaffId) return;
-    operationsLoadVersion.current += 1;
-    setOperationsLoading(false);
-    setError("");
-    const form = new FormData(event.currentTarget);
-    const lineRequest = {
-      baseSalary: Number(form.get("baseSalary") ?? 0),
-      commissionAmount: Number(form.get("commissionAmount") ?? 0),
-      bonusAmount: Number(form.get("bonusAmount") ?? 0),
-      deductionAmount: Number(form.get("deductionAmount") ?? 0),
-      notes: String(form.get("notes") ?? "").trim()
-    };
-    try {
-      const savedLine = await staffApi.upsertPayrollLine(clinicId, selectedPayrollPeriodId, payrollStaffId, lineRequest);
-      event.currentTarget.reset();
-      setPayrollLines((current) => {
-        const nextLines = [...current.filter((line) => line.id !== savedLine.id), savedLine];
-        const grossAmount = nextLines.reduce((total, line) => total + (line.grossAmount ?? 0), 0);
-        const netAmount = nextLines.reduce((total, line) => total + (line.netAmount ?? 0), 0);
-        setPayrollPeriods((periods) => periods.map((period) => period.id === selectedPayrollPeriodId
-          ? { ...period, grossAmount, netAmount }
-          : period));
-        return nextLines;
-      });
-      setEditingPayrollLineId("");
-      setStatus("Linea de nomina guardada.");
-    } catch (caught) {
-      try {
-        const persistedLines = await staffApi.listPayrollLines(clinicId, selectedPayrollPeriodId);
-        const persistedLine = persistedLines.find((line) => line.staffId === payrollStaffId
-          && line.baseSalary === lineRequest.baseSalary
-          && line.commissionAmount === lineRequest.commissionAmount
-          && line.bonusAmount === lineRequest.bonusAmount
-          && line.deductionAmount === lineRequest.deductionAmount
-          && (line.notes ?? "") === lineRequest.notes);
-        if (persistedLine) {
-          applyPayrollLines(persistedLines);
-          setEditingPayrollLineId("");
-          setStatus("Linea de nomina guardada.");
-          return;
-        }
-      } catch {
-        // Keep the original error when the reconciliation request also fails.
-      }
-      setError(getFriendlyError(caught));
-    }
-  };
-
-  const editPayrollLine = (line: StaffPayrollLineResponse | null) => {
-    setEditingPayrollLineId(line?.id ?? "");
-    if (line) {
-      setPayrollStaffId(line.staffId);
-    }
-  };
-
-  const deletePayrollLine = async (line: StaffPayrollLineResponse) => {
-    if (!clinicId || !selectedPayrollPeriodId) return;
-    const period = payrollPeriods.find((item) => item.id === selectedPayrollPeriodId);
-    if (!period || period.status !== "DRAFT") {
-      setError("Solo puedes eliminar lineas de un periodo en borrador.");
-      return;
-    }
-    if (!window.confirm("¿Eliminar esta linea de nomina del periodo?")) return;
-    operationsLoadVersion.current += 1;
-    setOperationsLoading(false);
-    setError("");
-    try {
-      const updatedPeriod = await staffApi.deletePayrollLine(clinicId, selectedPayrollPeriodId, line.staffId);
-      setPayrollLines((current) => current.filter((item) => item.id !== line.id));
-      setPayrollPeriods((periods) => periods.map((item) => item.id === updatedPeriod.id ? updatedPeriod : item));
-      if (editingPayrollLineId === line.id) {
-        setEditingPayrollLineId("");
-      }
-      setStatus("Linea de nomina eliminada.");
-    } catch (caught) {
-      setError(getFriendlyError(caught));
-    }
-  };
-
-  const closePayrollPeriod = async () => {
-    if (!clinicId || !selectedPayrollPeriodId) return;
-    operationsLoadVersion.current += 1;
-    setOperationsLoading(false);
-    setError("");
-    if (!window.confirm("Al cerrar el periodo ya no podras modificar sus lineas. ¿Continuar?")) return;
-    try {
-      const closedPeriod = await staffApi.closePayrollPeriod(clinicId, selectedPayrollPeriodId);
-      setPayrollPeriods((periods) => periods.map((period) => period.id === closedPeriod.id ? closedPeriod : period));
-      setStatus("Periodo de nomina cerrado.");
-    } catch (caught) {
-      setError(getFriendlyError(caught));
-    }
-  };
-
-  const payPayrollPeriod = async () => {
-    if (!clinicId || !selectedPayrollPeriodId || !selectedPayrollBankAccountId) return;
-    setError("");
-    operationsLoadVersion.current += 1;
-    setOperationsLoading(false);
-    try {
-      const paidPeriod = await staffApi.payPayrollPeriod(clinicId, selectedPayrollPeriodId, {
-        bankAccountId: selectedPayrollBankAccountId,
-        paymentDate: todayIsoDate()
-      });
-      setPayrollPeriods((periods) => periods.map((period) => period.id === paidPeriod.id ? paidPeriod : period));
-      setStatus("Pago de nomina registrado en contabilidad.");
-    } catch (caught) {
-      setError(getFriendlyError(caught));
-    }
-  };
-
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,12 +267,35 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
       const currentUserStaff = staff.find((member) => member.userId === userId);
       setAttendanceStaffId(currentUserStaff?.staffId ?? "");
       setActivityStaffId((current) => current || staff[0].staffId);
-      setPayrollStaffId((current) => current || staff[0].staffId);
     }
   }, [staff, userId]);
 
   useEffect(() => {
-    if (clinicId && activeTab !== "directory") {
+    const currentUserStaff = staff.find((member) => member.userId === userId);
+    if (!clinicId || !currentUserStaff) {
+      setMyPermissions(null);
+      return;
+    }
+    staffApi
+      .getPermissions(clinicId, currentUserStaff.staffId)
+      .then(setMyPermissions)
+      .catch(() => setMyPermissions(null));
+  }, [clinicId, staff, userId]);
+
+  const hasMyPermission = (permission: StaffPermission) =>
+    myPermissions?.permissions.some((item) => item.permission === permission && item.enabled) ?? false;
+  const canManageStaff = hasMyPermission("MANAGE_STAFF");
+  const canManageStaffPermissions = hasMyPermission("MANAGE_STAFF_PERMISSIONS");
+  const canManagePayroll = hasMyPermission("MANAGE_PAYROLL");
+
+  useEffect(() => {
+    if (!canManagePayroll && activeTab === "payroll") {
+      setActiveTab("directory");
+    }
+  }, [canManagePayroll, activeTab]);
+
+  useEffect(() => {
+    if (clinicId && (activeTab === "attendance" || activeTab === "activity")) {
       loadOperations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -536,9 +375,11 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
             <button className={activeTab === "activity" ? "active" : ""} type="button" onClick={() => setActiveTab("activity")}>
               Actividad
             </button>
-            <button className={activeTab === "payroll" ? "active" : ""} type="button" onClick={() => setActiveTab("payroll")}>
-              Nomina
-            </button>
+            {canManagePayroll && (
+              <button className={activeTab === "payroll" ? "active" : ""} type="button" onClick={() => setActiveTab("payroll")}>
+                Nomina
+              </button>
+            )}
           </div>
 
           {activeTab === "directory" && (
@@ -551,14 +392,16 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
               </div>
               <div className="clinic-row-actions">
                 <span className="badge neutral">{staff.length}</span>
-                <button
-                  className="btn primary"
-                  type="button"
-                  onClick={() => setShowAddStaffModal(true)}
-                >
-                  <IconPlus size={16} aria-hidden="true" />
-                  Agregar personal
-                </button>
+                {canManageStaff && (
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={() => setShowAddStaffModal(true)}
+                  >
+                    <IconPlus size={16} aria-hidden="true" />
+                    Agregar personal
+                  </button>
+                )}
               </div>
             </div>
             <div className="clinic-list">
@@ -593,28 +436,32 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
                   </div>
                   <div className="clinic-row-actions">
                     <span className="badge success">Activo</span>
-                    <button
-                      className="icon-btn"
-                      type="button"
-                      title="Editar rol"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setEditingStaff(member);
-                      }}
-                    >
-                      <IconPencil size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      className="icon-btn destructive"
-                      type="button"
-                      title="Eliminar del personal"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleRemoveStaff(member.staffId);
-                      }}
-                    >
-                      <IconTrash size={16} aria-hidden="true" />
-                    </button>
+                    {(canManageStaff || canManageStaffPermissions) && (
+                      <button
+                        className="icon-btn"
+                        type="button"
+                        title="Editar rol"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setEditingStaff(member);
+                        }}
+                      >
+                        <IconPencil size={16} aria-hidden="true" />
+                      </button>
+                    )}
+                    {canManageStaff && (
+                      <button
+                        className="icon-btn destructive"
+                        type="button"
+                        title="Eliminar del personal"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRemoveStaff(member.staffId);
+                        }}
+                      >
+                        <IconTrash size={16} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -770,31 +617,8 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
             />
           )}
 
-          {activeTab === "payroll" && (
-            <StaffPayrollPanel
-              staff={staff}
-              periods={payrollPeriods}
-              lines={payrollLines}
-              loading={operationsLoading}
-              selectedPeriodId={selectedPayrollPeriodId}
-              selectedStaffId={payrollStaffId}
-              editingLineId={editingPayrollLineId}
-              bankAccounts={bankAccounts}
-              selectedBankAccountId={selectedPayrollBankAccountId}
-              onSelectedBankAccountIdChange={setSelectedPayrollBankAccountId}
-              onSelectedPeriodIdChange={(periodId) => {
-                setSelectedPayrollPeriodId(periodId);
-                setEditingPayrollLineId("");
-                loadOperations(periodId);
-              }}
-              onSelectedStaffIdChange={setPayrollStaffId}
-              onEditLine={editPayrollLine}
-              onDeleteLine={deletePayrollLine}
-              onCreatePeriod={submitPayrollPeriod}
-              onSaveLine={submitPayrollLine}
-              onClosePeriod={closePayrollPeriod}
-              onPayPeriod={payPayrollPeriod}
-            />
+          {activeTab === "payroll" && canManagePayroll && (
+            <PayrollPanel clinicId={clinicId} staff={staff} />
           )}
         </>
       )}
@@ -1043,247 +867,6 @@ function StaffActivityPanel({
               ))}
             </tbody>
           </table>
-        </div>
-      </article>
-    </>
-  );
-}
-
-function StaffPayrollPanel({
-  staff,
-  periods,
-  lines,
-  loading,
-  selectedPeriodId,
-  selectedStaffId,
-  editingLineId,
-  bankAccounts,
-  selectedBankAccountId,
-  onSelectedPeriodIdChange,
-  onSelectedStaffIdChange,
-  onEditLine,
-  onDeleteLine,
-  onSelectedBankAccountIdChange,
-  onCreatePeriod,
-  onSaveLine,
-  onClosePeriod,
-  onPayPeriod
-}: {
-  staff: ClinicStaffResponse[];
-  periods: StaffPayrollPeriodResponse[];
-  lines: StaffPayrollLineResponse[];
-  loading: boolean;
-  selectedPeriodId: string;
-  selectedStaffId: string;
-  editingLineId: string;
-  bankAccounts: BankAccountResponse[];
-  selectedBankAccountId: string;
-  onSelectedPeriodIdChange: (periodId: string) => void;
-  onSelectedStaffIdChange: (staffId: string) => void;
-  onEditLine: (line: StaffPayrollLineResponse | null) => void;
-  onDeleteLine: (line: StaffPayrollLineResponse) => void;
-  onSelectedBankAccountIdChange: (bankAccountId: string) => void;
-  onCreatePeriod: (event: React.FormEvent<HTMLFormElement>) => void;
-  onSaveLine: (event: React.FormEvent<HTMLFormElement>) => void;
-  onClosePeriod: () => void;
-  onPayPeriod: () => void;
-}) {
-  const selectedPeriod = periods.find((period) => period.id === selectedPeriodId);
-  const selectedPeriodIsPaid = selectedPeriod?.paymentStatus === "PAID";
-  const editingLine = lines.find((line) => line.id === editingLineId);
-  const canModifyLines = selectedPeriod?.status === "DRAFT";
-
-  return (
-    <>
-      <article className="panel full">
-        <div className="panel-heading">
-          <div>
-            <h2>Nomina basica</h2>
-            <span className="panel-subtitle">Controla periodos, sueldos, comisiones, bonos y deducciones</span>
-          </div>
-          {selectedPeriod && (
-            <span className={`badge ${selectedPeriod.status === "DRAFT" ? "warning" : "success"}`}>
-              {selectedPeriod.status === "DRAFT" ? "Borrador" : "Cerrada"}
-            </span>
-          )}
-        </div>
-        <form className="profile-form" onSubmit={onCreatePeriod}>
-          <label className="field">
-            <span>Nombre del periodo</span>
-            <input name="name" placeholder="Nomina agosto 2026" required />
-          </label>
-          <label className="field">
-            <span>Inicio</span>
-            <input name="periodStart" type="date" defaultValue={todayIsoDate()} required />
-          </label>
-          <label className="field">
-            <span>Fin</span>
-            <input name="periodEnd" type="date" defaultValue={todayIsoDate()} required />
-          </label>
-          <div className="form-actions">
-            <button className="btn primary" type="submit">
-              <IconReceipt size={16} aria-hidden="true" />
-              Crear periodo
-            </button>
-          </div>
-        </form>
-      </article>
-
-      <article className="panel full">
-        <div className="panel-heading">
-          <label className="field" style={{ minWidth: 280 }}>
-            <span>Periodo</span>
-            <select value={selectedPeriodId} onChange={(event) => onSelectedPeriodIdChange(event.target.value)}>
-              <option value="">Sin periodo</option>
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>{period.name}</option>
-              ))}
-            </select>
-          </label>
-          <div className="clinic-row-actions">
-            <span className="badge neutral">Bruto {formatMoney(selectedPeriod?.grossAmount)}</span>
-            <span className="badge success">Neto {formatMoney(selectedPeriod?.netAmount)}</span>
-            {selectedPeriod && (
-              <span className={`badge ${selectedPeriodIsPaid ? "success" : "warning"}`}>
-                {selectedPeriodIsPaid ? "Pagada" : "Pendiente de pago"}
-              </span>
-            )}
-            <button className="btn secondary" type="button" disabled={!selectedPeriod || selectedPeriod.status !== "DRAFT"} onClick={onClosePeriod}>
-              Cerrar periodo
-            </button>
-          </div>
-        </div>
-
-        <form className="profile-form" key={`${editingLineId || "new-payroll-line"}-${selectedStaffId}`} onSubmit={onSaveLine}>
-          <label className="field">
-            <span>Empleado</span>
-            <select value={selectedStaffId} onChange={(event) => onSelectedStaffIdChange(event.target.value)}>
-              {staff.map((member) => (
-                <option key={member.staffId} value={member.staffId}>{member.fullName}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Sueldo base</span>
-            <input name="baseSalary" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editingLine?.baseSalary ?? ""} />
-          </label>
-          <label className="field">
-            <span>Comision</span>
-            <input name="commissionAmount" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editingLine?.commissionAmount ?? ""} />
-          </label>
-          <label className="field">
-            <span>Bono</span>
-            <input name="bonusAmount" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editingLine?.bonusAmount ?? ""} />
-          </label>
-          <label className="field">
-            <span>Deduccion</span>
-            <input name="deductionAmount" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editingLine?.deductionAmount ?? ""} />
-          </label>
-          <label className="field">
-            <span>Notas</span>
-            <input name="notes" placeholder="Pago semanal, ajuste, etc." defaultValue={editingLine?.notes ?? ""} />
-          </label>
-          <div className="form-actions">
-            <button className="btn primary" type="submit" disabled={!canModifyLines || !selectedStaffId}>
-              {editingLine ? "Actualizar linea" : "Guardar linea"}
-            </button>
-            {editingLine && (
-              <button className="btn ghost" type="button" onClick={() => onEditLine(null)}>
-                Cancelar
-              </button>
-            )}
-          </div>
-        </form>
-      </article>
-
-      <article className="panel full">
-        <div className="table-wrapper">
-          <table className="data-table no-row-click">
-            <thead>
-              <tr>
-                <th>Empleado</th>
-                <th>Sueldo</th>
-                <th>Comision</th>
-                <th>Bono</th>
-                <th>Deduccion</th>
-                <th>Neto</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={7}>Cargando nomina...</td></tr>
-              )}
-              {!loading && lines.length === 0 && (
-                <tr>
-                  <td colSpan={7}>
-                    <div className="empty-table-state">
-                      <strong>Sin lineas de nomina</strong>
-                      <span>Agrega empleados al periodo seleccionado.</span>
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {lines.map((line) => (
-                <tr key={line.id}>
-                  <td>{staffName(staff, line.staffId)}</td>
-                  <td>{formatMoney(line.baseSalary)}</td>
-                  <td>{formatMoney(line.commissionAmount)}</td>
-                  <td>{formatMoney(line.bonusAmount)}</td>
-                  <td>{formatMoney(line.deductionAmount)}</td>
-                  <td>{formatMoney(line.netAmount)}</td>
-                  <td className="table-actions">
-                    <button
-                      className="icon-btn"
-                      type="button"
-                      title="Editar linea"
-                      aria-label={`Editar linea de ${staffName(staff, line.staffId)}`}
-                      disabled={!canModifyLines}
-                      onClick={() => onEditLine(line)}
-                    >
-                      <IconPencil size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      className="icon-btn destructive"
-                      type="button"
-                      title="Eliminar linea"
-                      aria-label={`Eliminar linea de ${staffName(staff, line.staffId)}`}
-                      disabled={!canModifyLines}
-                      onClick={() => onDeleteLine(line)}
-                    >
-                      <IconTrash size={16} aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="profile-form payroll-payment-form">
-          <label className="field">
-            <span>Cuenta operativa de pago</span>
-            <select value={selectedBankAccountId} onChange={(event) => onSelectedBankAccountIdChange(event.target.value)} disabled={bankAccounts.length === 0}>
-              <option value="">Selecciona una cuenta operativa</option>
-              {bankAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.alias || account.bankName} - {account.accountKind === "PETTY_CASH" ? "Caja chica" : account.accountKind === "RESERVE" ? "Fondo especifico" : account.accountKind === "OTHER" ? "Otra operativa" : "Banco"}{account.accountLast4 ? ` ****${account.accountLast4}` : ""}
-                </option>
-              ))}
-            </select>
-            {bankAccounts.length === 0 && <small className="description">Registra una cuenta bancaria de débito en Contabilidad.</small>}
-          </label>
-          <div className="form-actions">
-            <button
-              className="btn primary"
-              type="button"
-              disabled={!selectedPeriod || selectedPeriod.status !== "CLOSED" || selectedPeriodIsPaid || !selectedBankAccountId || Number(selectedPeriod.netAmount ?? 0) <= 0}
-              onClick={onPayPeriod}
-            >
-              <IconReceipt size={16} aria-hidden="true" />
-              Pagar nómina
-            </button>
-          </div>
         </div>
       </article>
     </>

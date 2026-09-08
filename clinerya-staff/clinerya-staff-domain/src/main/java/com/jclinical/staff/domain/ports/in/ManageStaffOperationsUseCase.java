@@ -24,21 +24,23 @@ public interface ManageStaffOperationsUseCase {
     List<ActivitySummary> listActivities(UUID clinicId, UUID staffId, StaffActivityType type,
                                          LocalDateTime from, LocalDateTime to);
 
-    PayrollPeriodSummary createPayrollPeriod(UUID clinicId, String name, LocalDate periodStart, LocalDate periodEnd);
+    PayrollPeriodSummary createPayrollPeriod(UUID clinicId, UUID actingUserId, String name, LocalDate periodStart,
+                                            LocalDate periodEnd);
 
     List<PayrollPeriodSummary> listPayrollPeriods(UUID clinicId);
 
-    PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal baseSalary,
-                                         BigDecimal commissionAmount, BigDecimal bonusAmount,
+    PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId,
+                                         BigDecimal baseSalary, BigDecimal commissionAmount, BigDecimal bonusAmount,
                                          BigDecimal deductionAmount, String notes);
 
-    PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID periodId, UUID staffId);
+    PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId);
 
     List<PayrollLineSummary> listPayrollLines(UUID clinicId, UUID periodId);
 
-    PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID periodId);
+    PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId);
 
-    PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID periodId, UUID bankAccountId, LocalDate paymentDate);
+    PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
+                                          LocalDate paymentDate);
 
     record AttendanceSummary(
             UUID id,

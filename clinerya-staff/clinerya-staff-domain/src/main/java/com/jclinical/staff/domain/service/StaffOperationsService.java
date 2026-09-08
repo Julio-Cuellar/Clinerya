@@ -1,5 +1,6 @@
 package com.jclinical.staff.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.StaffActivityLog;
 import com.jclinical.staff.domain.model.StaffActivityType;
@@ -9,12 +10,14 @@ import com.jclinical.staff.domain.model.StaffPayrollLine;
 import com.jclinical.staff.domain.model.StaffPayrollPeriod;
 import com.jclinical.staff.domain.model.StaffPayrollPeriodStatus;
 import com.jclinical.staff.domain.model.StaffPayrollPaymentStatus;
+import com.jclinical.staff.domain.model.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffActivityRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffAttendanceRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
+import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 
 import java.math.BigDecimal;
@@ -33,19 +36,22 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     private final StaffPayrollPeriodRepositoryPort payrollPeriodRepository;
     private final StaffPayrollLineRepositoryPort payrollLineRepository;
     private final PayrollAccountingPort payrollAccounting;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public StaffOperationsService(ClinicStaffRepositoryPort clinicStaffRepository,
                                   StaffAttendanceRepositoryPort attendanceRepository,
                                   StaffActivityRepositoryPort activityRepository,
                                   StaffPayrollPeriodRepositoryPort payrollPeriodRepository,
                                   StaffPayrollLineRepositoryPort payrollLineRepository,
-                                  PayrollAccountingPort payrollAccounting) {
+                                  PayrollAccountingPort payrollAccounting,
+                                  StaffPermissionCheckerPort permissionChecker) {
         this.clinicStaffRepository = clinicStaffRepository;
         this.attendanceRepository = attendanceRepository;
         this.activityRepository = activityRepository;
         this.payrollPeriodRepository = payrollPeriodRepository;
         this.payrollLineRepository = payrollLineRepository;
         this.payrollAccounting = payrollAccounting;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
@@ -142,7 +148,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary createPayrollPeriod(UUID clinicId, String name, LocalDate periodStart, LocalDate periodEnd) {
+    public PayrollPeriodSummary createPayrollPeriod(UUID clinicId, UUID actingUserId, String name, LocalDate periodStart,
+                                                   LocalDate periodEnd) {
+        requirePayrollPermission(clinicId, actingUserId);
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre del periodo de nomina es obligatorio.");
         }
@@ -172,9 +180,10 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal baseSalary,
-                                                BigDecimal commissionAmount, BigDecimal bonusAmount,
+    public PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId,
+                                                BigDecimal baseSalary, BigDecimal commissionAmount, BigDecimal bonusAmount,
                                                 BigDecimal deductionAmount, String notes) {
+        requirePayrollPermission(clinicId, actingUserId);
         ensureActiveStaff(clinicId, staffId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
@@ -200,7 +209,8 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID periodId, UUID staffId) {
+    public PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
         StaffPayrollLine line = payrollLineRepository.findByPeriodIdAndStaffId(periodId, staffId)
@@ -219,7 +229,8 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID periodId) {
+    public PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
         refreshPayrollTotals(period);
@@ -229,7 +240,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID periodId, UUID bankAccountId, LocalDate paymentDate) {
+    public PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
+                                                LocalDate paymentDate) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         if (period.getStatus() != StaffPayrollPeriodStatus.CLOSED) {
             throw new IllegalStateException("Cierra el periodo antes de generar el pago.");
@@ -260,6 +273,15 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
         period.setPaymentAccountId(bankAccountId);
         period.setPaymentJournalEntryId(payment.journalEntryId());
         return toPayrollPeriodSummary(payrollPeriodRepository.save(period));
+    }
+
+    private void requirePayrollPermission(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_PAYROLL)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para gestionar la nomina de esta clinica.");
+        }
     }
 
     private ClinicStaff ensureActiveStaff(UUID clinicId, UUID staffId) {

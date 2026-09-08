@@ -7052,3 +7052,153 @@ h2 {
     padding: var(--space-4);
   }
 }
+
+/* ============================================================
+   Nómina (módulo Personal): sub-navegación, stepper y totales
+   ============================================================ */
+.payroll-subnav {
+  margin-top: var(--space-2);
+}
+
+.payroll-stepper {
+  grid-column: span 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.payroll-stepper-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  background: var(--color-surface);
+}
+
+.payroll-stepper-step .payroll-stepper-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface-muted);
+  color: var(--color-text-2);
+  font-size: 11px;
+}
+
+.payroll-stepper-step.is-current {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.payroll-stepper-step.is-current .payroll-stepper-index {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.payroll-stepper-step.is-done {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.payroll-stepper-step.is-done .payroll-stepper-index {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.staff-selectable-row.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.data-table tfoot th,
+.data-table tfoot td {
+  font-weight: 700;
+  color: var(--color-text-1);
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+  text-transform: none;
+  font-size: 13px;
+}
+
+.payroll-payment-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: var(--space-3) 0;
+}
+
+.payroll-payment-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payroll-payment-summary dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--color-text-2);
+  font-weight: 600;
+}
+
+.payroll-payment-summary dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.confirm-dialog-body {
+  font-size: 13px;
+  color: var(--color-text-1);
+}
+
+.confirm-dialog-body ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.payroll-lines-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.payroll-lines-toolbar input[type="search"] {
+  width: min(320px, 100%);
+}
+
+.payroll-sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+
+.payroll-sort-header.is-numeric {
+  flex-direction: row-reverse;
+}
+
+.payroll-sort-header svg {
+  opacity: 0.6;
+}
+
+.payroll-sort-header:hover svg {
+  opacity: 1;
+}
