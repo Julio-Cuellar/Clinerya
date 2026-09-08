@@ -159,6 +159,23 @@ public class StaffOperationsController {
         return ResponseEntity.ok(operationsUseCase.listPayrollLines(clinicId, periodId));
     }
 
+    @PostMapping("/payroll/periods/{periodId}/lines/generate")
+    @Transactional
+    public ResponseEntity<List<PayrollLineSummary>> generatePayrollLines(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID periodId,
+            @RequestParam(required = false, defaultValue = "BASE_COMPENSATION") String source,
+            Principal principal) {
+        ManageStaffOperationsUseCase.PayrollLineSource parsedSource;
+        try {
+            parsedSource = ManageStaffOperationsUseCase.PayrollLineSource.valueOf(source.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Origen de generacion no valido: " + source);
+        }
+        return ResponseEntity.ok(operationsUseCase.generatePayrollLines(
+                clinicId, currentUserId(principal), periodId, parsedSource));
+    }
+
     @PostMapping("/payroll/periods/{periodId}/close")
     public ResponseEntity<PayrollPeriodSummary> closePayrollPeriod(
             @PathVariable UUID clinicId,

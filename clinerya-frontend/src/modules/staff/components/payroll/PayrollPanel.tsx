@@ -37,6 +37,7 @@ export function PayrollPanel({ clinicId, staff }: { clinicId?: string; staff: Cl
     startEditLine,
     createPeriod,
     saveLine,
+    generateLines,
     deleteLine,
     closePeriod,
     payPeriod
@@ -112,6 +113,7 @@ export function PayrollPanel({ clinicId, staff }: { clinicId?: string; staff: Cl
           editingLine={editingLine}
           onSelectStaff={selectStaff}
           onSaveLine={saveLine}
+          onGenerateLines={generateLines}
           onEditLine={startEditLine}
           onDeleteLine={deleteLine}
           onClosePeriod={closePeriod}

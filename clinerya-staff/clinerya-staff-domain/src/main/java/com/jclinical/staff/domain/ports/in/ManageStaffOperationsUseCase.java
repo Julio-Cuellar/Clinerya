@@ -37,10 +37,22 @@ public interface ManageStaffOperationsUseCase {
 
     List<PayrollLineSummary> listPayrollLines(UUID clinicId, UUID periodId);
 
+    /**
+     * Crea lineas para el personal activo que aun no tiene una en el periodo (no
+     * sobrescribe las existentes). BASE_COMPENSATION usa el sueldo base de cada
+     * empleado; PREVIOUS_PERIOD copia los montos del ultimo periodo cerrado.
+     */
+    List<PayrollLineSummary> generatePayrollLines(UUID clinicId, UUID actingUserId, UUID periodId, PayrollLineSource source);
+
     PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId);
 
     PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
                                           LocalDate paymentDate);
+
+    enum PayrollLineSource {
+        BASE_COMPENSATION,
+        PREVIOUS_PERIOD
+    }
 
     record AttendanceSummary(
             UUID id,

@@ -218,24 +218,33 @@ Para **no re-entrelazar** con el WIP de `ClinicStaff*` / `UserController`:
 
 ---
 
-### P2 — Generar líneas del periodo
+### P2 — Generar líneas del periodo — HECHA (2026-09-08)
 
-- **Esfuerzo:** S
-- **Migración:** no
-- **Valor:** mayor ahorro de tiempo por unidad de esfuerzo. Hacer justo después de P1.
+**Backend** (todo en archivos ya propios: `StaffOperationsService` + su use case + controller)
 
-**Backend**
-
-- `POST /payroll/periods/{id}/lines:generate` → por cada `ClinicStaff` activo sin
-  línea, crea una con `baseSalary` = compensación de P1 (0 si no hay).
-- Variante `?source=previous` → copia montos de la última nómina cerrada.
-- Reusa `upsertPayrollLine` + `refreshPayrollTotals`.
+- [x] `ManageStaffOperationsUseCase.generatePayrollLines(clinicId, actingUserId,
+  periodId, PayrollLineSource)` con enum `BASE_COMPENSATION | PREVIOUS_PERIOD`.
+- [x] `StaffOperationsService`: exige `MANAGE_PAYROLL`, periodo en `DRAFT`; **no
+  sobrescribe** líneas ya capturadas.
+  - `BASE_COMPENSATION`: por cada `ClinicStaff` activo sin línea → crea una con
+    `baseSalary` = `staff_compensation` (0 si no hay), resto 0.
+  - `PREVIOUS_PERIOD`: último periodo `CLOSED` (por `periodEnd`), copia
+    base/comisión/bono/deducción/notas de cada línea cuyo empleado siga activo;
+    error si no hay periodo cerrado.
+  - Recalcula totales del periodo.
+- [x] `POST /payroll/periods/{periodId}/lines/generate?source=base_compensation|previous_period`
+  (`@Transactional`).
+- [x] Nueva dependencia `StaffCompensationRepositoryPort` en `StaffOperationsService`
+  (wiring en `StaffDomainConfig`). `StaffOperationsServiceTest` +4 casos
+  (staff = 27 tests verdes); `clinerya-app` compila.
 
 **Frontend**
 
-- Botones "Generar para todo el personal activo" y "Copiar del periodo anterior"
-  en la vista **Captura**.
-- Indicador "faltan N por capturar".
+- [x] `api.ts`: `generatePayrollLines` + tipo `PayrollLineSource`.
+- [x] `usePayroll`: acción `generateLines(source)` (refresca líneas + totales).
+- [x] `PayrollCapture`: barra con **"Generar desde sueldos base (N)"** y
+  **"Copiar del periodo anterior"** (solo en borrador); N = faltantes por capturar.
+- [x] `tsc -b` + `vite build` limpios.
 
 ---
 

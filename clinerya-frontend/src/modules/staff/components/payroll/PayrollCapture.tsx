@@ -1,5 +1,11 @@
 import { useState } from "react";
-import type { ClinicStaffResponse, StaffPayrollLineResponse, StaffPayrollPeriodResponse } from "@shared/api/api";
+import { IconUsersGroup, IconCopy } from "@tabler/icons-react";
+import type {
+  ClinicStaffResponse,
+  PayrollLineSource,
+  StaffPayrollLineResponse,
+  StaffPayrollPeriodResponse
+} from "@shared/api/api";
 import { formatCurrency } from "@modules/staff/lib/payroll";
 import type { PayrollLineValues } from "@modules/staff/hooks/usePayroll";
 import { ConfirmDialog } from "@modules/staff/components/ConfirmDialog";
@@ -16,6 +22,7 @@ export function PayrollCapture({
   editingLine,
   onSelectStaff,
   onSaveLine,
+  onGenerateLines,
   onEditLine,
   onDeleteLine,
   onClosePeriod,
@@ -29,13 +36,27 @@ export function PayrollCapture({
   editingLine: StaffPayrollLineResponse | undefined;
   onSelectStaff: (staffId: string) => void;
   onSaveLine: (values: PayrollLineValues) => void;
+  onGenerateLines: (source: PayrollLineSource) => Promise<void>;
   onEditLine: (line: StaffPayrollLineResponse | null) => void;
   onDeleteLine: (line: StaffPayrollLineResponse) => void;
   onClosePeriod: () => void;
   onGoToPeriods: () => void;
 }) {
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const [generating, setGenerating] = useState<PayrollLineSource | null>(null);
   const canModify = period?.status === "DRAFT";
+  const missingCount = Math.max(staff.length - lines.length, 0);
+
+  const runGenerate = async (source: PayrollLineSource) => {
+    setGenerating(source);
+    try {
+      await onGenerateLines(source);
+    } catch {
+      // feedback surfaced by the panel
+    } finally {
+      setGenerating(null);
+    }
+  };
 
   if (!period) {
     return (
@@ -80,6 +101,30 @@ export function PayrollCapture({
 
         {!canModify && (
           <p className="description">Este periodo esta cerrado. Continua en la pestana Pago.</p>
+        )}
+
+        {canModify && (
+          <div className="payroll-generate-bar">
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={generating !== null || missingCount === 0}
+              onClick={() => runGenerate("BASE_COMPENSATION")}
+            >
+              <IconUsersGroup size={16} aria-hidden="true" />
+              {generating === "BASE_COMPENSATION" ? "Generando..." : `Generar desde sueldos base (${missingCount})`}
+            </button>
+            <button
+              className="btn ghost"
+              type="button"
+              disabled={generating !== null}
+              onClick={() => runGenerate("PREVIOUS_PERIOD")}
+            >
+              <IconCopy size={16} aria-hidden="true" />
+              {generating === "PREVIOUS_PERIOD" ? "Copiando..." : "Copiar del periodo anterior"}
+            </button>
+            <small className="description">No sobrescribe lineas ya capturadas.</small>
+          </div>
         )}
 
         <PayrollLineForm

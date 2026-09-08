@@ -832,6 +832,11 @@ export const staffApi = {
     }),
   listPayrollLines: (clinicId: string, periodId: string) =>
     request<StaffPayrollLineResponse[]>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines`),
+  generatePayrollLines: (clinicId: string, periodId: string, source: PayrollLineSource) =>
+    request<StaffPayrollLineResponse[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines/generate?source=${source}`,
+      { method: "POST" }
+    ),
   closePayrollPeriod: (clinicId: string, periodId: string) =>
     request<StaffPayrollPeriodResponse>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/close`, {
       method: "POST"
@@ -1068,6 +1073,7 @@ export interface StaffPayrollLineResponse {
 
 export type StaffPayFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY";
 export type StaffPaymentMethod = "BANK_TRANSFER" | "CASH";
+export type PayrollLineSource = "BASE_COMPENSATION" | "PREVIOUS_PERIOD";
 
 export interface StaffCompensationRequest {
   baseSalary: number;

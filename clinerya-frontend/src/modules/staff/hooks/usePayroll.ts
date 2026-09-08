@@ -4,6 +4,7 @@ import {
   getFriendlyError,
   staffApi,
   type ClinicStaffResponse,
+  type PayrollLineSource,
   type StaffPayrollLineResponse,
   type StaffPayrollPeriodResponse
 } from "@shared/api/api";
@@ -38,6 +39,7 @@ export interface UsePayrollResult {
   startEditLine: (line: StaffPayrollLineResponse | null) => void;
   createPeriod: (input: { name: string; periodStart: string; periodEnd: string }) => Promise<void>;
   saveLine: (values: PayrollLineValues) => Promise<void>;
+  generateLines: (source: PayrollLineSource) => Promise<void>;
   deleteLine: (line: StaffPayrollLineResponse) => Promise<void>;
   closePeriod: () => Promise<void>;
   payPeriod: () => Promise<void>;
@@ -261,6 +263,28 @@ export function usePayroll(
     [clinicId, selectedPeriodId, selectedStaffId, recomputePeriodTotals]
   );
 
+  const generateLines = useCallback(
+    async (source: PayrollLineSource) => {
+      if (!clinicId || !selectedPeriodId) return;
+      bumpVersion();
+      setError("");
+      try {
+        const nextLines = await staffApi.generatePayrollLines(clinicId, selectedPeriodId, source);
+        setLines(nextLines);
+        recomputePeriodTotals(selectedPeriodId, nextLines);
+        setStatus(
+          source === "PREVIOUS_PERIOD"
+            ? "Lineas copiadas del periodo anterior."
+            : "Lineas generadas desde los sueldos base."
+        );
+      } catch (caught) {
+        setError(getFriendlyError(caught));
+        throw caught;
+      }
+    },
+    [clinicId, selectedPeriodId, recomputePeriodTotals]
+  );
+
   const deleteLine = useCallback(
     async (line: StaffPayrollLineResponse) => {
       if (!clinicId || !selectedPeriodId) return;
@@ -332,6 +356,7 @@ export function usePayroll(
     startEditLine,
     createPeriod,
     saveLine,
+    generateLines,
     deleteLine,
     closePeriod,
     payPeriod
