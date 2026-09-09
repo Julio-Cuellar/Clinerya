@@ -17,6 +17,7 @@ import type { PatientResponse, RegisterPatientRequest, UpdatePatientRequest } fr
 import type {
   AttachmentMeta,
   ClinicalNoteResponse,
+  ClinicalNoteAddendumResponse,
   CreateClinicalNoteRequest,
   CreateHistoryTemplateRequest,
   HistoryTemplateResponse,
@@ -330,7 +331,16 @@ export const clinicalNotesApi = {
     request<ClinicalNoteResponse>(
       `/v1/patients/${patientId}/clinical-notes/${noteId}/sign?clinicId=${encodeURIComponent(clinicId)}`,
       { method: "PATCH" }
-    )
+    ),
+  listAddenda: (patientId: string, noteId: string, clinicId: string) =>
+    request<ClinicalNoteAddendumResponse[]>(
+      `/v1/patients/${patientId}/clinical-notes/${noteId}/addenda?clinicId=${encodeURIComponent(clinicId)}`
+    ),
+  addAddendum: (patientId: string, noteId: string, body: { clinicId: string; content: string }) =>
+    request<ClinicalNoteAddendumResponse>(`/v1/patients/${patientId}/clinical-notes/${noteId}/addenda`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    })
 };
 
 export const prescriptionsApi = {

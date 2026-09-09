@@ -372,7 +372,7 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 
 ---
 
-### P2b — Notas clínicas: legibilidad y uso diario — BACKEND HECHO (2026-09-08)
+### P2b — Notas clínicas: legibilidad y uso diario — HECHO (2026-09-08)
 
 - **Esfuerzo:** M
 - **Migración:** `V45` (addendums)
@@ -418,14 +418,19 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 filtro/buscador va en el cliente (los volúmenes de notas por paciente no lo
 justifican todavía).
 
-**Frontend — pendiente**
+**Frontend — HECHO**
 
-- [ ] `ClinicalNotesSection`: fila con `doctorName`, badge de estado,
-  **preview de 1 línea** del `assessment`, filtro por médico y buscador (cliente).
-- [ ] `ClinicalNoteModal`: sin UUIDs (usa `doctorName`/`signedByName`); en notas
-  firmadas, sección **Addendums** (lista + "Agregar addendum" contra
-  `POST/GET /{noteId}/addenda`); autoguardado de borrador en `localStorage` por
-  `(patientId, noteId|"new")`; botón "Copiar de la última nota".
+- [x] `ClinicalNotesSection`: fila con `doctorName` (fallback "Especialista
+  externo" / "Staff de la clínica"), badge de estado, **preview de 1 línea**
+  (assessment→plan→subjective→objective), buscador y filtro por médico, ambos en
+  cliente.
+- [x] `ClinicalNoteModal`: firmante por `signedByName` (fallback al ID); autor
+  visible; sección **Addendums** en notas firmadas (`GET/POST /{noteId}/addenda`,
+  lista + form si hay escritura); autoguardado de borrador en `localStorage` por
+  `clinical-note-draft:{patientId}:{noteId|"new"}` (hidrata al abrir, limpia al
+  guardar/firmar); botón **"Copiar de la última nota"** (S/O/A/P + signos vitales).
+- [x] `ClinicalNoteResponse` (front) + `ClinicalNoteAddendumResponse` +
+  `clinicalNotesApi.listAddenda` / `addAddendum`.
 
 ---
 

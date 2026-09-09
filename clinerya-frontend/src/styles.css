@@ -953,6 +953,89 @@ h2 {
   border-top: 1px solid var(--color-border);
 }
 
+.note-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.note-row-preview {
+  color: var(--color-text-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60ch;
+}
+
+.note-modal-author {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.note-modal-hint {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 12px;
+}
+
+.note-addenda {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.note-addenda h3 {
+  margin: 0 0 var(--space-1);
+}
+
+.note-addenda-help,
+.note-addenda-empty {
+  margin: 0 0 var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.note-addendum {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-card);
+}
+
+.note-addendum-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-2);
+  margin-bottom: var(--space-1);
+}
+
+.note-addendum-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.note-addendum-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.note-addendum-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
 .vitals-section {
   margin-top: var(--space-6);
   padding-top: var(--space-6);

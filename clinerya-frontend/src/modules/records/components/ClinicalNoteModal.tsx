@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
-import { IconDeviceFloppy, IconSignature, IconX } from "@tabler/icons-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { IconCopy, IconDeviceFloppy, IconSignature, IconX } from "@tabler/icons-react";
 import { agendaApi, clinicalNotesApi, getFriendlyError } from "@shared/api/api";
-import type { ClinicalNoteFields, ClinicalNoteResponse } from "@modules/records/types";
+import type { ClinicalNoteAddendumResponse, ClinicalNoteFields, ClinicalNoteResponse } from "@modules/records/types";
 import type { DoctorResponse } from "@modules/agenda/types";
 
 function toNumberString(value: number | null | undefined): string {
@@ -10,6 +10,45 @@ function toNumberString(value: number | null | undefined): string {
 
 function toOptionalNumber(value: string): number | undefined {
   return value.trim() === "" ? undefined : Number(value);
+}
+
+interface DraftState {
+  subjective: string;
+  objective: string;
+  temperature: string;
+  bloodPressure: string;
+  heartRate: string;
+  respiratoryRate: string;
+  weight: string;
+  height: string;
+  oxygenSaturation: string;
+  assessment: string;
+  plan: string;
+}
+
+function readDraft(key: string): DraftState | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as DraftState) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(key: string, draft: DraftState) {
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // almacenamiento no disponible (modo privado, cuota); el autoguardado es best-effort
+  }
+}
+
+function clearDraft(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ídem
+  }
 }
 
 export function ClinicalNoteModal({
@@ -31,6 +70,7 @@ export function ClinicalNoteModal({
 }) {
   const locked = existingNote?.status === "SIGNED" || readOnly;
   const showDoctorSelect = !existingNote && !defaultDoctorId;
+  const draftKey = `clinical-note-draft:${patientId}:${existingNote?.id ?? "new"}`;
 
   const [doctors, setDoctors] = useState<DoctorResponse[]>([]);
   const [doctorId, setDoctorId] = useState(existingNote?.doctorId ?? defaultDoctorId ?? "");
@@ -48,6 +88,43 @@ export function ClinicalNoteModal({
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [copiedFromLast, setCopiedFromLast] = useState(false);
+
+  const [addenda, setAddenda] = useState<ClinicalNoteAddendumResponse[]>([]);
+  const [addendumText, setAddendumText] = useState("");
+  const [addingAddendum, setAddingAddendum] = useState(false);
+
+  const currentDraft = useMemo<DraftState>(
+    () => ({
+      subjective,
+      objective,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      weight,
+      height,
+      oxygenSaturation,
+      assessment,
+      plan
+    }),
+    [subjective, objective, temperature, bloodPressure, heartRate, respiratoryRate, weight, height, oxygenSaturation, assessment, plan]
+  );
+
+  const applyDraft = (draft: DraftState) => {
+    setSubjective(draft.subjective ?? "");
+    setObjective(draft.objective ?? "");
+    setTemperature(draft.temperature ?? "");
+    setBloodPressure(draft.bloodPressure ?? "");
+    setHeartRate(draft.heartRate ?? "");
+    setRespiratoryRate(draft.respiratoryRate ?? "");
+    setWeight(draft.weight ?? "");
+    setHeight(draft.height ?? "");
+    setOxygenSaturation(draft.oxygenSaturation ?? "");
+    setAssessment(draft.assessment ?? "");
+    setPlan(draft.plan ?? "");
+  };
 
   useEffect(() => {
     if (!showDoctorSelect) return;
@@ -58,6 +135,34 @@ export function ClinicalNoteModal({
         // si no se puede cargar el listado de doctores, se deja el selector vacío
       });
   }, [clinicId, showDoctorSelect]);
+
+  // Hidratar un borrador local si existe y la nota aún es editable.
+  useEffect(() => {
+    if (locked) return;
+    const draft = readDraft(draftKey);
+    if (draft) {
+      applyDraft(draft);
+      setDraftRestored(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autoguardado local mientras se edita (best-effort).
+  useEffect(() => {
+    if (locked) return;
+    writeDraft(draftKey, currentDraft);
+  }, [locked, draftKey, currentDraft]);
+
+  // Addendums de una nota firmada.
+  useEffect(() => {
+    if (existingNote?.status !== "SIGNED") return;
+    clinicalNotesApi
+      .listAddenda(patientId, existingNote.id, clinicId)
+      .then(setAddenda)
+      .catch(() => {
+        // no se pudieron cargar los addendums; no bloquea la vista de la nota
+      });
+  }, [patientId, clinicId, existingNote?.id, existingNote?.status]);
 
   const buildFields = (): ClinicalNoteFields => ({
     subjective: subjective || undefined,
@@ -83,6 +188,7 @@ export function ClinicalNoteModal({
       } else {
         await clinicalNotesApi.create(patientId, { clinicId, doctorId, status: "DRAFT", ...buildFields() });
       }
+      clearDraft(draftKey);
       onSaved();
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -98,6 +204,7 @@ export function ClinicalNoteModal({
     setError("");
     try {
       await clinicalNotesApi.sign(patientId, existingNote.id, clinicId);
+      clearDraft(draftKey);
       onSaved();
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -105,6 +212,56 @@ export function ClinicalNoteModal({
       setSigning(false);
     }
   };
+
+  const handleCopyFromLast = async () => {
+    setError("");
+    try {
+      const all = await clinicalNotesApi.listByPatient(patientId, clinicId);
+      const last = all
+        .filter((note) => note.id !== existingNote?.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      if (!last) {
+        setError("No hay una nota previa para copiar.");
+        return;
+      }
+      applyDraft({
+        subjective: last.subjective ?? "",
+        objective: last.objective ?? "",
+        temperature: toNumberString(last.vitalSigns?.temperature),
+        bloodPressure: last.vitalSigns?.bloodPressure ?? "",
+        heartRate: toNumberString(last.vitalSigns?.heartRate),
+        respiratoryRate: toNumberString(last.vitalSigns?.respiratoryRate),
+        weight: toNumberString(last.vitalSigns?.weight),
+        height: toNumberString(last.vitalSigns?.height),
+        oxygenSaturation: toNumberString(last.vitalSigns?.oxygenSaturation),
+        assessment: last.assessment ?? "",
+        plan: last.plan ?? ""
+      });
+      setCopiedFromLast(true);
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    }
+  };
+
+  const handleAddAddendum = async () => {
+    if (!existingNote || !addendumText.trim()) return;
+    setAddingAddendum(true);
+    setError("");
+    try {
+      const created = await clinicalNotesApi.addAddendum(patientId, existingNote.id, {
+        clinicId,
+        content: addendumText.trim()
+      });
+      setAddenda((prev) => [...prev, created]);
+      setAddendumText("");
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    } finally {
+      setAddingAddendum(false);
+    }
+  };
+
+  const signerName = existingNote?.signedByName || existingNote?.signedByUserId;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -115,6 +272,19 @@ export function ClinicalNoteModal({
             <IconX size={18} />
           </button>
         </div>
+
+        {existingNote?.doctorName && (
+          <p className="note-modal-author">
+            Autor: <strong>{existingNote.doctorName}</strong>
+          </p>
+        )}
+
+        {!locked && (draftRestored || copiedFromLast) && (
+          <p className="note-modal-hint">
+            {copiedFromLast ? "Contenido copiado de la última nota. Revísalo antes de guardar." : "Se recuperó un borrador sin guardar."}
+          </p>
+        )}
+
         <form className="profile-form" onSubmit={handleSubmit}>
           {showDoctorSelect && (
             <label className="field field-full">
@@ -130,6 +300,15 @@ export function ClinicalNoteModal({
                 ))}
               </select>
             </label>
+          )}
+
+          {!locked && (
+            <div className="field-full">
+              <button className="btn ghost" type="button" onClick={handleCopyFromLast}>
+                <IconCopy size={16} aria-hidden="true" />
+                Copiar de la última nota
+              </button>
+            </div>
           )}
 
           <label className="field field-full">
@@ -210,7 +389,7 @@ export function ClinicalNoteModal({
               <span>
                 Fecha: {existingNote.signedAt ? new Date(existingNote.signedAt).toLocaleString("es-MX") : "No disponible"}
               </span>
-              {existingNote.signedByUserId && <span>Firmante: {existingNote.signedByUserId}</span>}
+              {signerName && <span>Firmante: {signerName}</span>}
               {existingNote.documentHash && (
                 <span>
                   Hash SHA-256: <code>{existingNote.documentHash}</code>
@@ -235,6 +414,45 @@ export function ClinicalNoteModal({
             </div>
           )}
         </form>
+
+        {existingNote?.status === "SIGNED" && (
+          <div className="note-addenda">
+            <h3>Addendums</h3>
+            <p className="note-addenda-help">
+              La nota firmada no se modifica. Toda corrección posterior se registra como un addendum con su propia firma.
+            </p>
+
+            {addenda.length === 0 && <p className="note-addenda-empty">Sin addendums.</p>}
+
+            {addenda.map((addendum) => (
+              <div className="note-addendum" key={addendum.id}>
+                <div className="note-addendum-head">
+                  <strong>{addendum.createdByUserName}</strong>
+                  <span>{new Date(addendum.createdAt).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}</span>
+                </div>
+                <p className="note-addendum-body">{addendum.content}</p>
+              </div>
+            ))}
+
+            {!readOnly && (
+              <div className="note-addendum-form">
+                <textarea
+                  value={addendumText}
+                  placeholder="Escribe la corrección o aclaración…"
+                  onChange={(event) => setAddendumText(event.target.value)}
+                />
+                <button
+                  className="btn secondary"
+                  type="button"
+                  disabled={addingAddendum || !addendumText.trim()}
+                  onClick={handleAddAddendum}
+                >
+                  {addingAddendum ? "Agregando..." : "Agregar addendum"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -291,6 +291,7 @@ export interface ClinicalNoteResponse {
   patientId: string;
   clinicId: string;
   doctorId: string;
+  doctorName?: string | null;
   subjective?: string;
   objective?: string;
   vitalSigns?: VitalSigns | null;
@@ -300,9 +301,21 @@ export interface ClinicalNoteResponse {
   authoredByExternalUserId?: string | null;
   signedAt?: string | null;
   signedByUserId?: string | null;
+  signedByName?: string | null;
   documentHash?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ClinicalNoteAddendumResponse {
+  id: string;
+  clinicalNoteId: string;
+  clinicId: string;
+  patientId: string;
+  createdByUserId: string;
+  createdByUserName: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface ClinicalNoteFields {
