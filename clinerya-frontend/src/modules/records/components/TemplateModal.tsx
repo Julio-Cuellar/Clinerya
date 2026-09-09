@@ -20,6 +20,7 @@ import { ExportPdfModal } from "@shared/ui/ExportPdfModal";
 import { TemplateCanvas } from "@modules/records/components/canvas/TemplateCanvas";
 import { TemplatePalette } from "@modules/records/components/canvas/TemplatePalette";
 import { TypographyToolbar } from "@modules/records/components/canvas/TypographyToolbar";
+import { ClinicalMappingToolbar } from "@modules/records/components/canvas/ClinicalMappingToolbar";
 
 export function TemplateModal({
   clinicId,
@@ -88,6 +89,12 @@ export function TemplateModal({
         return { ...element, ...patch };
       })
     );
+  };
+
+  // El mapeo clínico es propio de un solo campo (los índices de columna dependen de su tabla),
+  // así que se reemplaza el elemento completo sin propagar a la multiselección ni hacer diff de claves.
+  const replaceSelectedElement = (next: TemplateElement) => {
+    setCurrentPageElements((currentPage?.elements ?? []).map((element) => (element.id === next.id ? next : element)));
   };
 
   const selectedElement = currentPage?.elements.find((element) => element.id === selectedIds[selectedIds.length - 1]) ?? null;
@@ -338,7 +345,12 @@ export function TemplateModal({
         </button>
       </div>
 
-      {selectedElement && <TypographyToolbar element={selectedElement} onChange={updateSelectedElement} />}
+      {selectedElement && (
+        <>
+          <TypographyToolbar element={selectedElement} onChange={updateSelectedElement} />
+          <ClinicalMappingToolbar element={selectedElement} onChange={replaceSelectedElement} />
+        </>
+      )}
 
       <div className="canvas-editor-body">
         <TemplatePalette enforceBands={enforceBands} existingElements={currentPage?.elements ?? []} />

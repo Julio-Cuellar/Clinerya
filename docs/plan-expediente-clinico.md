@@ -282,7 +282,7 @@ independientes en silos, sin vista cronológica.
 
 ---
 
-### P1c — Sincronización de datos tipados desde la plantilla — BACKEND HECHO (2026-09-08)
+### P1c — Sincronización de datos tipados desde la plantilla — HECHO (2026-09-08)
 
 - **Esfuerzo:** M
 - **Migración:** no
@@ -326,11 +326,20 @@ Forma del mapeo en un elemento del schema:
 - [x] `TemplateClinicalDataSyncAdapterTest` (8 casos). `clinerya-records-infra`
   41/41 verde · `clinerya-app` compila.
 
-**Frontend — pendiente**
+**Frontend — HECHO (2026-09-08)**
 
-- [ ] Control en el editor de canvas (`CanvasElementCard`) para marcar un campo
-  como Alergia / Padecimiento / Medicación y (para tablas) elegir columnas.
-  Mientras tanto el `clinicalMapping` se puede poner a mano en el `schemaJson`.
+- [x] `ClinicalMappingToolbar` (`components/canvas/`): segunda fila de la barra de
+  propiedades del elemento seleccionado en `TemplateModal`, visible sólo para
+  `table` / `text` / `textarea`. Selector "Sin mapeo / Alergias / Padecimientos /
+  Medicación"; para tablas, un `<select>` por rol de columna (Sustancia·Reacción /
+  Padecimiento·CIE-10·Fecha / Medicamento·Dosis·Frecuencia) poblado con
+  `element.columns`; para ALLERGY, selector de categoría por defecto. Escribe
+  `element.clinicalMapping` en el schema (`serializeSchema` ya lo incluye).
+- [x] `ClinicalMapping`, `CLINICAL_MAPPING_TARGET_LABELS`,
+  `CLINICAL_MAPPING_CATEGORY_LABELS`, `CLINICAL_MAPPING_COLUMN_ROLES` en
+  `records/types.ts`; `clinicalMapping?` en `TemplateElement`.
+- [x] `replaceSelectedElement` en `TemplateModal` (reemplazo exacto del campo, sin
+  propagar a la multiselección — los índices de columna son propios de su tabla).
 
 **Pendiente aparte (de P1a):** `lastVisitAt` en el resumen clínico — requiere
 dependencia cross-módulo a `clinerya-agenda` (endpoint "última cita del paciente").

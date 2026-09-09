@@ -32,6 +32,43 @@ export type TemplatePdfFontFamily = "helvetica" | "times" | "courier";
 
 export type TemplateTextAlign = "left" | "center" | "right";
 
+export type ClinicalMappingTarget = "ALLERGY" | "CONDITION" | "MEDICATION";
+export type ClinicalMappingCategory = "DRUG" | "FOOD" | "ENVIRONMENTAL" | "OTHER";
+
+/**
+ * Vuelca las respuestas de este campo a los datos clínicos tipados del paciente
+ * (alergias / padecimientos / medicación). `primary/secondary/tertiary` son
+ * índices de columna cuando el campo es una tabla; para campos de texto se ignora.
+ * Lo interpreta `TemplateClinicalDataSyncAdapter` en el backend al guardar la historia.
+ */
+export interface ClinicalMapping {
+  target: ClinicalMappingTarget;
+  primary?: number;
+  secondary?: number;
+  tertiary?: number;
+  defaultCategory?: ClinicalMappingCategory;
+}
+
+export const CLINICAL_MAPPING_TARGET_LABELS: Record<ClinicalMappingTarget, string> = {
+  ALLERGY: "Alergias",
+  CONDITION: "Padecimientos",
+  MEDICATION: "Medicación"
+};
+
+export const CLINICAL_MAPPING_CATEGORY_LABELS: Record<ClinicalMappingCategory, string> = {
+  DRUG: "Fármaco",
+  FOOD: "Alimento",
+  ENVIRONMENTAL: "Ambiental",
+  OTHER: "Otro"
+};
+
+/** Rol de cada columna mapeada, por destino. `null` = esa columna no aplica. */
+export const CLINICAL_MAPPING_COLUMN_ROLES: Record<ClinicalMappingTarget, [string, string | null, string | null]> = {
+  ALLERGY: ["Sustancia", "Reacción", null],
+  CONDITION: ["Padecimiento", "CIE-10", "Fecha de inicio"],
+  MEDICATION: ["Medicamento", "Dosis", "Frecuencia"]
+};
+
 export interface TemplateElement {
   id: string;
   sectionId?: string;
@@ -39,6 +76,7 @@ export interface TemplateElement {
   type: TemplateFieldType;
   options?: string[];
   columns?: string[];
+  clinicalMapping?: ClinicalMapping;
   x: number;
   y: number;
   width: number;
