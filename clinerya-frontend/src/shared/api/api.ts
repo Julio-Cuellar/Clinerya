@@ -28,7 +28,14 @@ import type {
   RecordAccessLogResponse,
   RecordAccessLogPageResponse,
   PrivacyConsentResponse,
-  SignPrivacyConsentRequest
+  SignPrivacyConsentRequest,
+  PatientClinicalSummaryResponse,
+  PatientAllergyDto,
+  PatientConditionDto,
+  PatientMedicationDto,
+  AllergyInput,
+  ConditionInput,
+  MedicationInput
 } from "@modules/records/types";
 import type { IssuePrescriptionRequest, Prescription } from "@modules/records/prescriptionTypes";
 import type {
@@ -334,6 +341,66 @@ export const prescriptionsApi = {
       method: "POST",
       body: JSON.stringify(body)
     })
+};
+
+const summaryBase = (patientId: string, clinicId: string) =>
+  `/v1/patients/${patientId}/clinical-summary?clinicId=${encodeURIComponent(clinicId)}`;
+const summarySub = (patientId: string, clinicId: string, path: string) =>
+  `/v1/patients/${patientId}/clinical-summary/${path}?clinicId=${encodeURIComponent(clinicId)}`;
+
+export const clinicalSummaryApi = {
+  get: (patientId: string, clinicId: string) =>
+    request<PatientClinicalSummaryResponse>(summaryBase(patientId, clinicId)),
+
+  setReview: (
+    patientId: string,
+    clinicId: string,
+    kind: "allergies" | "conditions" | "medications",
+    noneReported: boolean
+  ) =>
+    request<void>(summarySub(patientId, clinicId, `${kind}/review`), {
+      method: "PUT",
+      body: JSON.stringify({ noneReported })
+    }),
+
+  addAllergy: (patientId: string, clinicId: string, body: AllergyInput) =>
+    request<PatientAllergyDto>(summarySub(patientId, clinicId, "allergies"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateAllergy: (patientId: string, allergyId: string, clinicId: string, body: AllergyInput) =>
+    request<PatientAllergyDto>(summarySub(patientId, clinicId, `allergies/${allergyId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeAllergy: (patientId: string, allergyId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `allergies/${allergyId}`), { method: "DELETE" }),
+
+  addCondition: (patientId: string, clinicId: string, body: ConditionInput) =>
+    request<PatientConditionDto>(summarySub(patientId, clinicId, "conditions"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateCondition: (patientId: string, conditionId: string, clinicId: string, body: ConditionInput) =>
+    request<PatientConditionDto>(summarySub(patientId, clinicId, `conditions/${conditionId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeCondition: (patientId: string, conditionId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `conditions/${conditionId}`), { method: "DELETE" }),
+
+  addMedication: (patientId: string, clinicId: string, body: MedicationInput) =>
+    request<PatientMedicationDto>(summarySub(patientId, clinicId, "medications"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateMedication: (patientId: string, medicationId: string, clinicId: string, body: MedicationInput) =>
+    request<PatientMedicationDto>(summarySub(patientId, clinicId, `medications/${medicationId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeMedication: (patientId: string, medicationId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `medications/${medicationId}`), { method: "DELETE" })
 };
 
 export const treatmentCatalogApi = {

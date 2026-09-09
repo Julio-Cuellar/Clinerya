@@ -345,3 +345,120 @@ export interface SignPrivacyConsentRequest {
   signatureImage: string;
 }
 
+// ---- Resumen clínico (datos tipados: alergias / crónicos / medicación) ----
+
+export type AllergySeverity = "MILD" | "MODERATE" | "SEVERE" | "UNKNOWN";
+export type AllergyCategory = "DRUG" | "FOOD" | "ENVIRONMENTAL" | "OTHER";
+export type ConditionStatus = "ACTIVE" | "RESOLVED";
+export type ClinicalDataSource = "MANUAL" | "TEMPLATE";
+
+export interface PatientAllergyDto {
+  id: string;
+  substance: string;
+  reaction?: string | null;
+  severity: AllergySeverity;
+  category: AllergyCategory;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface PatientConditionDto {
+  id: string;
+  name: string;
+  icd10Code?: string | null;
+  status: ConditionStatus;
+  onsetDate?: string | null;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface PatientMedicationDto {
+  id: string;
+  medicationName: string;
+  dose?: string | null;
+  schedule?: string | null;
+  active: boolean;
+  startedOn?: string | null;
+  stoppedOn?: string | null;
+  prescriptionId?: string | null;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface ClinicalReviewDto {
+  noneReported: boolean;
+  reviewedByUserName?: string | null;
+  reviewedAt?: string | null;
+}
+
+export type ClinicalReviewKind = "allergies" | "conditions" | "medications";
+
+export interface PatientClinicalSummaryResponse {
+  patientId: string;
+  bloodType?: string | null;
+  allergies: PatientAllergyDto[];
+  conditions: PatientConditionDto[];
+  activeMedications: PatientMedicationDto[];
+  lastNoteAt?: string | null;
+  allergiesReview: ClinicalReviewDto;
+  conditionsReview: ClinicalReviewDto;
+  medicationsReview: ClinicalReviewDto;
+}
+
+export interface AllergyInput {
+  substance: string;
+  reaction?: string | null;
+  severity?: AllergySeverity | null;
+  category?: AllergyCategory | null;
+}
+
+export interface ConditionInput {
+  name: string;
+  icd10Code?: string | null;
+  status?: ConditionStatus | null;
+  onsetDate?: string | null;
+}
+
+export interface MedicationInput {
+  medicationName: string;
+  dose?: string | null;
+  schedule?: string | null;
+  active: boolean;
+  startedOn?: string | null;
+  stoppedOn?: string | null;
+  prescriptionId?: string | null;
+}
+
+export const BLOOD_TYPE_LABELS: Record<string, string> = {
+  O_POSITIVE: "O+",
+  O_NEGATIVE: "O−",
+  A_POSITIVE: "A+",
+  A_NEGATIVE: "A−",
+  B_POSITIVE: "B+",
+  B_NEGATIVE: "B−",
+  AB_POSITIVE: "AB+",
+  AB_NEGATIVE: "AB−"
+};
+
+export const ALLERGY_SEVERITY_LABELS: Record<AllergySeverity, string> = {
+  MILD: "Leve",
+  MODERATE: "Moderada",
+  SEVERE: "Severa",
+  UNKNOWN: "Sin especificar"
+};
+
+export const ALLERGY_CATEGORY_LABELS: Record<AllergyCategory, string> = {
+  DRUG: "Fármaco",
+  FOOD: "Alimento",
+  ENVIRONMENTAL: "Ambiental",
+  OTHER: "Otra"
+};
+
+export const CONDITION_STATUS_LABELS: Record<ConditionStatus, string> = {
+  ACTIVE: "Activo",
+  RESOLVED: "Resuelto"
+};
+

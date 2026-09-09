@@ -5,6 +5,7 @@ import type { HistoryTemplateResponse, MedicalHistoryResponse, PrivacyConsentRes
 import type { PatientResponse } from "@modules/patients/types";
 import type { ClinicResponse } from "@modules/clinics/types";
 import { ClinicalNotesSection } from "@modules/records/components/ClinicalNotesSection";
+import { PatientClinicalHeader } from "@modules/records/components/PatientClinicalHeader";
 import { HistoryFormModal } from "@modules/records/components/HistoryFormModal";
 import { InviteExternalAccessModal } from "@modules/collaboration/components/InviteExternalAccessModal";
 import { RecordAccessLogsModal } from "@modules/records/components/RecordAccessLogsModal";
@@ -17,7 +18,8 @@ export function PatientHistoryPanel({
   allowSharing = true,
   historyReadOnly = false,
   canWriteNotes = true,
-  defaultDoctorId
+  defaultDoctorId,
+  showClinicalHeader = true
 }: {
   clinicId: string;
   patient: PatientResponse;
@@ -26,6 +28,7 @@ export function PatientHistoryPanel({
   historyReadOnly?: boolean;
   canWriteNotes?: boolean;
   defaultDoctorId?: string;
+  showClinicalHeader?: boolean;
 }) {
   const [templates, setTemplates] = useState<HistoryTemplateResponse[]>([]);
   const [histories, setHistories] = useState<MedicalHistoryResponse[]>([]);
@@ -103,6 +106,10 @@ export function PatientHistoryPanel({
           </button>
         </div>
       </div>
+
+      {showClinicalHeader && (
+        <PatientClinicalHeader clinicId={clinicId} patientId={patient.id} canEdit={!historyReadOnly} />
+      )}
 
       {!privacyConsentLoading && clinic && (
         <div style={{

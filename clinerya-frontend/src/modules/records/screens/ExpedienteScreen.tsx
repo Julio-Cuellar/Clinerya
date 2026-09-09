@@ -18,6 +18,7 @@ import { getAge } from "@shared/utils/getAge";
 import { agendaApi, attachmentsApi, getFriendlyError, quotationsApi, ticketsApi } from "@shared/api/api";
 import { FileFieldEditor } from "@shared/ui/FileFieldEditor";
 import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryPanel";
+import { PatientClinicalHeader } from "@modules/records/components/PatientClinicalHeader";
 import { TemplatesPanel } from "@modules/records/components/TemplatesPanel";
 
 type MainTab = "expedientes" | "plantillas";
@@ -514,8 +515,15 @@ function PatientRecord({
         </div>
       </article>
 
+      <PatientClinicalHeader clinicId={clinicId} patientId={patient.id} />
+
       {tab === "historia" && (
-        <PatientHistoryPanel clinicId={clinicId} patient={patient} onChangePatient={onBack} />
+        <PatientHistoryPanel
+          clinicId={clinicId}
+          patient={patient}
+          onChangePatient={onBack}
+          showClinicalHeader={false}
+        />
       )}
       {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
       {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}

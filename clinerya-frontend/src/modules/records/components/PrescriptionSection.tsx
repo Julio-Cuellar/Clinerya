@@ -3,6 +3,7 @@ import { IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
 import type { PatientResponse } from "@modules/patients/types";
 import type { IssuePrescriptionRequest, Prescription, PrescriptionItem } from "@modules/records/prescriptionTypes";
 import { getFriendlyError, prescriptionsApi } from "@shared/api/api";
+import { DrugAllergyBox } from "@modules/records/components/DrugAllergyBox";
 
 export function PrescriptionSection({
   clinicId,
@@ -154,7 +155,9 @@ export function PrescriptionSection({
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px", marginTop: "16px" }}>
+    <>
+      <DrugAllergyBox clinicId={clinicId} patientId={patient.id} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px", marginTop: "16px" }}>
       <div className="panel full">
         <div className="panel-heading">
           <h3>Emitir Nueva Receta Médica</h3>
@@ -288,6 +291,7 @@ export function PrescriptionSection({
           ))}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

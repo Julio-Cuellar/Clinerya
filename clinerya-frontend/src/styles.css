@@ -7226,3 +7226,184 @@ h2 {
   gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
+
+/* ---- Resumen clínico: cabecera + recuadro pasivo de alergias (P1a) ---- */
+
+.clinical-header {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3) var(--space-5);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.clinical-header--message {
+  align-items: center;
+  color: var(--color-text-2);
+  font-size: 0.85rem;
+}
+
+.clinical-header-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+  max-width: 320px;
+}
+
+.clinical-header-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.clinical-header-label svg {
+  color: var(--color-text-3);
+  flex-shrink: 0;
+}
+
+.clinical-header-value {
+  color: var(--color-text-1);
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.clinical-header-cell.is-alert .clinical-header-label,
+.clinical-header-cell.is-alert .clinical-header-label svg,
+.clinical-header-cell.is-alert .clinical-header-value {
+  color: var(--color-error);
+}
+
+.clinical-header-manage {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.drug-allergy-box {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+}
+
+.drug-allergy-box-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-text-1);
+}
+
+.drug-allergy-box-head svg {
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.drug-allergy-box-meta {
+  color: var(--color-text-2);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.drug-allergy-box-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  font-size: 0.88rem;
+}
+
+.drug-allergy-box-list li {
+  margin-bottom: 2px;
+}
+
+.drug-allergy-box-sev {
+  color: var(--color-text-2);
+}
+
+.clinical-editor-section {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.clinical-editor-section h3 {
+  margin: 0 0 var(--space-2);
+}
+
+.clinical-editor-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  margin-bottom: var(--space-2);
+}
+
+.clinical-editor-check input {
+  width: auto;
+  margin: 0;
+}
+
+.clinical-editor-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clinical-editor-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  padding: 4px 0;
+}
+
+.clinical-editor-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.clinical-editor-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 130px;
+  min-width: 0;
+}
+
+.clinical-editor-form label span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-3);
+}
+
+.clinical-editor-form input,
+.clinical-editor-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.clinical-editor-form button {
+  flex: 0 0 auto;
+}

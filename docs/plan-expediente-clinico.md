@@ -42,7 +42,7 @@ Lo que ya existe y funciona:
 | Autorización cross-módulo | `.../adapters/out/crossmodule/RecordsAccessAuthorizationAdapter.java` (implementa `PatientAccessAuthorizationPort`, resuelve rol de staff + grants de colaboración) |
 | Persistencia | `.../adapters/out/persistence/` — `Sql*Repository`, `SpringData*Repository`, `*Entity`, `*Mapper` |
 | Config / wiring | `clinerya-records-infra/.../config/RecordsDomainConfig.java`, `TransactionalClinicalNoteUseCase.java` |
-| Migraciones Flyway | `clinerya-app/src/main/resources/db/migration/` — última asignada `V42`, **siguiente libre: `V43`** (⚠️ `V41`/`V42` son de nómina y aún sin commitear; si no aterrizan, usar `V41`) |
+| Migraciones Flyway | `clinerya-app/src/main/resources/db/migration/` — `V43` (datos clínicos tipados) y `V44` (estado de revisión clínica) ya creadas por este plan; **siguiente libre: `V45`** |
 | API frontend | `clinerya-frontend/src/shared/api/api.ts` — `medicalHistoryApi`, `clinicalNotesApi`, `prescriptionsApi` (~línea 339), `historyTemplatesApi`, `privacyConsentApi`, `attachmentsApi` |
 | Pantalla | `clinerya-frontend/src/modules/records/screens/ExpedienteScreen.tsx` |
 | Componentes | `clinerya-frontend/src/modules/records/components/` — `PatientHistoryPanel`, `ClinicalNotesSection`, `ClinicalNoteModal`, `HistoryFormModal`, `HistoryVersionsModal`, `PrescriptionSection`, `RecordAccessLogsModal`, `PrivacyConsentModal`, `TemplatesPanel`, `OdontogramField` |
@@ -137,7 +137,7 @@ Entra en la **P0**. ✅ Resuelto el 2026-09-08 (ver P0 abajo).
 
 ---
 
-### P1a — Cabecera clínica + datos críticos tipados — BACKEND HECHO (2026-09-08)
+### P1a — Cabecera clínica + datos críticos tipados — HECHO (2026-09-08)
 
 - **Esfuerzo:** L
 - **Migración:** `V43` (nuevas tablas en el schema `records`)
@@ -189,16 +189,28 @@ automático entraría en soporte a la decisión clínica y queda **fuera** del p
   medicación se filtra a `active` en el resumen; add/update sellan
   `notedByUserId/Name/At` y `source = MANUAL`.
 - [x] `PatientLookupPort.PatientDetails` extendido con `bloodType` (+ adapter).
+- [x] **Estado "sin ... reportados / preguntadas y negadas"** por tipo de dato
+  (`V44__patient_clinical_reviews.sql`): tabla `records.patient_clinical_reviews
+  (id, clinic_id, patient_id, kind [ALLERGIES|CONDITIONS|MEDICATIONS],
+  none_reported, reviewed_by_*, reviewed_at)` con `UNIQUE (clinic_id, patient_id,
+  kind)`. Modelo `PatientClinicalReview` + enum `ClinicalReviewKind` +
+  `PatientClinicalReviewRepositoryPort` + `Entity`/`SpringData`/`Sql`.
+  `ClinicalSummary` gana `allergiesReview` / `conditionsReview` /
+  `medicationsReview` (record `ReviewStatus { noneReported, reviewedByUserName,
+  reviewedAt }`); `setClinicalReview(..., kind, noneReported)` hace upsert por
+  `kind` (exige `READ_WRITE`).
 - [x] `PatientClinicalSummaryController` `@Transactional`:
   `GET /api/v1/patients/{patientId}/clinical-summary?clinicId=` +
+  `PUT .../{allergies|conditions|medications}/review` +
   `POST|PUT|DELETE .../allergies|conditions|medications[/{id}]`, `clinicId` por
   query, cada operación llama `recordAccessLogUseCase.logAccess(...,
-  "CLINICAL_SUMMARY"|"PATIENT_ALLERGY"|"PATIENT_CONDITION"|"PATIENT_MEDICATION",
-  id, "READ"|"WRITE", ip, ua)`. DTO `PatientClinicalSummaryResponse`.
+  "CLINICAL_SUMMARY"|"PATIENT_ALLERGY"|"PATIENT_CLINICAL_REVIEW"|"PATIENT_CONDITION"
+  |"PATIENT_MEDICATION", id, "READ"|"WRITE", ip, ua)`. DTO
+  `PatientClinicalSummaryResponse` (con `ReviewDto` × 3).
 - [x] Wiring en `RecordsDomainConfig` (bean `patientClinicalSummaryService`; los
   `Sql*Repository` son `@Repository` component-scan).
-- [x] `PatientClinicalSummaryServiceTest` (7 casos). `clinerya-records-infra`
-  30/30 verde · `clinerya-app` compila.
+- [x] `PatientClinicalSummaryServiceTest` (10 casos, incl. review por `kind`).
+  `clinerya-records-infra` 33/33 verde · `clinerya-app` compila.
 
 **Backend — pendiente (movido a P1c)**
 
@@ -206,23 +218,37 @@ automático entraría en soporte a la decisión clínica y queda **fuera** del p
   `allergy` / `condition` / `medication` y hacer upsert con `source = TEMPLATE`
   al `saveMedicalHistory`.
 
-**Frontend** — PENDIENTE
+**Frontend** — HECHO (2026-09-08)
 
-- [ ] `PatientClinicalHeader` — banda fija arriba de las 5 pestañas del
-  expediente (en `PatientRecord`, `ExpedienteScreen.tsx`): **alergias · crónicos ·
-  medicación activa · tipo de sangre · última consulta**, alergias en rojo.
-  Visible también en `PatientHistoryPanel` (que se monta desde `PersonalScreen` y
-  `PatientCareScreen`).
-- [ ] `medicalRecordsApi.getClinicalSummary(patientId, clinicId)` +
-  edición inline de alergias/crónicos/medicación (modal o panel lateral).
-- [ ] **Recuadro pasivo de alergias a fármacos en la sección de Recetas**
-  (`PrescriptionSection`): solo lectura, lista `patient_allergies` de tipo
-  fármaco tal cual. Sin lógica de coincidencia con el medicamento recetado, sin
-  color por severidad calculada, sin aviso. Encabezado con procedencia:
-  *"Alergias a fármacos registradas · actualizado {fecha} por {autor}"*. Si no
-  hay ninguna, mostrar *"Sin alergias a fármacos registradas"* (no dejar vacío).
-- [ ] El mismo recuadro pasivo puede reutilizarse en `ClinicalNoteModal`; nunca
-  como banner de alerta al escribir.
+- [x] Tipos en `modules/records/types.ts` (`PatientClinicalSummaryResponse` con
+  `allergiesReview` / `conditionsReview` / `medicationsReview: ClinicalReviewDto`,
+  `PatientAllergyDto` / `ConditionDto` / `MedicationDto`, inputs, mapas de labels)
+  + `clinicalSummaryApi` en `api.ts` (`get`, `setReview(kind, noneReported)`, CRUD
+  de las 3 entidades, `clinicId` por query).
+- [x] `PatientClinicalHeader` — banda **alergias · crónicos · medicación activa ·
+  tipo de sangre · última consulta**, celdas etiqueta-sobre-valor, `grid-column:
+  1 / -1` (ocupa el ancho del `dashboard-grid`). Cada celda: lista si hay datos
+  (alergias en rojo), o *"Preguntadas y negadas"* / *"Sin padecimientos
+  reportados"* / *"Sin medicación activa"* si el flag está puesto, o *"Sin
+  registrar"*. Montada en `PatientRecord` (`ExpedienteScreen`) y en
+  `PatientHistoryPanel` con prop `showClinicalHeader` (default `true`; el
+  expediente la pasa `false`). `canEdit = !historyReadOnly`.
+- [x] `ClinicalDataEditor` — modal (`Gestionar`) con **alta y baja** de alergias,
+  padecimientos y medicación. **Cada cambio (alta, baja, casilla) confirma primero
+  los datos capturados** en un `ConfirmDialog` con estilos (no `window.confirm`),
+  que reproduce el dato; borrar usa `tone="danger"`. Casilla por sección:
+  *"Preguntadas y negadas"* / *"Sin padecimientos reportados"* / *"Sin medicación
+  activa"* (deshabilitada si esa sección ya tiene datos) → `setReview`. Formularios
+  con etiquetas; medicación con **fecha de inicio y fin** (`startedOn` /
+  `stoppedOn`); padecimientos con `onsetDate`. Edición en sitio = follow-up menor.
+- [x] `DrugAllergyBox` — recuadro pasivo en `PrescriptionSection`: solo lectura,
+  filtra `category === "DRUG"`, encabezado con procedencia
+  *"actualizado {fecha} por {autor}"*, vacío → *"Sin alergias a fármacos
+  registradas"* o *"Preguntadas y negadas: sin alergias a fármacos conocidas"* si
+  `allergiesReview.noneReported`. Sin coincidencia con el fármaco recetado, sin
+  severidad calculada, sin aviso.
+- [ ] Reutilizar `DrugAllergyBox` en `ClinicalNoteModal` — pendiente (menor).
+- [x] `tsc -b` + `vite build` limpios.
 
 ---
 
@@ -287,7 +313,7 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 ### P2b — Notas clínicas: legibilidad y uso diario
 
 - **Esfuerzo:** M
-- **Migración:** `V44` (solo para addendums)
+- **Migración:** `V45` (solo para addendums)
 - **Riesgo:** bajo
 
 **Problemas.**
@@ -308,7 +334,7 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 - [ ] `ClinicalNoteResponse`: incluir `doctorName` y `signedByName` (resolver por
   `PatientLookupPort` / directorio de staff) en vez de solo IDs.
 - [ ] **Addendum:** tabla `records.clinical_note_addenda (id, note_id, clinic_id,
-  author_user_id, author_name, body, document_hash, created_at)` (`V44`);
+  author_user_id, author_name, body, document_hash, created_at)` (`V45`);
   `ManageClinicalNoteUseCase.addAddendum(noteId, patientId, clinicId, body,
   requestingUserId)` — permitido solo si la nota está `SIGNED`, cada addendum se
   hashea y se registra en `document_signatures`. Nunca modifica la nota original.
@@ -328,13 +354,13 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 ### P3 — Codificación diagnóstica (CIE-10)
 
 - **Esfuerzo:** M
-- **Migración:** `V45`
+- **Migración:** `V46`
 - **Riesgo:** bajo
 
 **Problema.** `assessment` es texto libre, cero CIE-10. Bloquea reportes
 epidemiológicos y cualquier informe a Secretaría de Salud.
 
-**Migración `V45`**
+**Migración `V46`**
 
 - `records.icd10_catalog (code PK, description, chapter, billable BOOLEAN)` —
   seed con el subset usado en México (o carga diferida desde CSV).
@@ -359,7 +385,7 @@ epidemiológicos y cualquier informe a Secretaría de Salud.
 ### P4 — PDF con valor probatorio + exportación estándar
 
 - **Esfuerzo:** L
-- **Migración:** `V46`
+- **Migración:** `V47`
 - **Riesgo:** medio (mueve generación de documentos al backend)
 
 **Problema.** El PDF se genera en el navegador (`lib/pdfExport.ts`, ~1320
@@ -373,7 +399,7 @@ cubierto por `TemporaryRecordShare`, que es para especialistas).
 - [ ] Servicio de render server-side (nota firmada, historia firmada, receta,
   expediente completo) → PDF; guardar `document_hash` del PDF en
   `records.rendered_documents (id, clinic_id, patient_id, doc_type, source_id,
-  hash, storage_key, created_at)` (`V46`).
+  hash, storage_key, created_at)` (`V47`).
 - [ ] `GET .../clinical-notes/{id}/pdf`, `.../medical-history/{templateId}/pdf`,
   `.../prescriptions/{id}/pdf`, `.../patients/{id}/record.pdf`.
 - [ ] **Export ARCO:** paquete del expediente del paciente (JSON + PDFs) generado
