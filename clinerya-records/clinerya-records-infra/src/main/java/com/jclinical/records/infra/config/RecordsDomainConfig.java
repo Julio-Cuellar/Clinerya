@@ -13,6 +13,7 @@ import com.jclinical.records.domain.model.NoteStatus;
 import com.jclinical.records.domain.model.SignatureDocumentType;
 import com.jclinical.records.domain.model.SignerType;
 import com.jclinical.records.domain.model.VitalSigns;
+import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
@@ -165,8 +166,10 @@ public class RecordsDomainConfig {
             ClinicalNoteRepositoryPort noteRepository,
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
-            DocumentSignatureRepositoryPort signatureRepository) {
-        return new ClinicalNoteService(noteRepository, patientValidator, accessAuthorizationPort, signatureRepository);
+            DocumentSignatureRepositoryPort signatureRepository,
+            ClinicalNoteAddendumRepositoryPort addendumRepository) {
+        return new ClinicalNoteService(noteRepository, patientValidator, accessAuthorizationPort,
+                signatureRepository, addendumRepository);
     }
 
     @Bean

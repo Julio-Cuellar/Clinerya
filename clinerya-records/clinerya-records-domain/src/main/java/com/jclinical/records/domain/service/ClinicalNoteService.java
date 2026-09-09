@@ -2,6 +2,7 @@ package com.jclinical.records.domain.service;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.ClinicalNoteAddendum;
 import com.jclinical.records.domain.model.DocumentSignature;
 import com.jclinical.records.domain.model.DocumentSignatureStatus;
 import com.jclinical.records.domain.model.NoteStatus;
@@ -9,6 +10,7 @@ import com.jclinical.records.domain.model.SignatureDocumentType;
 import com.jclinical.records.domain.model.SignerType;
 import com.jclinical.records.domain.model.VitalSigns;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
+import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
@@ -30,15 +32,18 @@ public class ClinicalNoteService implements ManageClinicalNoteUseCase {
     private final PatientValidatorPort patientValidator;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
     private final DocumentSignatureRepositoryPort signatureRepository;
+    private final ClinicalNoteAddendumRepositoryPort addendumRepository;
 
     public ClinicalNoteService(ClinicalNoteRepositoryPort noteRepository,
                                PatientValidatorPort patientValidator,
                                PatientAccessAuthorizationPort accessAuthorizationPort,
-                               DocumentSignatureRepositoryPort signatureRepository) {
+                               DocumentSignatureRepositoryPort signatureRepository,
+                               ClinicalNoteAddendumRepositoryPort addendumRepository) {
         this.noteRepository = noteRepository;
         this.patientValidator = patientValidator;
         this.accessAuthorizationPort = accessAuthorizationPort;
         this.signatureRepository = signatureRepository;
+        this.addendumRepository = addendumRepository;
     }
 
     @Override
@@ -149,6 +154,76 @@ public class ClinicalNoteService implements ManageClinicalNoteUseCase {
     public List<ClinicalNote> getClinicalNotesByPatient(UUID patientId, UUID clinicId, UUID requestingUserId) {
         authorize(requestingUserId, patientId, clinicId, false);
         return noteRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(patientId, clinicId);
+    }
+
+    @Override
+    public ClinicalNoteAddendum addAddendum(UUID noteId, UUID patientId, UUID clinicId,
+                                            UUID requestingUserId, AddendumCommand command) {
+        authorize(requestingUserId, patientId, clinicId, true);
+
+        if (command == null || command.content() == null || command.content().isBlank()) {
+            throw new IllegalArgumentException("El addendum no puede estar vacio.");
+        }
+
+        ClinicalNote note = noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("La nota clinica no existe para este paciente en esta clinica."));
+        if (!note.isSigned()) {
+            throw new IllegalStateException("Solo se puede agregar un addendum a una nota clinica firmada.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String content = command.content().trim();
+        String author = command.authorName() == null || command.authorName().isBlank()
+                ? "Medico" : command.authorName().trim();
+        UUID addendumId = UUID.randomUUID();
+        String documentHash = sha256(String.join("\n",
+                "CLINICAL_NOTE_ADDENDUM",
+                value(addendumId),
+                value(note.getId()),
+                value(patientId),
+                value(clinicId),
+                value(requestingUserId),
+                value(content)));
+
+        ClinicalNoteAddendum addendum = addendumRepository.save(ClinicalNoteAddendum.builder()
+                .id(addendumId)
+                .clinicalNoteId(note.getId())
+                .patientId(patientId)
+                .clinicId(clinicId)
+                .content(content)
+                .createdByUserId(requestingUserId)
+                .createdByUserName(author)
+                .ipAddress(command.ipAddress())
+                .userAgent(command.userAgent())
+                .createdAt(now)
+                .build());
+
+        signatureRepository.save(DocumentSignature.builder()
+                .id(UUID.randomUUID())
+                .documentType(SignatureDocumentType.CLINICAL_NOTE)
+                .documentId(addendum.getId())
+                .clinicId(clinicId)
+                .patientId(patientId)
+                .signerType(SignerType.DOCTOR)
+                .signerUserId(requestingUserId)
+                .signerName(author)
+                .documentHash(documentHash)
+                .ipAddress(command.ipAddress())
+                .userAgent(command.userAgent())
+                .status(DocumentSignatureStatus.ACTIVE)
+                .signedAt(now)
+                .createdAt(now)
+                .build());
+
+        return addendum;
+    }
+
+    @Override
+    public List<ClinicalNoteAddendum> getAddenda(UUID noteId, UUID patientId, UUID clinicId, UUID requestingUserId) {
+        authorize(requestingUserId, patientId, clinicId, false);
+        noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("La nota clinica no existe para este paciente en esta clinica."));
+        return addendumRepository.findByClinicalNoteIdAndClinicIdOrderByCreatedAtAsc(noteId, clinicId);
     }
 
     private AccessDecision authorize(UUID requestingUserId, UUID patientId, UUID clinicId, boolean requireWrite) {

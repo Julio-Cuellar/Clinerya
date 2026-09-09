@@ -372,10 +372,10 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 
 ---
 
-### P2b — Notas clínicas: legibilidad y uso diario
+### P2b — Notas clínicas: legibilidad y uso diario — BACKEND HECHO (2026-09-08)
 
 - **Esfuerzo:** M
-- **Migración:** `V45` (solo para addendums)
+- **Migración:** `V45` (addendums)
 - **Riesgo:** bajo
 
 **Problemas.**
@@ -391,24 +391,40 @@ calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
   exige poder **agregar un addendum**.
 - Sin plantillas de nota por especialidad ni "copiar de la última nota".
 
-**Backend**
+**Backend — HECHO**
 
-- [ ] `ClinicalNoteResponse`: incluir `doctorName` y `signedByName` (resolver por
-  `PatientLookupPort` / directorio de staff) en vez de solo IDs.
-- [ ] **Addendum:** tabla `records.clinical_note_addenda (id, note_id, clinic_id,
-  author_user_id, author_name, body, document_hash, created_at)` (`V45`);
-  `ManageClinicalNoteUseCase.addAddendum(noteId, patientId, clinicId, body,
-  requestingUserId)` — permitido solo si la nota está `SIGNED`, cada addendum se
-  hashea y se registra en `document_signatures`. Nunca modifica la nota original.
-- [ ] Endpoint de listado con `?query=` (texto en `assessment`/`plan`/`subjective`)
-  y paginación por cursor (reusar `RecordAccessLogCursorCodec` como referencia).
+- [x] `ClinicalNoteResponse` incluye `doctorName` y `signedByName`. Nuevo
+  `StaffDirectoryPort` (`records-domain`) + `StaffDirectoryAdapter`
+  (`records-infra`, crossmodule, usa `ManageClinicStaffUseCase`): `staffName` por
+  id de staff (autor), `userName` por id de usuario (firmante). El controlador los
+  resuelve en `toResponse`; si no encuentra el nombre deja `null` y el frontend
+  cae al ID/etiqueta.
+- [x] **Addendum** (`V45`, idempotente — la tabla ya existía en dev):
+  `records.clinical_note_addenda (id, clinical_note_id, patient_id, clinic_id,
+  content [cifrado], created_by_user_id, created_by_user_name, ip_address,
+  user_agent, created_at)`. Modelo `ClinicalNoteAddendum` +
+  `ClinicalNoteAddendumRepositoryPort` (+ `SpringData` + `Sql` inline).
+  `ManageClinicalNoteUseCase.addAddendum(noteId, patientId, clinicId,
+  requestingUserId, AddendumCommand)` + `getAddenda(...)`. En el servicio: exige
+  `note.isSigned()` (si no, `IllegalStateException`), contenido no vacío,
+  autoriza escritura; hashea (`sha256`) y registra en `document_signatures`
+  (`documentId = addendum.id`). Nunca toca la nota original.
+- [x] `ClinicalNoteController`: `POST|GET /{noteId}/addenda` con bitácora de
+  acceso. `TransactionalClinicalNoteUseCase` + `RecordsDomainConfig` actualizados.
+- [x] `ClinicalNoteServiceTest` (5 casos). `clinerya-records-infra` 43/43 verde ·
+  `clinerya-app` compila · V45 dry-run OK.
 
-**Frontend**
+**Pendiente P2b:** listado con `?query=` + paginación por cursor — de momento el
+filtro/buscador va en el cliente (los volúmenes de notas por paciente no lo
+justifican todavía).
 
-- [ ] `ClinicalNotesSection`: fila con nombre del médico, badge de estado,
-  **preview de 1 línea** del `assessment`, filtro por médico y buscador.
-- [ ] `ClinicalNoteModal`: sin UUIDs; en notas firmadas, sección **Addendums**
-  (lista + "Agregar addendum"); autoguardado de borrador en `localStorage` por
+**Frontend — pendiente**
+
+- [ ] `ClinicalNotesSection`: fila con `doctorName`, badge de estado,
+  **preview de 1 línea** del `assessment`, filtro por médico y buscador (cliente).
+- [ ] `ClinicalNoteModal`: sin UUIDs (usa `doctorName`/`signedByName`); en notas
+  firmadas, sección **Addendums** (lista + "Agregar addendum" contra
+  `POST/GET /{noteId}/addenda`); autoguardado de borrador en `localStorage` por
   `(patientId, noteId|"new")`; botón "Copiar de la última nota".
 
 ---

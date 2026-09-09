@@ -1,6 +1,7 @@
 package com.jclinical.records.domain.ports.in;
 
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.ClinicalNoteAddendum;
 import com.jclinical.records.domain.model.NoteStatus;
 
 import java.util.List;
@@ -18,6 +19,23 @@ public interface ManageClinicalNoteUseCase {
     Optional<ClinicalNote> getClinicalNote(UUID noteId, UUID patientId, UUID clinicId, UUID requestingUserId);
 
     List<ClinicalNote> getClinicalNotesByPatient(UUID patientId, UUID clinicId, UUID requestingUserId);
+
+    /**
+     * Agrega un addendum a una nota <b>firmada</b> (NOM-004: la nota original nunca
+     * se modifica ni se borra). El addendum se hashea y se registra en la bitácora
+     * de firmas.
+     */
+    ClinicalNoteAddendum addAddendum(UUID noteId, UUID patientId, UUID clinicId,
+                                     UUID requestingUserId, AddendumCommand command);
+
+    List<ClinicalNoteAddendum> getAddenda(UUID noteId, UUID patientId, UUID clinicId, UUID requestingUserId);
+
+    record AddendumCommand(
+        String content,
+        String authorName,
+        String ipAddress,
+        String userAgent
+    ) {}
 
     record CreateNoteCommand(
         String subjective,

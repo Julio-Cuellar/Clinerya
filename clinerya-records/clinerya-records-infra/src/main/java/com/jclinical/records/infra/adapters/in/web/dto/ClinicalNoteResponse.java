@@ -11,6 +11,7 @@ public record ClinicalNoteResponse(
     UUID patientId,
     UUID clinicId,
     UUID doctorId,
+    String doctorName,
     String subjective,
     String objective,
     VitalSigns vitalSigns,
@@ -20,6 +21,7 @@ public record ClinicalNoteResponse(
     UUID authoredByExternalUserId,
     LocalDateTime signedAt,
     UUID signedByUserId,
+    String signedByName,
     String documentHash,
     LocalDateTime createdAt,
     LocalDateTime updatedAt

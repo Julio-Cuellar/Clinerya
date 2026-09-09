@@ -1,6 +1,7 @@
 package com.jclinical.records.infra.config;
 
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.ClinicalNoteAddendum;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
 import com.jclinical.records.domain.service.ClinicalNoteService;
 import lombok.RequiredArgsConstructor;
@@ -52,5 +53,18 @@ public class TransactionalClinicalNoteUseCase implements ManageClinicalNoteUseCa
     @Transactional(readOnly = true)
     public List<ClinicalNote> getClinicalNotesByPatient(UUID patientId, UUID clinicId, UUID requestingUserId) {
         return clinicalNoteService.getClinicalNotesByPatient(patientId, clinicId, requestingUserId);
+    }
+
+    @Override
+    @Transactional
+    public ClinicalNoteAddendum addAddendum(UUID noteId, UUID patientId, UUID clinicId,
+                                            UUID requestingUserId, AddendumCommand command) {
+        return clinicalNoteService.addAddendum(noteId, patientId, clinicId, requestingUserId, command);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClinicalNoteAddendum> getAddenda(UUID noteId, UUID patientId, UUID clinicId, UUID requestingUserId) {
+        return clinicalNoteService.getAddenda(noteId, patientId, clinicId, requestingUserId);
     }
 }

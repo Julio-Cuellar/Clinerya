@@ -1,12 +1,17 @@
 package com.jclinical.records.infra.adapters.in.web;
 
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.ClinicalNoteAddendum;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
+import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.AddendumCommand;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.CreateNoteCommand;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.SignNoteCommand;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.UpdateNoteCommand;
 import com.jclinical.records.domain.ports.in.ManageRecordAccessLogUseCase;
+import com.jclinical.records.domain.ports.out.StaffDirectoryPort;
+import com.jclinical.records.infra.adapters.in.web.dto.ClinicalNoteAddendumResponse;
 import com.jclinical.records.infra.adapters.in.web.dto.ClinicalNoteResponse;
+import com.jclinical.records.infra.adapters.in.web.dto.CreateClinicalNoteAddendumRequest;
 import com.jclinical.records.infra.adapters.in.web.dto.CreateClinicalNoteRequest;
 import com.jclinical.records.infra.adapters.in.web.dto.UpdateClinicalNoteRequest;
 import com.jclinical.users.infra.security.CurrentUserResolver;
@@ -37,6 +42,7 @@ public class ClinicalNoteController {
     private final ManageClinicalNoteUseCase noteUseCase;
     private final CurrentUserResolver currentUserResolver;
     private final ManageRecordAccessLogUseCase recordAccessLogUseCase;
+    private final StaffDirectoryPort staffDirectory;
 
     @PostMapping
     public ResponseEntity<ClinicalNoteResponse> createNote(
@@ -199,12 +205,72 @@ public class ClinicalNoteController {
         return ResponseEntity.ok(toResponse(note));
     }
 
+    @PostMapping("/{noteId}/addenda")
+    public ResponseEntity<ClinicalNoteAddendumResponse> addAddendum(
+            @PathVariable UUID patientId,
+            @PathVariable UUID noteId,
+            @RequestBody CreateClinicalNoteAddendumRequest request,
+            HttpServletRequest servletRequest) {
+        var currentUser = currentUserResolver.getCurrentUser();
+        String authorName = displayName(currentUser.getFullName(), currentUser.getEmail());
+        AddendumCommand command = new AddendumCommand(
+                request.content(),
+                authorName,
+                servletRequest.getRemoteAddr(),
+                servletRequest.getHeader("User-Agent"));
+        ClinicalNoteAddendum addendum = noteUseCase.addAddendum(
+                noteId, patientId, request.clinicId(), currentUser.getId(), command);
+
+        recordAccessLogUseCase.logAccess(
+                request.clinicId(),
+                patientId,
+                currentUser.getId(),
+                authorName,
+                "CLINICAL_NOTE",
+                noteId,
+                "WRITE",
+                servletRequest.getRemoteAddr(),
+                servletRequest.getHeader("User-Agent")
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ClinicalNoteAddendumResponse.from(addendum));
+    }
+
+    @GetMapping("/{noteId}/addenda")
+    public ResponseEntity<List<ClinicalNoteAddendumResponse>> getAddenda(
+            @PathVariable UUID patientId,
+            @PathVariable UUID noteId,
+            @RequestParam UUID clinicId,
+            HttpServletRequest servletRequest) {
+        var currentUser = currentUserResolver.getCurrentUser();
+        List<ClinicalNoteAddendum> addenda = noteUseCase.getAddenda(noteId, patientId, clinicId, currentUser.getId());
+
+        recordAccessLogUseCase.logAccess(
+                clinicId,
+                patientId,
+                currentUser.getId(),
+                displayName(currentUser.getFullName(), currentUser.getEmail()),
+                "CLINICAL_NOTE",
+                noteId,
+                "READ",
+                servletRequest.getRemoteAddr(),
+                servletRequest.getHeader("User-Agent")
+        );
+
+        return ResponseEntity.ok(addenda.stream().map(ClinicalNoteAddendumResponse::from).toList());
+    }
+
     private ClinicalNoteResponse toResponse(ClinicalNote note) {
+        String doctorName = staffDirectory.staffName(note.getDoctorId(), note.getClinicId()).orElse(null);
+        String signedByName = note.getSignedByUserId() == null
+                ? null
+                : staffDirectory.userName(note.getSignedByUserId(), note.getClinicId()).orElse(null);
         return new ClinicalNoteResponse(
                 note.getId(),
                 note.getPatientId(),
                 note.getClinicId(),
                 note.getDoctorId(),
+                doctorName,
                 note.getSubjective(),
                 note.getObjective(),
                 note.getVitalSigns(),
@@ -214,6 +280,7 @@ public class ClinicalNoteController {
                 note.getAuthoredByExternalUserId(),
                 note.getSignedAt(),
                 note.getSignedByUserId(),
+                signedByName,
                 note.getDocumentHash(),
                 note.getCreatedAt(),
                 note.getUpdatedAt()
