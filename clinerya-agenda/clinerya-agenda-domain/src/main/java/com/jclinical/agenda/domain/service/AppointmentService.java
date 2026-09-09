@@ -290,6 +290,11 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
+    public List<Appointment> listByPatient(UUID patientId, UUID clinicId) {
+        return appointmentRepository.findByPatientIdAndClinicId(patientId, clinicId);
+    }
+
+    @Override
     public List<Appointment> listCompletedByClinic(UUID clinicId) {
         return appointmentRepository.findCompletedByClinicId(clinicId);
     }

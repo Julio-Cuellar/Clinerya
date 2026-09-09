@@ -19,6 +19,8 @@ public interface AppointmentRepositoryPort {
 
     List<Appointment> findByQuotationIdAndClinicId(UUID quotationId, UUID clinicId);
 
+    List<Appointment> findByPatientIdAndClinicId(UUID patientId, UUID clinicId);
+
     List<Appointment> findCompletedByClinicId(UUID clinicId);
 
     List<Appointment> findPendingMaterialReservationCandidates();

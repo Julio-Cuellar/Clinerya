@@ -108,6 +108,16 @@ public class AppointmentController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/appointments/by-patient/{patientId}")
+    public ResponseEntity<List<AppointmentResponse>> listByPatient(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID patientId) {
+        List<AppointmentResponse> responses = appointmentsUseCase.listByPatient(patientId, clinicId).stream()
+                .map(this::toResponse)
+                .toList();
+        return ResponseEntity.ok(responses);
+    }
+
     @PatchMapping("/appointments/{appointmentId}/reschedule")
     public ResponseEntity<AppointmentResponse> reschedule(
             @PathVariable UUID clinicId,

@@ -598,6 +598,8 @@ export const agendaApi = {
     request<AppointmentResponse>(`/v1/clinics/${clinicId}/appointments/${appointmentId}`),
   listByQuotation: (clinicId: string, quotationId: string) =>
     request<AppointmentResponse[]>(`/v1/clinics/${clinicId}/appointments/by-quotation/${quotationId}`),
+  listByPatient: (clinicId: string, patientId: string) =>
+    request<AppointmentResponse[]>(`/v1/clinics/${clinicId}/appointments/by-patient/${patientId}`),
   create: (clinicId: string, body: CreateAppointmentRequest) =>
     request<AppointmentResponse>(`/v1/clinics/${clinicId}/appointments`, {
       method: "POST",

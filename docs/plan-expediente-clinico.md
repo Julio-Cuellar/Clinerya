@@ -250,7 +250,7 @@ automático entraría en soporte a la decisión clínica y queda **fuera** del p
 
 ---
 
-### P1b — Pestaña Recetas + cronología unificada
+### P1b — Pestaña Recetas + cronología unificada — HECHO (2026-09-08)
 
 - **Esfuerzo:** M
 - **Migración:** no
@@ -261,25 +261,24 @@ automático entraría en soporte a la decisión clínica y queda **fuera** del p
 5 pestañas (`historia / tratamientos / citas / pagos / estudios`) son 5 fetches
 independientes en silos, sin vista cronológica.
 
-**Backend**
+**Backend — HECHO**
 
-- [ ] `agendaApi` no tiene `listByPatient`. `AppointmentsTab`
-  (`ExpedienteScreen.tsx` ~línea 250) pide **±2 años de citas de toda la clínica**
-  y filtra por paciente en el cliente → escala con el tamaño de la clínica y
-  trunca en silencio. Añadir
-  `GET /api/v1/clinics/{clinicId}/appointments/by-patient/{patientId}` en
-  `clinerya-agenda` (ya existe `by-quotation`, es el mismo patrón) y
-  `agendaApi.listByPatient(clinicId, patientId)`.
+- [x] `GET /api/v1/clinics/{clinicId}/appointments/by-patient/{patientId}` en
+  `clinerya-agenda` (`AppointmentController` → `ManageAppointmentsUseCase.listByPatient`
+  → `AppointmentRepositoryPort.findByPatientIdAndClinicId` →
+  `findByPatientIdAndClinicIdOrderByScheduledStartDesc`), mismo patrón que
+  `by-quotation`. `agendaApi.listByPatient(clinicId, patientId)` en el frontend.
+  Elimina el fetch de ±2 años de toda la clínica filtrado en cliente.
 
-**Frontend**
+**Frontend — HECHO**
 
-- [ ] Nueva sub-pestaña **Recetas** en `PatientRecord`: reusar
-  `PrescriptionSection` con `prescriptionsApi.listByPatient`.
-- [ ] Nueva sub-pestaña **Cronología** (primera del expediente): fusiona y ordena
-  por fecha citas + notas + recetas + estudios + pagos que ya se cargan, con
-  filtro por tipo y enlace a cada detalle. Es la mejor relación valor/esfuerzo del
-  módulo: no requiere backend nuevo salvo `listByPatient` de agenda.
-- [ ] `AppointmentsTab` → usar el endpoint nuevo.
+- [x] Nueva sub-pestaña **Recetas** en `PatientRecord`: reusa `PrescriptionSection`
+  (envuelta en `grid-column: 1 / -1`).
+- [x] Nueva sub-pestaña **Cronología** (primera del expediente): `CronologiaTab`
+  fusiona con `Promise.allSettled` citas + notas + recetas + pagos + estudios,
+  ordena por fecha desc, filtro `<select>` por tipo, cada fila enlaza a su
+  pestaña de detalle. Best-effort: si una fuente falla las demás se muestran.
+- [x] `AppointmentsTab` → usa `agendaApi.listByPatient`.
 
 ---
 

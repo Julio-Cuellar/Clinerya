@@ -36,6 +36,8 @@ public interface ManageAppointmentsUseCase {
 
     List<Appointment> listByQuotation(UUID quotationId, UUID clinicId);
 
+    List<Appointment> listByPatient(UUID patientId, UUID clinicId);
+
     List<Appointment> listCompletedByClinic(UUID clinicId);
 
     List<DoctorSnapshot> listDoctors(UUID clinicId);
