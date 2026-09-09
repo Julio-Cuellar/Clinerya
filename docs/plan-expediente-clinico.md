@@ -92,13 +92,13 @@ Consecuencias:
   pasa un `prescriptionId` donde va un `patientId`. "Funciona" solo porque
   siempre devuelve vacío y cae al fallback.
 
-Entra en la **P0**.
+Entra en la **P0**. ✅ Resuelto el 2026-09-08 (ver P0 abajo).
 
 ---
 
 ## Fases
 
-### P0 — Autorización + bitácora en recetas
+### P0 — Autorización + bitácora en recetas — HECHO (2026-09-08)
 
 - **Esfuerzo:** S (mecánico, replica un patrón existente)
 - **Migración:** no
@@ -106,31 +106,34 @@ Entra en la **P0**.
 
 **Backend**
 
-- [ ] `ManagePrescriptionsUseCase`: añadir `UUID requestingUserId` a
+- [x] `ManagePrescriptionsUseCase`: `UUID requestingUserId` añadido a
   `issuePrescription`, `getPrescriptionsByPatient`, `getPrescriptionById`.
-- [ ] `PrescriptionService`: inyectar `PatientValidatorPort` +
+- [x] `PrescriptionService`: inyecta `PatientValidatorPort` +
   `PatientAccessAuthorizationPort` por constructor; método privado
   `authorize(requestingUserId, patientId, clinicId, requireWrite)` calcado de
-  `ClinicalNoteService` (`NONE` → 403, escritura exige `READ_WRITE`); llamarlo al
-  inicio de los tres métodos. Emitir = write, listar/leer = read.
-- [ ] Arreglar el bug de `getPrescriptionById` (pasar `patientId`, no
-  `prescriptionId`; o resolver por `findById(clinicId, prescriptionId)` y validar
-  acceso sobre `prescription.getPatientId()`).
-- [ ] `PrescriptionController`: recibir `Principal`, resolver el `userId`
-  (`UserDirectoryPort.findByEmail(...).map(UserSummary::id)` — patrón de
-  `StaffOperationsController`, o `CurrentUserResolver` como el resto de `records`
-  ya usa), propagarlo, y llamar a
-  `recordAccessLogUseCase.logAccess(..., "PRESCRIPTION", prescriptionId, "READ"|"WRITE", ip, ua)`
+  `MedicalHistoryService` (`NONE` → `ClinicAccessDeniedException` → 403; escritura
+  exige `READ_WRITE`). Emitir = write; listar / obtener = read.
+- [x] Bug de `getPrescriptionById` corregido: ahora
+  `prescriptionRepository.findById(clinicId, prescriptionId)` y valida acceso
+  sobre `prescription.getPatientId()`. El controller ya no hace el
+  `getPrescriptionsByPatient(clinicId, prescriptionId)` + fallback.
+- [x] `PrescriptionController`: `CurrentUserResolver` +
+  `HttpServletRequest` (mismo patrón que `ClinicalNoteController`), `@Transactional`
+  a nivel clase; propaga `currentUser.getId()` y llama
+  `recordAccessLogUseCase.logAccess(..., "PRESCRIPTION", id, "WRITE"|"READ", ip, ua)`
   tras cada operación.
-- [ ] Wiring en `RecordsDomainConfig` (`prescriptionService(...)` gana dos deps).
-- [ ] Test `PrescriptionServiceTest`: emitir sin acceso → 403; emitir con
-  paciente de otra clínica → error; listar registra en la bitácora (fake de
-  `ManageRecordAccessLogUseCase`).
+- [x] Wiring en `RecordsDomainConfig` (`prescriptionService(...)` gana dos deps).
+- [x] `PrescriptionServiceTest` (8 casos, Mockito+AssertJ): sin acceso → 403,
+  solo lectura no puede emitir, paciente de otra clínica → error, emisión OK con
+  `READ_WRITE`, listar bloqueado sin acceso / permitido en `READ_ONLY`,
+  `getById` autoriza contra el paciente de la receta, `getById` inexistente →
+  error. `clinerya-records-infra` 23/23 verde · `clinerya-app` compila.
 
 **Frontend**
 
-- Sin cambios funcionales. Verificar que `prescriptionsApi` (que hoy no envía
-  cabecera de usuario, la resuelve el back por token) sigue igual.
+- Sin cambios. `prescriptionsApi` (`listByPatient`, `issue`) usa rutas y cuerpos
+  sin cambio; el back resuelve el usuario por token. Verificado: único llamador
+  es `PrescriptionSection.tsx`.
 
 ---
 

@@ -64,8 +64,11 @@ import java.util.stream.Collectors;
 public class RecordsDomainConfig {
 
     @Bean
-    public PrescriptionService prescriptionService(PrescriptionRepositoryPort prescriptionRepositoryPort) {
-        return new PrescriptionService(prescriptionRepositoryPort);
+    public PrescriptionService prescriptionService(
+            PrescriptionRepositoryPort prescriptionRepositoryPort,
+            PatientValidatorPort patientValidator,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
+        return new PrescriptionService(prescriptionRepositoryPort, patientValidator, accessAuthorizationPort);
     }
 
     @Bean
