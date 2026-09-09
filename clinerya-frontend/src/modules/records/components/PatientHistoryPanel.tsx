@@ -5,6 +5,7 @@ import type { HistoryTemplateResponse, MedicalHistoryResponse, PrivacyConsentRes
 import type { PatientResponse } from "@modules/patients/types";
 import type { ClinicResponse } from "@modules/clinics/types";
 import { ClinicalNotesSection } from "@modules/records/components/ClinicalNotesSection";
+import { VitalSignsChart } from "@modules/records/components/VitalSignsChart";
 import { PatientClinicalHeader } from "@modules/records/components/PatientClinicalHeader";
 import { HistoryFormModal } from "@modules/records/components/HistoryFormModal";
 import { InviteExternalAccessModal } from "@modules/collaboration/components/InviteExternalAccessModal";
@@ -230,6 +231,8 @@ export function PatientHistoryPanel({
       )}
 
       {error && <p className="alert error">{error}</p>}
+
+      <VitalSignsChart patientId={patient.id} clinicId={clinicId} />
 
       <ClinicalNotesSection
         patientId={patient.id}

@@ -346,7 +346,7 @@ dependencia cross-módulo a `clinerya-agenda` (endpoint "última cita del pacien
 
 ---
 
-### P2a — Gráficas de signos vitales
+### P2a — Gráficas de signos vitales — HECHO (2026-09-08)
 
 - **Esfuerzo:** S
 - **Migración:** no
@@ -355,19 +355,20 @@ dependencia cross-módulo a `clinerya-agenda` (endpoint "última cita del pacien
 **Problema.** `VitalSigns` (temperatura, TA, FC, FR, peso, talla, **IMC
 calculado**, SpO₂) se guarda por nota con fecha y **nunca se grafica**.
 
-**Backend**
+**Backend** — sin cambios
 
-- [ ] `clinicalNotesApi.listByPatient` ya devuelve todas las notas con
-  `vitalSigns` + `createdAt`. Suficiente. (Opcional: endpoint ligero
-  `GET .../clinical-notes/vitals?patientId=` que devuelva solo
-  `{ date, vitals }` para no traer el SOAP completo.)
+- [x] `clinicalNotesApi.listByPatient` ya devuelve todas las notas con
+  `vitalSigns` + `createdAt`. Suficiente; no se añadió endpoint.
 
-**Frontend**
+**Frontend — HECHO**
 
-- [ ] `VitalSignsChart` — series temporales (peso / IMC / TA sistólica-diastólica
-  / FC / SpO₂) a partir de las notas del paciente. Dentro de la pestaña
-  **Historia clínica**, sección plegable. Sin librería nueva si ya hay uno de
-  charts en el front; si no, SVG a mano (pocos puntos).
+- [x] `VitalSignsChart` (`components/`): carga las notas del paciente y dibuja
+  sparklines SVG a mano (sin librería) — Peso, IMC, Presión arterial (sistólica +
+  diastólica en una gráfica), Frecuencia cardíaca, SpO₂, Temperatura, Frecuencia
+  respiratoria. Solo aparecen las métricas con datos; cada tarjeta muestra último
+  valor, unidad y fecha del último registro; `<title>` por punto con fecha/valor.
+- [x] Sección plegable "Signos vitales" en `PatientHistoryPanel`, antes de
+  `ClinicalNotesSection`. Estilos `.vitals-*` en `styles.css`.
 
 ---
 
