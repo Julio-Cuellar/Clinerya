@@ -176,6 +176,23 @@ public class StaffOperationsController {
                 clinicId, currentUserId(principal), periodId, parsedSource));
     }
 
+    @GetMapping("/payroll/periods/{periodId}/commission-preview")
+    public ResponseEntity<List<ManageStaffOperationsUseCase.CommissionPreviewEntry>> previewPeriodCommissions(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID periodId,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.previewPeriodCommissions(clinicId, currentUserId(principal), periodId));
+    }
+
+    @PostMapping("/payroll/periods/{periodId}/lines/apply-commissions")
+    @Transactional
+    public ResponseEntity<List<PayrollLineSummary>> applyPeriodCommissions(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID periodId,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.applyPeriodCommissions(clinicId, currentUserId(principal), periodId));
+    }
+
     @PostMapping("/payroll/periods/{periodId}/close")
     public ResponseEntity<PayrollPeriodSummary> closePayrollPeriod(
             @PathVariable UUID clinicId,

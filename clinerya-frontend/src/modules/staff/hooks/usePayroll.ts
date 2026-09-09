@@ -4,6 +4,7 @@ import {
   getFriendlyError,
   staffApi,
   type ClinicStaffResponse,
+  type CommissionPreviewEntry,
   type PayrollLineSource,
   type StaffPayrollLineResponse,
   type StaffPayrollPeriodResponse
@@ -40,6 +41,9 @@ export interface UsePayrollResult {
   createPeriod: (input: { name: string; periodStart: string; periodEnd: string }) => Promise<void>;
   saveLine: (values: PayrollLineValues) => Promise<void>;
   generateLines: (source: PayrollLineSource) => Promise<void>;
+  commissionPreview: CommissionPreviewEntry[] | null;
+  loadCommissionPreview: () => Promise<void>;
+  applyCommissions: () => Promise<void>;
   deleteLine: (line: StaffPayrollLineResponse) => Promise<void>;
   closePeriod: () => Promise<void>;
   payPeriod: () => Promise<void>;
@@ -61,6 +65,7 @@ export function usePayroll(
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedBankAccountId, setSelectedBankAccountId] = useState("");
   const [editingLineId, setEditingLineId] = useState("");
+  const [commissionPreview, setCommissionPreview] = useState<CommissionPreviewEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -169,6 +174,7 @@ export function usePayroll(
     (periodId: string) => {
       setSelectedPeriodId(periodId);
       setEditingLineId("");
+      setCommissionPreview(null);
       const version = bumpVersion();
       setLoading(true);
       void loadLines(periodId, version).finally(() => {
@@ -285,6 +291,32 @@ export function usePayroll(
     [clinicId, selectedPeriodId, recomputePeriodTotals]
   );
 
+  const loadCommissionPreview = useCallback(async () => {
+    if (!clinicId || !selectedPeriodId) return;
+    setError("");
+    try {
+      setCommissionPreview(await staffApi.previewPeriodCommissions(clinicId, selectedPeriodId));
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    }
+  }, [clinicId, selectedPeriodId]);
+
+  const applyCommissions = useCallback(async () => {
+    if (!clinicId || !selectedPeriodId) return;
+    bumpVersion();
+    setError("");
+    try {
+      const nextLines = await staffApi.applyPeriodCommissions(clinicId, selectedPeriodId);
+      setLines(nextLines);
+      recomputePeriodTotals(selectedPeriodId, nextLines);
+      setCommissionPreview(null);
+      setStatus("Comisiones de actividad aplicadas a las lineas.");
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+      throw caught;
+    }
+  }, [clinicId, selectedPeriodId, recomputePeriodTotals]);
+
   const deleteLine = useCallback(
     async (line: StaffPayrollLineResponse) => {
       if (!clinicId || !selectedPeriodId) return;
@@ -357,6 +389,9 @@ export function usePayroll(
     createPeriod,
     saveLine,
     generateLines,
+    commissionPreview,
+    loadCommissionPreview,
+    applyCommissions,
     deleteLine,
     closePeriod,
     payPeriod

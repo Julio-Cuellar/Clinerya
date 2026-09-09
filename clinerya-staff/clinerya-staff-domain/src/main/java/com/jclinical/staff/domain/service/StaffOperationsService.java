@@ -25,8 +25,11 @@ import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -280,6 +283,56 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
         return payrollLineRepository.findByPeriodId(periodId).stream()
                 .map(this::toPayrollLineSummary)
                 .toList();
+    }
+
+    @Override
+    public List<CommissionPreviewEntry> previewPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
+        StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
+        Map<UUID, BigDecimal> activityByStaff = activityTotalsForPeriod(clinicId, period);
+        Map<UUID, BigDecimal> commissionByStaff = payrollLineRepository.findByPeriodId(periodId).stream()
+                .collect(Collectors.toMap(StaffPayrollLine::getStaffId,
+                        line -> amountOrZero(line.getCommissionAmount()), (a, b) -> a));
+        return activityByStaff.entrySet().stream()
+                .map(entry -> new CommissionPreviewEntry(entry.getKey(), entry.getValue(),
+                        commissionByStaff.getOrDefault(entry.getKey(), ZERO)))
+                .toList();
+    }
+
+    @Override
+    public List<PayrollLineSummary> applyPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
+        StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
+        ensureDraft(period);
+        Map<UUID, BigDecimal> activityByStaff = activityTotalsForPeriod(clinicId, period);
+
+        for (StaffPayrollLine line : payrollLineRepository.findByPeriodId(periodId)) {
+            BigDecimal activityTotal = activityByStaff.get(line.getStaffId());
+            if (activityTotal == null || activityTotal.signum() <= 0) {
+                continue;
+            }
+            line.setCommissionAmount(activityTotal);
+            line.setGrossAmount(amountOrZero(line.getBaseSalary())
+                    .add(activityTotal).add(amountOrZero(line.getBonusAmount())));
+            line.setNetAmount(line.getGrossAmount().subtract(amountOrZero(line.getDeductionAmount())));
+            line.setUpdatedAt(LocalDateTime.now());
+            payrollLineRepository.save(line);
+        }
+
+        refreshPayrollTotals(period);
+        return payrollLineRepository.findByPeriodId(periodId).stream()
+                .map(this::toPayrollLineSummary)
+                .toList();
+    }
+
+    private Map<UUID, BigDecimal> activityTotalsForPeriod(UUID clinicId, StaffPayrollPeriod period) {
+        LocalDateTime from = period.getPeriodStart().atStartOfDay();
+        LocalDateTime to = period.getPeriodEnd().atTime(LocalTime.MAX);
+        Map<UUID, BigDecimal> totals = new HashMap<>();
+        for (StaffActivityLog activity : activityRepository.findByClinicIdAndOccurredAtBetween(clinicId, from, to)) {
+            totals.merge(activity.getStaffId(), amountOrZero(activity.getAmount()), BigDecimal::add);
+        }
+        return totals;
     }
 
     private void saveGeneratedLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal base, BigDecimal commission,

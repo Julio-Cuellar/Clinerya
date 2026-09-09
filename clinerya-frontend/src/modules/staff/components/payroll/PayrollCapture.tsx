@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconUsersGroup, IconCopy } from "@tabler/icons-react";
 import type {
   ClinicStaffResponse,
+  CommissionPreviewEntry,
   PayrollLineSource,
   StaffPayrollLineResponse,
   StaffPayrollPeriodResponse
@@ -11,6 +12,7 @@ import type { PayrollLineValues } from "@modules/staff/hooks/usePayroll";
 import { ConfirmDialog } from "@modules/staff/components/ConfirmDialog";
 import { PayrollLineForm } from "@modules/staff/components/payroll/PayrollLineForm";
 import { PayrollLinesTable } from "@modules/staff/components/payroll/PayrollLinesTable";
+import { PayrollCommissionsPanel } from "@modules/staff/components/payroll/PayrollCommissionsPanel";
 
 /** "Captura" view: everything you do while a period is still a draft. */
 export function PayrollCapture({
@@ -23,6 +25,9 @@ export function PayrollCapture({
   onSelectStaff,
   onSaveLine,
   onGenerateLines,
+  commissionPreview,
+  onLoadCommissionPreview,
+  onApplyCommissions,
   onEditLine,
   onDeleteLine,
   onClosePeriod,
@@ -37,6 +42,9 @@ export function PayrollCapture({
   onSelectStaff: (staffId: string) => void;
   onSaveLine: (values: PayrollLineValues) => void;
   onGenerateLines: (source: PayrollLineSource) => Promise<void>;
+  commissionPreview: CommissionPreviewEntry[] | null;
+  onLoadCommissionPreview: () => Promise<void>;
+  onApplyCommissions: () => Promise<void>;
   onEditLine: (line: StaffPayrollLineResponse | null) => void;
   onDeleteLine: (line: StaffPayrollLineResponse) => void;
   onClosePeriod: () => void;
@@ -125,6 +133,15 @@ export function PayrollCapture({
             </button>
             <small className="description">No sobrescribe lineas ya capturadas.</small>
           </div>
+        )}
+
+        {canModify && (
+          <PayrollCommissionsPanel
+            staff={staff}
+            preview={commissionPreview}
+            onLoadPreview={onLoadCommissionPreview}
+            onApply={onApplyCommissions}
+          />
         )}
 
         <PayrollLineForm

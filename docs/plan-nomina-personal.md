@@ -248,28 +248,37 @@ Para **no re-entrelazar** con el WIP de `ClinicStaff*` / `UserController`:
 
 ---
 
-### P3 — Comisiones automáticas desde actividad
+### P3 — Comisiones automáticas desde actividad — v1 HECHA (2026-09-09)
 
-- **Esfuerzo:** M
-- **Migración:** opcional (`V42` para reglas)
-- **Dependencias:** P2 (las líneas ya deben existir).
+Sin reglas ni tabla nueva: pass-through 100% de la actividad registrada.
 
-**Backend — v1 (sin reglas)**
+**Backend** (en `StaffOperationsService`; sin dependencias ni config nuevas)
 
-- `GET /payroll/periods/{id}/commission-preview` → suma `amount` por empleado de
-  `staff.staff_activity_logs` en `[periodStart, periodEnd]`.
-- Endpoint "aplicar" vuelca ese total en `commissionAmount`.
-
-**Backend — v2 (con reglas)**
-
-- `V42__commission_rules.sql`:
-  `staff.commission_rules (clinic_id, staff_id NULL=global, activity_type NULL=todas, percent)`.
-- El preview aplica el `%`.
+- [x] `previewPeriodCommissions(clinicId, actingUserId, periodId)` → por empleado
+  con actividad en `[periodStart 00:00, periodEnd 23:59:59.999]`:
+  `{ staffId, activityTotal, currentCommission }` (suma de
+  `staff_activity_logs.amount` + la comisión que ya tiene su línea).
+- [x] `applyPeriodCommissions(...)` → vuelca `activityTotal` en `commissionAmount`
+  de la línea de cada empleado **con actividad y línea capturada** (no toca a los
+  demás), recalcula bruto/neto y totales del periodo. Exige `DRAFT`.
+- [x] `GET .../commission-preview` y
+  `POST .../lines/apply-commissions` (`@Transactional`). Ambos exigen `MANAGE_PAYROLL`.
+- [x] `StaffOperationsServiceTest` +3 (staff = 30 tests verdes); `clinerya-app` compila.
 
 **Frontend**
 
-- Panel "Comisiones del periodo" en **Captura**: tabla previa
-  (actividad bruta → % → comisión) + "aplicar a todas las líneas".
+- [x] `api.ts`: `previewPeriodCommissions` / `applyPeriodCommissions` + tipo
+  `CommissionPreviewEntry`.
+- [x] `usePayroll`: `commissionPreview`, `loadCommissionPreview`, `applyCommissions`
+  (se limpia al cambiar de periodo).
+- [x] `PayrollCommissionsPanel.tsx` dentro de **Captura** (solo borrador): botón
+  "Ver comisiones" → tabla (empleado · actividad bruta · comisión actual) + total
+  + "Aplicar a las líneas".
+- [x] `tsc -b` + `vite build` limpios.
+
+**Pendiente — v2 (reglas):** `V4x__commission_rules.sql`
+(`clinic_id, staff_id NULL, activity_type NULL, percent`) y aplicar el `%` en vez
+del pass-through.
 
 ---
 

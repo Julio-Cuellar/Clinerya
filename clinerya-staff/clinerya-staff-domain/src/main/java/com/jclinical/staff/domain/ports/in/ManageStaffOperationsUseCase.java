@@ -44,6 +44,18 @@ public interface ManageStaffOperationsUseCase {
      */
     List<PayrollLineSummary> generatePayrollLines(UUID clinicId, UUID actingUserId, UUID periodId, PayrollLineSource source);
 
+    /**
+     * Suma de la actividad registrada por cada empleado dentro del rango del
+     * periodo, junto con la comision que ya tiene su linea (si existe).
+     */
+    List<CommissionPreviewEntry> previewPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId);
+
+    /**
+     * Vuelca la suma de actividad del periodo en el campo comision de la linea de
+     * cada empleado que tenga actividad y linea capturada. Recalcula totales.
+     */
+    List<PayrollLineSummary> applyPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId);
+
     PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId);
 
     PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
@@ -53,6 +65,12 @@ public interface ManageStaffOperationsUseCase {
         BASE_COMPENSATION,
         PREVIOUS_PERIOD
     }
+
+    record CommissionPreviewEntry(
+            UUID staffId,
+            BigDecimal activityTotal,
+            BigDecimal currentCommission
+    ) {}
 
     record AttendanceSummary(
             UUID id,

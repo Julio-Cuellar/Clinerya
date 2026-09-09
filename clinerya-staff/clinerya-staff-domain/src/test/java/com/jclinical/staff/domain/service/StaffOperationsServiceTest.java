@@ -10,6 +10,7 @@ import com.jclinical.staff.domain.model.StaffPayrollLine;
 import com.jclinical.staff.domain.model.StaffPayrollPeriod;
 import com.jclinical.staff.domain.model.StaffPayrollPeriodStatus;
 import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.CommissionPreviewEntry;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.PayrollLineSource;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.PayrollLineSummary;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.PayrollPeriodSummary;
@@ -43,6 +44,7 @@ class StaffOperationsServiceTest {
     private final InMemoryPeriodRepo periodRepository = new InMemoryPeriodRepo();
     private final InMemoryLineRepo lineRepository = new InMemoryLineRepo();
     private final InMemoryCompRepo compensationRepository = new InMemoryCompRepo();
+    private final InMemoryActivityRepo activityRepository = new InMemoryActivityRepo();
     private final Set<String> grants = new HashSet<>();
 
     private final UUID clinicId = UUID.randomUUID();
@@ -61,7 +63,7 @@ class StaffOperationsServiceTest {
         service = new StaffOperationsService(
                 staffRepository,
                 new NoopAttendanceRepo(),
-                new NoopActivityRepo(),
+                activityRepository,
                 periodRepository,
                 lineRepository,
                 accounting,
@@ -130,6 +132,53 @@ class StaffOperationsServiceTest {
                 clinicId, payrollUserId, "Nomina", LocalDate.now(), LocalDate.now().plusDays(7)).id();
         assertThrows(IllegalStateException.class, () ->
                 service.generatePayrollLines(clinicId, payrollUserId, periodId, PayrollLineSource.PREVIOUS_PERIOD));
+    }
+
+    @Test
+    void previewCommissionsSumsActivityInRange() {
+        UUID staffId = staffRepository.seedActive(clinicId);
+        UUID periodId = service.createPayrollPeriod(
+                clinicId, payrollUserId, "Nomina", LocalDate.now().minusDays(7), LocalDate.now()).id();
+        service.upsertPayrollLine(clinicId, payrollUserId, periodId, staffId,
+                new BigDecimal("8000"), new BigDecimal("100"), BigDecimal.ZERO, BigDecimal.ZERO, null);
+
+        activityRepository.seed(clinicId, staffId, new BigDecimal("700"), LocalDate.now().minusDays(3).atTime(10, 0));
+        activityRepository.seed(clinicId, staffId, new BigDecimal("300"), LocalDate.now().minusDays(1).atTime(16, 0));
+        activityRepository.seed(clinicId, staffId, new BigDecimal("999"), LocalDate.now().minusDays(30).atTime(9, 0)); // fuera de rango
+
+        List<CommissionPreviewEntry> preview = service.previewPeriodCommissions(clinicId, payrollUserId, periodId);
+        assertEquals(1, preview.size());
+        assertEquals(0, new BigDecimal("1000").compareTo(preview.get(0).activityTotal()));
+        assertEquals(0, new BigDecimal("100").compareTo(preview.get(0).currentCommission()));
+    }
+
+    @Test
+    void applyCommissionsWritesActivityTotalIntoExistingLines() {
+        UUID withActivity = staffRepository.seedActive(clinicId);
+        UUID noActivity = staffRepository.seedActive(clinicId);
+        UUID periodId = service.createPayrollPeriod(
+                clinicId, payrollUserId, "Nomina", LocalDate.now().minusDays(7), LocalDate.now()).id();
+        service.upsertPayrollLine(clinicId, payrollUserId, periodId, withActivity,
+                new BigDecimal("8000"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("500"), null);
+        service.upsertPayrollLine(clinicId, payrollUserId, periodId, noActivity,
+                new BigDecimal("6000"), new BigDecimal("999"), BigDecimal.ZERO, BigDecimal.ZERO, null);
+        activityRepository.seed(clinicId, withActivity, new BigDecimal("1200"), LocalDate.now().minusDays(2).atTime(12, 0));
+
+        List<PayrollLineSummary> lines = service.applyPeriodCommissions(clinicId, payrollUserId, periodId);
+
+        assertEquals(0, new BigDecimal("1200").compareTo(lineFor(lines, withActivity).commissionAmount()));
+        assertEquals(0, new BigDecimal("8700").compareTo(lineFor(lines, withActivity).netAmount()));
+        assertEquals(0, new BigDecimal("999").compareTo(lineFor(lines, noActivity).commissionAmount()), "sin actividad no se toca");
+    }
+
+    @Test
+    void commissionEndpointsRequirePermission() {
+        UUID periodId = service.createPayrollPeriod(
+                clinicId, payrollUserId, "Nomina", LocalDate.now(), LocalDate.now().plusDays(7)).id();
+        assertThrows(ClinicAccessDeniedException.class, () ->
+                service.previewPeriodCommissions(clinicId, plainUserId, periodId));
+        assertThrows(ClinicAccessDeniedException.class, () ->
+                service.applyPeriodCommissions(clinicId, plainUserId, periodId));
     }
 
     private static PayrollLineSummary lineFor(List<PayrollLineSummary> lines, UUID staffId) {
@@ -306,27 +355,41 @@ class StaffOperationsServiceTest {
         }
     }
 
-    private static final class NoopActivityRepo implements StaffActivityRepositoryPort {
+    private static final class InMemoryActivityRepo implements StaffActivityRepositoryPort {
+        private final List<StaffActivityLog> store = new ArrayList<>();
+
+        void seed(UUID clinicId, UUID staffId, BigDecimal amount, LocalDateTime occurredAt) {
+            store.add(StaffActivityLog.builder()
+                    .id(UUID.randomUUID()).clinicId(clinicId).staffId(staffId)
+                    .type(StaffActivityType.SALE).amount(amount).occurredAt(occurredAt).build());
+        }
+
         @Override
         public StaffActivityLog save(StaffActivityLog activity) {
+            store.add(activity);
             return activity;
         }
 
         @Override
         public List<StaffActivityLog> findByClinicIdAndOccurredAtBetween(UUID clinicId, LocalDateTime from, LocalDateTime to) {
-            return List.of();
+            return store.stream()
+                    .filter(a -> a.getClinicId().equals(clinicId))
+                    .filter(a -> !a.getOccurredAt().isBefore(from) && !a.getOccurredAt().isAfter(to))
+                    .toList();
         }
 
         @Override
         public List<StaffActivityLog> findByClinicIdAndStaffIdAndOccurredAtBetween(UUID clinicId, UUID staffId,
                                                                                   LocalDateTime from, LocalDateTime to) {
-            return List.of();
+            return findByClinicIdAndOccurredAtBetween(clinicId, from, to).stream()
+                    .filter(a -> a.getStaffId().equals(staffId)).toList();
         }
 
         @Override
         public List<StaffActivityLog> findByClinicIdAndTypeAndOccurredAtBetween(UUID clinicId, StaffActivityType type,
                                                                                LocalDateTime from, LocalDateTime to) {
-            return List.of();
+            return findByClinicIdAndOccurredAtBetween(clinicId, from, to).stream()
+                    .filter(a -> a.getType() == type).toList();
         }
     }
 

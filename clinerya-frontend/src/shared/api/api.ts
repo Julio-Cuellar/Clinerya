@@ -837,6 +837,15 @@ export const staffApi = {
       `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines/generate?source=${source}`,
       { method: "POST" }
     ),
+  previewPeriodCommissions: (clinicId: string, periodId: string) =>
+    request<CommissionPreviewEntry[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/commission-preview`
+    ),
+  applyPeriodCommissions: (clinicId: string, periodId: string) =>
+    request<StaffPayrollLineResponse[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines/apply-commissions`,
+      { method: "POST" }
+    ),
   closePayrollPeriod: (clinicId: string, periodId: string) =>
     request<StaffPayrollPeriodResponse>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/close`, {
       method: "POST"
@@ -1074,6 +1083,12 @@ export interface StaffPayrollLineResponse {
 export type StaffPayFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY";
 export type StaffPaymentMethod = "BANK_TRANSFER" | "CASH";
 export type PayrollLineSource = "BASE_COMPENSATION" | "PREVIOUS_PERIOD";
+
+export interface CommissionPreviewEntry {
+  staffId: string;
+  activityTotal: number;
+  currentCommission: number;
+}
 
 export interface StaffCompensationRequest {
   baseSalary: number;
