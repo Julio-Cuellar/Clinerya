@@ -137,7 +137,7 @@ Entra en la **P0**. ✅ Resuelto el 2026-09-08 (ver P0 abajo).
 
 ---
 
-### P1a — Cabecera clínica + datos críticos tipados
+### P1a — Cabecera clínica + datos críticos tipados — BACKEND HECHO (2026-09-08)
 
 - **Esfuerzo:** L
 - **Migración:** `V43` (nuevas tablas en el schema `records`)
@@ -156,37 +156,57 @@ de lo que el clínico capturó — mismo estatus de "software de expediente" que
 se tiene por guardar notas. Un cruce `fármaco ↔ alergia` o cualquier aviso
 automático entraría en soporte a la decisión clínica y queda **fuera** del plan.
 
-**Migración `V43`**
+**Migración `V43__patient_clinical_data.sql`** — [x] creada, tablas en schema `records`:
 
-- `records.patient_allergies (id, clinic_id, patient_id, substance, reaction,
-  severity, noted_by_user_id, noted_at, source)` — `source` distingue captura
-  manual vs. sincronizada desde una plantilla.
-- `records.patient_conditions (id, clinic_id, patient_id, name, icd10_code NULL,
-  status [ACTIVE|RESOLVED], onset_date NULL, noted_by_user_id, noted_at)`.
-- `records.patient_medications (id, clinic_id, patient_id, medication_name, dose,
-  schedule, active BOOLEAN, started_at NULL, stopped_at NULL, prescription_id
-  NULL)` — `prescription_id` enlaza con una receta emitida.
-- Índices por `(clinic_id, patient_id)`.
+- `patient_allergies (id, clinic_id, patient_id, substance, reaction, severity
+  [MILD|MODERATE|SEVERE|UNKNOWN], category [DRUG|FOOD|ENVIRONMENTAL|OTHER], source
+  [MANUAL|TEMPLATE], noted_by_user_id, noted_by_user_name, noted_at)`.
+  `category` (añadido sobre el plan) permite que el recuadro de Recetas filtre a
+  alergias a fármacos.
+- `patient_conditions (id, clinic_id, patient_id, name, icd10_code NULL, status
+  [ACTIVE|RESOLVED], onset_date NULL, source, noted_by_*, noted_at)`.
+- `patient_medications (id, clinic_id, patient_id, medication_name, dose, schedule,
+  active BOOLEAN, started_on NULL, stopped_on NULL, prescription_id NULL, source,
+  noted_by_*, noted_at)`.
+- Índices `(clinic_id, patient_id)` en las tres.
 
-**Backend**
+**Backend** — HECHO
 
-- [ ] Modelos `PatientAllergy`, `PatientCondition`, `PatientMedication` +
-  `*RepositoryPort` + `Sql*Repository` / `SpringData*` / `*Entity` / `*Mapper`.
-- [ ] `ManagePatientClinicalSummaryUseCase` (nuevo puerto de entrada):
-  `getSummary(patientId, clinicId, requestingUserId)` → DTO
-  `{ bloodType, allergies[], conditions[], activeMedications[], lastNoteAt,
-  lastVisitAt }`; CRUD de allergies/conditions/medications con `authorize(...)`
-  (write exige `READ_WRITE`) y `logAccess`.
-- [ ] Servicio `PatientClinicalSummaryService` en `records-domain` (usa
-  `PatientLookupPort` para `bloodType`/nombre, y los repos nuevos).
-- [ ] `PatientClinicalSummaryController` (`GET /api/v1/patients/{patientId}/clinical-summary?clinicId=`
-  + endpoints CRUD).
-- [ ] **Sincronización desde plantilla (opcional en P1a, puede ir a P1c):**
-  marcar en el `schema_json` de la plantilla qué campos son
-  `allergy` / `condition` / `medication`; al `saveMedicalHistory`, hacer upsert de
-  filas tipadas con `source = TEMPLATE`.
+- [x] Modelos `PatientAllergy` / `PatientCondition` / `PatientMedication` + enums
+  `AllergySeverity` / `AllergyCategory` / `ConditionStatus` / `ClinicalDataSource`.
+- [x] `PatientAllergyRepositoryPort` / `PatientConditionRepositoryPort` /
+  `PatientMedicationRepositoryPort` (`save`, `findByClinicIdAndPatientId`,
+  `findByIdAndClinicId`, `deleteByIdAndClinicId`) + `*Entity` + `SpringData*` +
+  `Sql*` con mapeo inline (sin interfaz mapper aparte).
+- [x] `ManagePatientClinicalSummaryUseCase`:
+  `getSummary(...)` → `ClinicalSummary { patientId, bloodType, allergies[],
+  conditions[], activeMedications[], lastNoteAt }` + CRUD de las 3 entidades con
+  `AllergyInput` / `ConditionInput` / `MedicationInput`.
+  `lastVisitAt` se pospone (necesita cross-módulo con agenda); `lastNoteAt` sale
+  de `ClinicalNoteRepositoryPort`.
+- [x] `PatientClinicalSummaryService` en `records-domain`: `authorize(...)` calcado
+  de `MedicalHistoryService` (lectura `!= NONE`, escritura exige `READ_WRITE`);
+  medicación se filtra a `active` en el resumen; add/update sellan
+  `notedByUserId/Name/At` y `source = MANUAL`.
+- [x] `PatientLookupPort.PatientDetails` extendido con `bloodType` (+ adapter).
+- [x] `PatientClinicalSummaryController` `@Transactional`:
+  `GET /api/v1/patients/{patientId}/clinical-summary?clinicId=` +
+  `POST|PUT|DELETE .../allergies|conditions|medications[/{id}]`, `clinicId` por
+  query, cada operación llama `recordAccessLogUseCase.logAccess(...,
+  "CLINICAL_SUMMARY"|"PATIENT_ALLERGY"|"PATIENT_CONDITION"|"PATIENT_MEDICATION",
+  id, "READ"|"WRITE", ip, ua)`. DTO `PatientClinicalSummaryResponse`.
+- [x] Wiring en `RecordsDomainConfig` (bean `patientClinicalSummaryService`; los
+  `Sql*Repository` son `@Repository` component-scan).
+- [x] `PatientClinicalSummaryServiceTest` (7 casos). `clinerya-records-infra`
+  30/30 verde · `clinerya-app` compila.
 
-**Frontend**
+**Backend — pendiente (movido a P1c)**
+
+- Sincronización desde plantilla: marcar en el `schema_json` qué campos son
+  `allergy` / `condition` / `medication` y hacer upsert con `source = TEMPLATE`
+  al `saveMedicalHistory`.
+
+**Frontend** — PENDIENTE
 
 - [ ] `PatientClinicalHeader` — banda fija arriba de las 5 pestañas del
   expediente (en `PatientRecord`, `ExpedienteScreen.tsx`): **alergias · crónicos ·

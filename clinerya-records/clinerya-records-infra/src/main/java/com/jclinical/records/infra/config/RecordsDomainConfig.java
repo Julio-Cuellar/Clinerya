@@ -19,7 +19,11 @@ import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
+import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientMedicationRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
+import com.jclinical.records.domain.service.PatientClinicalSummaryService;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.ClinicLookupPort;
@@ -186,6 +190,19 @@ public class RecordsDomainConfig {
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort) {
         return new PrivacyConsentService(consentRepository, patientValidator, accessAuthorizationPort);
+    }
+
+    @Bean
+    public PatientClinicalSummaryService patientClinicalSummaryService(
+            PatientAllergyRepositoryPort allergyRepository,
+            PatientConditionRepositoryPort conditionRepository,
+            PatientMedicationRepositoryPort medicationRepository,
+            PatientValidatorPort patientValidator,
+            PatientAccessAuthorizationPort accessAuthorizationPort,
+            PatientLookupPort patientLookup,
+            ClinicalNoteRepositoryPort noteRepository) {
+        return new PatientClinicalSummaryService(allergyRepository, conditionRepository, medicationRepository,
+                patientValidator, accessAuthorizationPort, patientLookup, noteRepository);
     }
 
     @Bean

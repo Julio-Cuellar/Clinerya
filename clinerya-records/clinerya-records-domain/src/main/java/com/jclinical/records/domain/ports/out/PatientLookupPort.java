@@ -12,6 +12,7 @@ public interface PatientLookupPort {
             String fullName,
             String curp,
             String phone,
-            String email
+            String email,
+            String bloodType
     ) {}
 }
