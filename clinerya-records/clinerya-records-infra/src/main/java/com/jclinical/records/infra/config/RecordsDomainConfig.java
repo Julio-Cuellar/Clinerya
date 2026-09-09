@@ -24,6 +24,7 @@ import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPor
 import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientMedicationRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
+import com.jclinical.records.domain.ports.out.TemplateClinicalDataSyncPort;
 import com.jclinical.records.domain.service.PatientClinicalSummaryService;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
@@ -153,8 +154,10 @@ public class RecordsDomainConfig {
             MedicalHistoryTemplateRepositoryPort templateRepository,
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
-            MedicalHistoryVersionRepositoryPort versionRepository) {
-        return new MedicalHistoryService(historyRepository, templateRepository, patientValidator, accessAuthorizationPort, versionRepository);
+            MedicalHistoryVersionRepositoryPort versionRepository,
+            TemplateClinicalDataSyncPort clinicalDataSync) {
+        return new MedicalHistoryService(historyRepository, templateRepository, patientValidator,
+                accessAuthorizationPort, versionRepository, clinicalDataSync);
     }
 
     @Bean

@@ -1,5 +1,6 @@
 package com.jclinical.records.infra.adapters.out.persistence;
 
+import com.jclinical.records.domain.model.ClinicalDataSource;
 import com.jclinical.records.domain.model.PatientAllergy;
 import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,12 @@ public class SqlPatientAllergyRepository implements PatientAllergyRepositoryPort
     @Transactional
     public void deleteByIdAndClinicId(UUID id, UUID clinicId) {
         repository.deleteByIdAndClinicId(id, clinicId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteByClinicIdAndPatientIdAndSource(UUID clinicId, UUID patientId, ClinicalDataSource source) {
+        repository.deleteByClinicIdAndPatientIdAndSource(clinicId, patientId, source);
     }
 
     private static PatientAllergyEntity toEntity(PatientAllergy domain) {

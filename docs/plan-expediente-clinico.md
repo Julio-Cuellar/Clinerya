@@ -212,11 +212,9 @@ automático entraría en soporte a la decisión clínica y queda **fuera** del p
 - [x] `PatientClinicalSummaryServiceTest` (10 casos, incl. review por `kind`).
   `clinerya-records-infra` 33/33 verde · `clinerya-app` compila.
 
-**Backend — pendiente (movido a P1c)**
+**Backend — pendiente (ver P1c)**
 
-- Sincronización desde plantilla: marcar en el `schema_json` qué campos son
-  `allergy` / `condition` / `medication` y hacer upsert con `source = TEMPLATE`
-  al `saveMedicalHistory`.
+- Sincronización desde plantilla → **P1c** (abajo).
 
 **Frontend** — HECHO (2026-09-08)
 
@@ -282,6 +280,61 @@ independientes en silos, sin vista cronológica.
   filtro por tipo y enlace a cada detalle. Es la mejor relación valor/esfuerzo del
   módulo: no requiere backend nuevo salvo `listByPatient` de agenda.
 - [ ] `AppointmentsTab` → usar el endpoint nuevo.
+
+---
+
+### P1c — Sincronización de datos tipados desde la plantilla — BACKEND HECHO (2026-09-08)
+
+- **Esfuerzo:** M
+- **Migración:** no
+- **Riesgo:** bajo (best-effort; JSON mal formado = no-op)
+
+**Idea.** Un campo de plantilla (tabla o texto) puede marcarse en su `schemaJson`
+con `clinicalMapping` para volcar su contenido a datos tipados al guardar la
+historia. Sólo se reemplazan filas con `source = TEMPLATE`; las capturadas a mano
+(`MANUAL`) nunca se tocan.
+
+Forma del mapeo en un elemento del schema:
+
+```json
+{ "id": "alergias", "type": "table",
+  "clinicalMapping": { "target": "ALLERGY", "primary": 0, "secondary": 1,
+                       "tertiary": 2, "defaultCategory": "DRUG" } }
+```
+
+- `target`: `ALLERGY` | `CONDITION` | `MEDICATION`.
+- `primary` / `secondary` / `tertiary`: índices de columna (default 0/1/2). En un
+  campo de texto sólo se usa el valor como `primary`.
+- Columnas por tipo: ALLERGY = sustancia / reacción; CONDITION = nombre / CIE-10 /
+  fecha de inicio; MEDICATION = nombre / dosis / frecuencia.
+- `defaultCategory` (sólo ALLERGY): default `OTHER`.
+
+**Backend** — HECHO
+
+- [x] Puerto `TemplateClinicalDataSyncPort` (`records-domain`) +
+  `TemplateClinicalDataSyncAdapter` (`records-infra`, `@Component`, usa
+  `ObjectMapper`): parsea `schemaJson` (`pages[].elements[]` + `elements[]`
+  legacy), agrupa mapeos por `target`, y para cada `target` mapeado hace
+  `deleteByClinicIdAndPatientIdAndSource(TEMPLATE)` + re-inserta de las respuestas
+  actuales (`answersJson`; tabla = JSON de `string[][]`, texto = una celda).
+  `source = TEMPLATE`, `severity = UNKNOWN`, `status = ACTIVE`, `active = true`;
+  fecha inválida → `null`; `target` que no aparece en el schema no se toca.
+- [x] `PatientAllergy/Condition/MedicationRepositoryPort` ganan
+  `deleteByClinicIdAndPatientIdAndSource(...)` (+ `SpringData` derived + `Sql`).
+- [x] `MedicalHistoryService`: usa `templateRepository.findByIdAndClinicId` para
+  obtener el `schemaJson` y llama `clinicalDataSync.sync(...)` tras guardar la
+  versión. Bean en `RecordsDomainConfig` gana la dependencia.
+- [x] `TemplateClinicalDataSyncAdapterTest` (8 casos). `clinerya-records-infra`
+  41/41 verde · `clinerya-app` compila.
+
+**Frontend — pendiente**
+
+- [ ] Control en el editor de canvas (`CanvasElementCard`) para marcar un campo
+  como Alergia / Padecimiento / Medicación y (para tablas) elegir columnas.
+  Mientras tanto el `clinicalMapping` se puede poner a mano en el `schemaJson`.
+
+**Pendiente aparte (de P1a):** `lastVisitAt` en el resumen clínico — requiere
+dependencia cross-módulo a `clinerya-agenda` (endpoint "última cita del paciente").
 
 ---
 
