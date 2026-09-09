@@ -6,7 +6,9 @@ import com.jclinical.records.domain.model.AllergySeverity;
 import com.jclinical.records.domain.model.ClinicalDataSource;
 import com.jclinical.records.domain.model.ClinicalNote;
 import com.jclinical.records.domain.model.ConditionStatus;
+import com.jclinical.records.domain.model.ClinicalReviewKind;
 import com.jclinical.records.domain.model.PatientAllergy;
+import com.jclinical.records.domain.model.PatientClinicalReview;
 import com.jclinical.records.domain.model.PatientCondition;
 import com.jclinical.records.domain.model.PatientMedication;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase.AllergyInput;
@@ -18,6 +20,7 @@ import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort.PatientDetails;
@@ -49,6 +52,7 @@ class PatientClinicalSummaryServiceTest {
     @Mock private PatientAllergyRepositoryPort allergyRepository;
     @Mock private PatientConditionRepositoryPort conditionRepository;
     @Mock private PatientMedicationRepositoryPort medicationRepository;
+    @Mock private PatientClinicalReviewRepositoryPort clinicalReviewRepository;
     @Mock private PatientValidatorPort patientValidator;
     @Mock private PatientAccessAuthorizationPort accessAuthorization;
     @Mock private PatientLookupPort patientLookup;
@@ -63,7 +67,7 @@ class PatientClinicalSummaryServiceTest {
     @BeforeEach
     void setUp() {
         service = new PatientClinicalSummaryService(allergyRepository, conditionRepository, medicationRepository,
-                patientValidator, accessAuthorization, patientLookup, noteRepository);
+                clinicalReviewRepository, patientValidator, accessAuthorization, patientLookup, noteRepository);
     }
 
     private void grant(AccessLevel level) {
@@ -158,6 +162,54 @@ class PatientClinicalSummaryServiceTest {
         service.removeMedication(medicationId, patientId, clinicId, userId);
 
         verify(medicationRepository).deleteByIdAndClinicId(medicationId, clinicId);
+    }
+
+    @Test
+    void setClinicalReviewCreatesWhenNoneExists() {
+        grant(AccessLevel.READ_WRITE);
+        when(clinicalReviewRepository.findByClinicIdAndPatientIdAndKind(clinicId, patientId, ClinicalReviewKind.CONDITIONS))
+                .thenReturn(Optional.empty());
+        when(clinicalReviewRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.setClinicalReview(patientId, clinicId, userId, "Dra. Ruiz", ClinicalReviewKind.CONDITIONS, true);
+
+        ArgumentCaptor<PatientClinicalReview> captor = ArgumentCaptor.forClass(PatientClinicalReview.class);
+        verify(clinicalReviewRepository).save(captor.capture());
+        PatientClinicalReview saved = captor.getValue();
+        assertThat(saved.getId()).isNotNull();
+        assertThat(saved.getKind()).isEqualTo(ClinicalReviewKind.CONDITIONS);
+        assertThat(saved.isNoneReported()).isTrue();
+        assertThat(saved.getReviewedByUserId()).isEqualTo(userId);
+        assertThat(saved.getReviewedByUserName()).isEqualTo("Dra. Ruiz");
+        assertThat(saved.getReviewedAt()).isNotNull();
+    }
+
+    @Test
+    void setClinicalReviewDeniedWithoutWriteAccess() {
+        grant(AccessLevel.READ_ONLY);
+        assertThatThrownBy(() -> service.setClinicalReview(
+                patientId, clinicId, userId, "Dra. Ruiz", ClinicalReviewKind.ALLERGIES, true))
+                .isInstanceOf(ClinicAccessDeniedException.class);
+        verify(clinicalReviewRepository, never()).save(any());
+    }
+
+    @Test
+    void getSummaryReflectsReviewFlagsPerKind() {
+        grant(AccessLevel.READ_ONLY);
+        when(clinicalReviewRepository.findByClinicIdAndPatientId(clinicId, patientId)).thenReturn(List.of(
+                PatientClinicalReview.builder().id(UUID.randomUUID()).clinicId(clinicId).patientId(patientId)
+                        .kind(ClinicalReviewKind.ALLERGIES).noneReported(true).reviewedByUserName("Dra. Ruiz")
+                        .reviewedAt(LocalDateTime.now()).build(),
+                PatientClinicalReview.builder().id(UUID.randomUUID()).clinicId(clinicId).patientId(patientId)
+                        .kind(ClinicalReviewKind.MEDICATIONS).noneReported(true)
+                        .reviewedAt(LocalDateTime.now()).build()));
+
+        ClinicalSummary summary = service.getSummary(patientId, clinicId, userId);
+
+        assertThat(summary.allergiesReview().noneReported()).isTrue();
+        assertThat(summary.allergiesReview().reviewedByUserName()).isEqualTo("Dra. Ruiz");
+        assertThat(summary.medicationsReview().noneReported()).isTrue();
+        assertThat(summary.conditionsReview().noneReported()).isFalse();
     }
 
     @Test

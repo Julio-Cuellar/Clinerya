@@ -20,6 +20,7 @@ import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPo
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
 import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientMedicationRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
@@ -197,12 +198,13 @@ public class RecordsDomainConfig {
             PatientAllergyRepositoryPort allergyRepository,
             PatientConditionRepositoryPort conditionRepository,
             PatientMedicationRepositoryPort medicationRepository,
+            PatientClinicalReviewRepositoryPort clinicalReviewRepository,
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
             PatientLookupPort patientLookup,
             ClinicalNoteRepositoryPort noteRepository) {
         return new PatientClinicalSummaryService(allergyRepository, conditionRepository, medicationRepository,
-                patientValidator, accessAuthorizationPort, patientLookup, noteRepository);
+                clinicalReviewRepository, patientValidator, accessAuthorizationPort, patientLookup, noteRepository);
     }
 
     @Bean

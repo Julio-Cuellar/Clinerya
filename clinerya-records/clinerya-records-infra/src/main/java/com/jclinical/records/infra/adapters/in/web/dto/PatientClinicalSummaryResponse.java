@@ -4,6 +4,7 @@ import com.jclinical.records.domain.model.PatientAllergy;
 import com.jclinical.records.domain.model.PatientCondition;
 import com.jclinical.records.domain.model.PatientMedication;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase.ClinicalSummary;
+import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase.ReviewStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,8 +17,17 @@ public record PatientClinicalSummaryResponse(
         List<AllergyDto> allergies,
         List<ConditionDto> conditions,
         List<MedicationDto> activeMedications,
-        LocalDateTime lastNoteAt
+        LocalDateTime lastNoteAt,
+        ReviewDto allergiesReview,
+        ReviewDto conditionsReview,
+        ReviewDto medicationsReview
 ) {
+
+    public record ReviewDto(boolean noneReported, String reviewedByUserName, LocalDateTime reviewedAt) {
+        static ReviewDto from(ReviewStatus status) {
+            return new ReviewDto(status.noneReported(), status.reviewedByUserName(), status.reviewedAt());
+        }
+    }
 
     public record AllergyDto(
             UUID id,
@@ -85,7 +95,10 @@ public record PatientClinicalSummaryResponse(
                 summary.allergies().stream().map(AllergyDto::from).toList(),
                 summary.conditions().stream().map(ConditionDto::from).toList(),
                 summary.activeMedications().stream().map(MedicationDto::from).toList(),
-                summary.lastNoteAt()
+                summary.lastNoteAt(),
+                ReviewDto.from(summary.allergiesReview()),
+                ReviewDto.from(summary.conditionsReview()),
+                ReviewDto.from(summary.medicationsReview())
         );
     }
 

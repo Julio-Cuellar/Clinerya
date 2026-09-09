@@ -1,5 +1,6 @@
 package com.jclinical.records.infra.adapters.in.web;
 
+import com.jclinical.records.domain.model.ClinicalReviewKind;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase.AllergyInput;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase.ConditionInput;
@@ -45,6 +46,40 @@ public class PatientClinicalSummaryController {
         var summary = summaryUseCase.getSummary(patientId, clinicId, currentUser.getId());
         log(clinicId, patientId, "CLINICAL_SUMMARY", null, "READ", servletRequest);
         return ResponseEntity.ok(PatientClinicalSummaryResponse.from(summary));
+    }
+
+    // ---- Estado de revisión ("sin ... reportados") ---------------------------
+
+    public record ReviewRequest(boolean noneReported) {}
+
+    private ResponseEntity<Void> setReview(UUID patientId, UUID clinicId, ClinicalReviewKind kind,
+                                           ReviewRequest request, HttpServletRequest servletRequest) {
+        var currentUser = currentUserResolver.getCurrentUser();
+        summaryUseCase.setClinicalReview(patientId, clinicId, currentUser.getId(),
+                displayName(currentUser.getFullName(), currentUser.getEmail()), kind, request.noneReported());
+        log(clinicId, patientId, "PATIENT_CLINICAL_REVIEW", null, "WRITE", servletRequest);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/allergies/review")
+    public ResponseEntity<Void> setAllergyReview(
+            @PathVariable UUID patientId, @RequestParam UUID clinicId,
+            @RequestBody ReviewRequest request, HttpServletRequest servletRequest) {
+        return setReview(patientId, clinicId, ClinicalReviewKind.ALLERGIES, request, servletRequest);
+    }
+
+    @PutMapping("/conditions/review")
+    public ResponseEntity<Void> setConditionReview(
+            @PathVariable UUID patientId, @RequestParam UUID clinicId,
+            @RequestBody ReviewRequest request, HttpServletRequest servletRequest) {
+        return setReview(patientId, clinicId, ClinicalReviewKind.CONDITIONS, request, servletRequest);
+    }
+
+    @PutMapping("/medications/review")
+    public ResponseEntity<Void> setMedicationReview(
+            @PathVariable UUID patientId, @RequestParam UUID clinicId,
+            @RequestBody ReviewRequest request, HttpServletRequest servletRequest) {
+        return setReview(patientId, clinicId, ClinicalReviewKind.MEDICATIONS, request, servletRequest);
     }
 
     // ---- Alergias ----------------------------------------------------------

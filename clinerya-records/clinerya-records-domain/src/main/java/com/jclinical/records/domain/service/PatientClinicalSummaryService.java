@@ -5,8 +5,10 @@ import com.jclinical.records.domain.model.AllergySeverity;
 import com.jclinical.records.domain.model.AllergyCategory;
 import com.jclinical.records.domain.model.ClinicalDataSource;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.ClinicalReviewKind;
 import com.jclinical.records.domain.model.ConditionStatus;
 import com.jclinical.records.domain.model.PatientAllergy;
+import com.jclinical.records.domain.model.PatientClinicalReview;
 import com.jclinical.records.domain.model.PatientCondition;
 import com.jclinical.records.domain.model.PatientMedication;
 import com.jclinical.records.domain.ports.in.ManagePatientClinicalSummaryUseCase;
@@ -15,13 +17,16 @@ import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
 import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.PatientMedicationRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
 
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class PatientClinicalSummaryService implements ManagePatientClinicalSummaryUseCase {
@@ -29,6 +34,7 @@ public class PatientClinicalSummaryService implements ManagePatientClinicalSumma
     private final PatientAllergyRepositoryPort allergyRepository;
     private final PatientConditionRepositoryPort conditionRepository;
     private final PatientMedicationRepositoryPort medicationRepository;
+    private final PatientClinicalReviewRepositoryPort clinicalReviewRepository;
     private final PatientValidatorPort patientValidator;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
     private final PatientLookupPort patientLookup;
@@ -37,6 +43,7 @@ public class PatientClinicalSummaryService implements ManagePatientClinicalSumma
     public PatientClinicalSummaryService(PatientAllergyRepositoryPort allergyRepository,
                                          PatientConditionRepositoryPort conditionRepository,
                                          PatientMedicationRepositoryPort medicationRepository,
+                                         PatientClinicalReviewRepositoryPort clinicalReviewRepository,
                                          PatientValidatorPort patientValidator,
                                          PatientAccessAuthorizationPort accessAuthorizationPort,
                                          PatientLookupPort patientLookup,
@@ -44,6 +51,7 @@ public class PatientClinicalSummaryService implements ManagePatientClinicalSumma
         this.allergyRepository = allergyRepository;
         this.conditionRepository = conditionRepository;
         this.medicationRepository = medicationRepository;
+        this.clinicalReviewRepository = clinicalReviewRepository;
         this.patientValidator = patientValidator;
         this.accessAuthorizationPort = accessAuthorizationPort;
         this.patientLookup = patientLookup;
@@ -71,7 +79,34 @@ public class PatientClinicalSummaryService implements ManagePatientClinicalSumma
                 .map(ClinicalNote::getCreatedAt)
                 .orElse(null);
 
-        return new ClinicalSummary(patientId, bloodType, allergies, conditions, activeMedications, lastNoteAt);
+        Map<ClinicalReviewKind, ReviewStatus> reviews = new EnumMap<>(ClinicalReviewKind.class);
+        for (PatientClinicalReview review : clinicalReviewRepository.findByClinicIdAndPatientId(clinicId, patientId)) {
+            reviews.put(review.getKind(), new ReviewStatus(
+                    review.isNoneReported(), review.getReviewedByUserName(), review.getReviewedAt()));
+        }
+
+        return new ClinicalSummary(patientId, bloodType, allergies, conditions, activeMedications, lastNoteAt,
+                reviews.getOrDefault(ClinicalReviewKind.ALLERGIES, ReviewStatus.empty()),
+                reviews.getOrDefault(ClinicalReviewKind.CONDITIONS, ReviewStatus.empty()),
+                reviews.getOrDefault(ClinicalReviewKind.MEDICATIONS, ReviewStatus.empty()));
+    }
+
+    @Override
+    public void setClinicalReview(UUID patientId, UUID clinicId, UUID requestingUserId, String requestingUserName,
+                                  ClinicalReviewKind kind, boolean noneReported) {
+        authorize(requestingUserId, patientId, clinicId, true);
+        PatientClinicalReview review = clinicalReviewRepository.findByClinicIdAndPatientIdAndKind(clinicId, patientId, kind)
+                .orElseGet(() -> PatientClinicalReview.builder()
+                        .id(UUID.randomUUID())
+                        .clinicId(clinicId)
+                        .patientId(patientId)
+                        .kind(kind)
+                        .build());
+        review.setNoneReported(noneReported);
+        review.setReviewedByUserId(requestingUserId);
+        review.setReviewedByUserName(requestingUserName);
+        review.setReviewedAt(LocalDateTime.now());
+        clinicalReviewRepository.save(review);
     }
 
     // ---- Alergias ----------------------------------------------------------
