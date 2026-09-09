@@ -44,7 +44,8 @@ spring:
 
 
 jwt:
-  secret: ${JWT_SECRET:***JWT_SECRET_REMOVED***}
+  # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
+  secret: ${JWT_SECRET}
 
 app:
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
@@ -57,13 +58,13 @@ app:
   backup:
     pg-dump-path: ${APP_BACKUP_PG_DUMP_PATH:/usr/bin/pg_dump}
   dev-seed:
-    enabled: ${APP_DEV_SEED_ENABLED:true}
+    enabled: ${APP_DEV_SEED_ENABLED:false}
     email: ${APP_DEV_SEED_EMAIL:demo@medicloud.local}
     password: ${APP_DEV_SEED_PASSWORD:Demo12345!}
     full-name: ${APP_DEV_SEED_FULL_NAME:Doctora Demo}
     clinic-name: ${APP_DEV_SEED_CLINIC_NAME:Clinica Demo}
   showcase-seed:
-    enabled: ${APP_SHOWCASE_SEED_ENABLED:true}
+    enabled: ${APP_SHOWCASE_SEED_ENABLED:false}
     email: ${APP_SHOWCASE_SEED_EMAIL:showcase@medicloud.local}
     password: ${APP_SHOWCASE_SEED_PASSWORD:Showcase12345!}
     full-name: ${APP_SHOWCASE_SEED_FULL_NAME:Dra. Elena Martinez}
@@ -102,13 +103,15 @@ logging:
 
 medicloud:
   security:
-    encryption-key: ${MEDICLOUD_ENCRYPTION_KEY:***ENCRYPTION_KEY_DEFAULT_REMOVED***}
+    # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
+    encryption-key: ${MEDICLOUD_ENCRYPTION_KEY}
 
 google:
   oauth:
     client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
     client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
     redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:8082/api/v1/integrations/google-calendar/callback}
-    state-secret: ${GOOGLE_OAUTH_STATE_SECRET:***OAUTH_STATE_SECRET_DEFAULT_REMOVED***}
+    # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
+    state-secret: ${GOOGLE_OAUTH_STATE_SECRET}
   calendar:
     default-timezone: ${GOOGLE_CALENDAR_DEFAULT_TIMEZONE:America/Mexico_City}
