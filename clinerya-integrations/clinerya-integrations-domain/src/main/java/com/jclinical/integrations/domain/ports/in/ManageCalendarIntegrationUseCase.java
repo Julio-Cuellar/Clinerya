@@ -4,16 +4,16 @@ import java.util.UUID;
 
 public interface ManageCalendarIntegrationUseCase {
 
-    String getAuthorizationUrl(UUID clinicId, UUID staffId, boolean importPastEvents);
+    String getAuthorizationUrl(UUID clinicId, UUID actingUserId, UUID staffId, boolean importPastEvents);
 
 
     void handleOAuthCallback(String state, String code);
 
-    void disconnect(UUID clinicId, UUID staffId);
+    void disconnect(UUID clinicId, UUID actingUserId, UUID staffId);
 
-    CalendarConnectionStatus getStatus(UUID clinicId, UUID staffId);
+    CalendarConnectionStatus getStatus(UUID clinicId, UUID actingUserId, UUID staffId);
 
-    void updatePreferences(UUID clinicId, UUID staffId, boolean importPastEvents);
+    void updatePreferences(UUID clinicId, UUID actingUserId, UUID staffId, boolean importPastEvents);
 
     record CalendarConnectionStatus(boolean connected, String email, boolean importPastEvents) {}
 }

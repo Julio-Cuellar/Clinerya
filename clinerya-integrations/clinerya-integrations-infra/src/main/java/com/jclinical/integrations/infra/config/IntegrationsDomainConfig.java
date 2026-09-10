@@ -1,5 +1,6 @@
 package com.jclinical.integrations.infra.config;
 
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.integrations.domain.model.CalendarCredentials;
 import com.jclinical.integrations.domain.ports.out.CalendarCredentialsRepositoryPort;
 import com.jclinical.integrations.domain.ports.out.GoogleOAuthPort;
@@ -18,14 +19,16 @@ public class IntegrationsDomainConfig {
     public CalendarIntegrationService calendarIntegrationService(
             CalendarCredentialsRepositoryPort credentialsRepository,
             GoogleOAuthPort oAuthPort,
-            StateCodecPort stateCodec) {
-        return new CalendarIntegrationService(credentialsRepository, oAuthPort, stateCodec);
+            StateCodecPort stateCodec,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new CalendarIntegrationService(credentialsRepository, oAuthPort, stateCodec, permissionChecker);
     }
 
     @Bean
     public com.jclinical.integrations.domain.ports.in.ManageExternalCalendarEventsUseCase manageExternalCalendarEventsUseCase(
-            com.jclinical.integrations.domain.ports.out.ExternalCalendarEventRepositoryPort repositoryPort) {
-        return new com.jclinical.integrations.domain.service.ManageExternalCalendarEventsService(repositoryPort);
+            com.jclinical.integrations.domain.ports.out.ExternalCalendarEventRepositoryPort repositoryPort,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new com.jclinical.integrations.domain.service.ManageExternalCalendarEventsService(repositoryPort, permissionChecker);
     }
 
     @Bean

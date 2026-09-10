@@ -3,6 +3,7 @@ package com.jclinical.integrations.infra.adapters.in.web;
 import com.jclinical.integrations.domain.model.ExternalCalendarEvent;
 import com.jclinical.integrations.domain.ports.in.ManageExternalCalendarEventsUseCase;
 import com.jclinical.integrations.infra.service.ExternalEventLinkingOrchestrator;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -26,13 +27,15 @@ public class ExternalCalendarEventController {
 
     private final ManageExternalCalendarEventsUseCase manageExternalEventsUseCase;
     private final ExternalEventLinkingOrchestrator linkingOrchestrator;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<ExternalCalendarEvent>> listPending(
             @PathVariable UUID clinicId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        List<ExternalCalendarEvent> events = manageExternalEventsUseCase.listPending(clinicId, from, to);
+        List<ExternalCalendarEvent> events = manageExternalEventsUseCase.listPending(
+                clinicId, currentUserResolver.getCurrentUserId(), from, to);
         return ResponseEntity.ok(events);
     }
 
@@ -41,7 +44,8 @@ public class ExternalCalendarEventController {
             @PathVariable UUID clinicId,
             @PathVariable UUID eventId,
             @RequestBody LinkEventRequest request) {
-        linkingOrchestrator.linkEventToPatient(clinicId, eventId, request.getPatientId(), request.getReason());
+        linkingOrchestrator.linkEventToPatient(
+                clinicId, currentUserResolver.getCurrentUserId(), eventId, request.getPatientId(), request.getReason());
         return ResponseEntity.ok().build();
     }
 
@@ -49,7 +53,7 @@ public class ExternalCalendarEventController {
     public ResponseEntity<Void> dismiss(
             @PathVariable UUID clinicId,
             @PathVariable UUID eventId) {
-        manageExternalEventsUseCase.dismiss(clinicId, eventId);
+        manageExternalEventsUseCase.dismiss(clinicId, currentUserResolver.getCurrentUserId(), eventId);
         return ResponseEntity.ok().build();
     }
 
