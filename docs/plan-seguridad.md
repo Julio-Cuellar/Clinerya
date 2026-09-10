@@ -341,44 +341,62 @@ que no se degrade más, pero siguen abiertos.
 
 ---
 
-### P4 — Criptografía y expedientes compartidos
+### P4 — Criptografía y expedientes compartidos — PARCIAL (2026-09-10)
 
 - **Esfuerzo:** M-L
-- **Migración:** sí — `V48__temporary_share_hardening.sql`
+- **Migración:** sí — `V48__temporary_record_shares_hardening.sql`
 - **Riesgo:** alto en el re-cifrado — requiere respaldo verificado y ventana de mantenimiento
 
-**`AesCryptoConverter`** (duplicado idéntico en `records-infra` e `integrations-infra`):
+**Hecho salvo el re-cifrado masivo** (decisión explícita: no tocar datos cifrados
+existentes en esta pasada). Los registros `ENC_GCM:` y `ENC:` se siguen leyendo por su
+ruta legacy; las escrituras nuevas usan `ENC_GCM_V2:`.
 
-- [ ] **Unificar las dos copias** en `clinerya-core` — hoy pueden divergir en silencio y
-      dejar datos ilegibles.
-- [ ] **Quitar el default hardcodeado** `DefaultSecretEncryptionKey32Chars!` (`:35`).
-- [ ] **Derivar la llave con un KDF** (PBKDF2 o HKDF). Hoy la passphrase se copia cruda a
-      los 32 bytes de llave AES, rellenando con ceros si es corta.
-- [ ] **Sacar `.secure_key` de `/app/uploads`** (`:52`). Está en el mismo volumen que los
-      archivos subidos por usuarios y fuera de cualquier respaldo: un día de path
-      traversal filtra la llave, y perder el volumen pierde los datos.
-- [ ] **Fallar en vez de degradar**: si el descifrado falla, hoy hace `log.warn` y
-      **devuelve el ciphertext**; un valor sin prefijo se devuelve tal cual. Ambos casos
-      deben lanzar excepción, o al menos ser observables por métrica.
-- [ ] **Planear el retiro del formato legacy** `ENC:` (AES/CBC con IV derivado por MD5 de
-      la llave: determinista y sin autenticación). Migrar los registros que queden y
-      borrar `decryptLegacyValue`.
-- [ ] **Habilitar la rotación de llave** (versionar el prefijo, p. ej. `ENC_GCM_V2:`) para
-      que P0 pueda completarse sin pérdida de datos.
+**`FieldCipher`** (`clinerya-core/.../security/crypto/`):
 
-**`/api/v1/public/shared-history`** (`TemporaryRecordShareController:52`) — devuelve sin
-autenticar nombre, CURP, teléfono, email y **todas** las notas clínicas. El token es
-fuerte (32 chars, `SecureRandom`), pero (`V48`):
+- [x] **Unificado en `clinerya-core`**. Los `@Converter` de `records-infra` e
+      `integrations-infra` son adaptadores finos que delegan; el algoritmo y el formato
+      viven una sola vez y no pueden divergir.
+- [x] **Sin default hardcodeado** — ya se había quitado del constructor en P0; el
+      `application.yml` no tiene fallback para `encryption-key`.
+- [x] **KDF**: llave v2 derivada por PBKDF2-HMAC-SHA256, 210 000 iteraciones, 256 bits,
+      sobre el material de binding (`machine_id:product_uuid:passphrase` o
+      `.field-key:passphrase`). El copiado crudo con relleno de ceros solo sobrevive para
+      leer datos v1.
+- [x] **`.field-key` fuera de `/app/uploads`** — nuevo `medicloud.security.key-store-dir`
+      (`MEDICLOUD_KEY_STORE_DIR`, default `/app/secrets`). Migración transparente: si existe
+      el `.secure_key` viejo se copia, nunca se regenera. Permisos `600` donde hay POSIX.
+- [x] **Falla en vez de degradar**: un valor con prefijo que no descifra lanza
+      `FieldCryptoException` en vez de devolver el ciphertext. Un valor sin prefijo se
+      devuelve tal cual pero incrementa `FieldCipher.getPlaintextReads()` (observable).
+- [x] **Rotación habilitada**: prefijo versionado `ENC_GCM_V2:`. El re-cifrado masivo
+      `ENC:`/`ENC_GCM:` → `ENC_GCM_V2:` y el borrado de `legacyDecrypt` quedan como
+      runbook para la ventana de mantenimiento (junto con la rotación real de
+      `MEDICLOUD_ENCRYPTION_KEY`).
 
-- [ ] **Sacar el token del query string** (queda en logs de proxy y en `Referer`): pasarlo
-      por header o por un POST de canje que emita una sesión corta.
-- [ ] **Guardar solo el hash del token** en BD, como ya hace `PasswordResetService`.
-- [ ] **Verificar al destinatario**: el `email` se guarda pero nunca se comprueba.
-      Mínimo, un código de un solo uso enviado a ese correo.
-- [ ] **Añadir revocación** (`revoked_at`) y una pantalla para listar y revocar enlaces
-      activos.
-- [ ] **Registrar cada consulta en `RecordAccessLog`** — hoy no queda rastro, lo que es un
-      hueco de trazabilidad frente a NOM-024 y LFPDPPP.
+**`/api/v1/public/shared-history`** (`TemporaryRecordShareController`), `V48`:
+
+- [x] **Token fuera del query string**: ahora es `POST /api/v1/public/shared-history` con
+      el token en el cuerpo. La ruta `permitAll` ya cubría el método.
+- [x] **Solo el hash del token** en BD (`token_hash`, SHA-256 base64url), mismo criterio
+      que `PasswordResetService`. La columna `token` en claro se eliminó; los enlaces
+      vigentes se borraron en la migración (efímeros, <=30 días, sin token en claro
+      recuperable).
+- [x] **Revocación**: columna `revoked_at` + `GET`/`DELETE
+      /api/v1/clinics/{clinicId}/patients/{patientId}/temporary-shares` para listar y
+      revocar. Falta la pantalla de gestión en el frontend (API lista: `listTemporaryShares`,
+      `revokeTemporaryShare`).
+- [x] **Cada consulta se registra en `RecordAccessLog`** vía el outbox
+      (`resourceType=TEMPORARY_SHARE`, `actionType=VIEW`, `userId=null`), más
+      `last_accessed_at`/`access_count` en la fila.
+- [ ] **Verificar al destinatario** con un código de un solo uso al correo: columna
+      `recipient_verified_at` reservada en `V48`, pero el flujo (envío + pantalla para
+      introducir el código) queda pendiente — necesita frontend y una plantilla de correo.
+
+**Pendiente operativo (ventana de mantenimiento, solo tú):**
+
+- [ ] Re-cifrar `ENC:`/`ENC_GCM:` → `ENC_GCM_V2:` y rotar `MEDICLOUD_ENCRYPTION_KEY`.
+- [ ] Montar un volumen dedicado y respaldado en `MEDICLOUD_KEY_STORE_DIR` (`/app/secrets`).
+- [ ] Tras confirmar que no quedan filas `ENC:`, borrar `legacyDecrypt` de `FieldCipher`.
 
 ---
 

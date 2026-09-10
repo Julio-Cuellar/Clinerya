@@ -117,6 +117,10 @@ medicloud:
     # repositorio. Para desarrollo local usa application-local.yml (SPRING_PROFILES_ACTIVE=local).
     # OJO: cambiar este valor rompe el descifrado de las columnas ENC_GCM: existentes.
     encryption-key: ${MEDICLOUD_ENCRYPTION_KEY}
+    # Directorio (fuera de /app/uploads, e idealmente respaldado) donde FieldCipher
+    # persiste .field-key cuando el contenedor no monta /run/secrets/machine_id.
+    # Debe montarse como volumen dedicado en produccion.
+    key-store-dir: ${MEDICLOUD_KEY_STORE_DIR:/app/secrets}
 
 google:
   oauth:

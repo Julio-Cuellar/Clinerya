@@ -832,7 +832,24 @@ export const collaborationApi = {
       body: JSON.stringify(body)
     }),
   getSharedRecord: (token: string) =>
-    request<any>(`/v1/public/shared-history?token=${token}`)
+    request<any>(`/v1/public/shared-history`, {
+      method: "POST",
+      body: JSON.stringify({ token })
+    }),
+  listTemporaryShares: (clinicId: string, patientId: string) =>
+    request<Array<{
+      id: string;
+      email: string;
+      createdByUserId?: string;
+      createdAt: string;
+      expiresAt: string;
+      lastAccessedAt?: string;
+      accessCount: number;
+    }>>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`),
+  revokeTemporaryShare: (clinicId: string, patientId: string, shareId: string) =>
+    request<void>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares/${shareId}`, {
+      method: "DELETE"
+    })
 };
 
 export const staffApi = {
