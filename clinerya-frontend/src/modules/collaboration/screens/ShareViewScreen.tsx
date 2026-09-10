@@ -1,6 +1,28 @@
 import { useEffect, useState } from "react";
-import { IconPrinter, IconAlertTriangle, IconFileText } from "@tabler/icons-react";
+import { IconPrinter, IconAlertTriangle, IconFileText, IconPill, IconClipboardText } from "@tabler/icons-react";
 import { collaborationApi, getFriendlyError } from "@shared/api/api";
+import { parseSchema, parseAnswers, parseTableRows, type TemplateElement } from "@modules/records/types";
+import { TableFieldEditor } from "@shared/ui/TableFieldEditor";
+import { OdontogramField } from "@modules/records/components/OdontogramField";
+
+interface SharedMedicalHistory {
+  templateName: string;
+  schemaJson?: string;
+  answersJson?: string;
+  updatedAt?: string;
+}
+
+interface SharedPrescription {
+  createdAt?: string;
+  notes?: string;
+  items: Array<{
+    medicationName?: string;
+    dosage?: string;
+    frequency?: string;
+    duration?: string;
+    instructions?: string;
+  }>;
+}
 
 interface PublicSharedRecord {
   patientId: string;
@@ -9,6 +31,9 @@ interface PublicSharedRecord {
   patientPhone?: string;
   patientEmail?: string;
   clinicName: string;
+  sections?: string[];
+  medicalHistories?: SharedMedicalHistory[];
+  prescriptions?: SharedPrescription[];
   clinicalNotes: Array<{
     id: string;
     doctorId: string;
@@ -29,6 +54,68 @@ interface PublicSharedRecord {
       oxygenSaturation?: number;
     };
   }>;
+}
+
+/** Campos con respuesta que aportan contenido al lector externo. */
+const RENDERABLE_FIELD_TYPES = new Set([
+  "text", "textarea", "number", "date", "select", "table", "odontogram"
+]);
+
+interface RenderedAnswer {
+  element: TemplateElement;
+  raw: string;
+}
+
+function tableHasContent(raw: string, columnCount: number): boolean {
+  return parseTableRows(raw, columnCount).some((row) => row.some((cell) => String(cell ?? "").trim() !== ""));
+}
+
+/** Selecciona los campos del formulario que tienen respuesta útil, en orden. */
+function collectHistoryAnswers(schemaJson?: string, answersJson?: string): RenderedAnswer[] {
+  const schema = parseSchema(schemaJson);
+  const answers = parseAnswers(answersJson);
+  const rows: RenderedAnswer[] = [];
+  for (const page of schema.pages) {
+    for (const element of page.elements) {
+      if (!RENDERABLE_FIELD_TYPES.has(element.type)) continue;
+      const raw = answers[element.id];
+      if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+      if (element.type === "table" && !tableHasContent(raw, (element.columns ?? []).length)) continue;
+      rows.push({ element, raw: String(raw) });
+    }
+  }
+  return rows;
+}
+
+function HistoryAnswerRow({ element, raw }: RenderedAnswer) {
+  if (element.type === "table") {
+    return (
+      <div style={{ margin: "4px 0 12px 0" }}>
+        <span style={{ fontSize: "12px", color: "var(--color-text-3)", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+          {element.label || "Tabla"}
+        </span>
+        <div style={{ overflowX: "auto" }}>
+          <TableFieldEditor columns={element.columns ?? []} value={raw} onChange={() => undefined} readOnly />
+        </div>
+      </div>
+    );
+  }
+  if (element.type === "odontogram") {
+    return (
+      <div style={{ margin: "4px 0 12px 0" }}>
+        <span style={{ fontSize: "12px", color: "var(--color-text-3)", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+          {element.label || "Odontograma"}
+        </span>
+        <OdontogramField value={raw} onChange={() => undefined} readOnly />
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(140px, 200px) 1fr", gap: "4px 16px", margin: "4px 0" }}>
+      <span style={{ fontSize: "12px", color: "var(--color-text-3)", textTransform: "uppercase" }}>{element.label || "Campo"}</span>
+      <span style={{ fontSize: "14px", whiteSpace: "pre-wrap" }}>{raw}</span>
+    </div>
+  );
 }
 
 export function ShareViewScreen() {
@@ -145,6 +232,35 @@ export function ShareViewScreen() {
         </div>
       </section>
 
+      {/* Historia Clínica (formularios) */}
+      {(record.medicalHistories?.length ?? 0) > 0 && (
+        <section style={{ marginBottom: "30px" }}>
+          <h2 style={{ fontSize: "18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <IconClipboardText size={20} />
+            Historia Clínica
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {record.medicalHistories!.map((history, index) => {
+              const rows = collectHistoryAnswers(history.schemaJson, history.answersJson);
+              return (
+                <article key={index} style={{ background: "var(--color-bg-1)", border: "1px solid var(--color-border)", borderRadius: "8px", padding: "20px" }}>
+                  <h3 style={{ fontSize: "15px", margin: "0 0 12px 0" }}>{history.templateName}</h3>
+                  {rows.length === 0 ? (
+                    <p style={{ color: "var(--color-text-2)", fontStyle: "italic", margin: 0 }}>Sin respuestas registradas.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {rows.map((row) => (
+                        <HistoryAnswerRow key={row.element.id} element={row.element} raw={row.raw} />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Historial de Notas Clínicas */}
       <section>
         <h2 style={{ fontSize: "18px", marginBottom: "20px" }}>Notas de Evolución e Historia Clínica</h2>
@@ -211,6 +327,43 @@ export function ShareViewScreen() {
           </div>
         )}
       </section>
+
+      {/* Prescripciones */}
+      {(record.prescriptions?.length ?? 0) > 0 && (
+        <section style={{ marginTop: "30px" }}>
+          <h2 style={{ fontSize: "18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <IconPill size={20} />
+            Prescripciones
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {record.prescriptions!.map((prescription, index) => (
+              <article key={index} style={{ background: "var(--color-bg-1)", border: "1px solid var(--color-border)", borderRadius: "8px", padding: "16px 20px" }}>
+                <span style={{ fontSize: "12px", color: "var(--color-text-3)" }}>
+                  {prescription.createdAt
+                    ? new Date(prescription.createdAt).toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })
+                    : ""}
+                </span>
+                <ul style={{ margin: "8px 0 0 0", paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {prescription.items.map((item, itemIndex) => (
+                    <li key={itemIndex} style={{ fontSize: "14px" }}>
+                      <strong>{item.medicationName || "Medicamento"}</strong>
+                      {[item.dosage, item.frequency, item.duration].filter(Boolean).length > 0 && (
+                        <span> — {[item.dosage, item.frequency, item.duration].filter(Boolean).join(", ")}</span>
+                      )}
+                      {item.instructions && (
+                        <span style={{ display: "block", color: "var(--color-text-2)", fontSize: "13px" }}>{item.instructions}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {prescription.notes && (
+                  <p style={{ margin: "10px 0 0 0", fontSize: "13px", color: "var(--color-text-2)", whiteSpace: "pre-wrap" }}>{prescription.notes}</p>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       <footer style={{ marginTop: "50px", textAlign: "center", borderTop: "1px solid var(--color-border)", paddingTop: "20px", fontSize: "12px", color: "var(--color-text-3)" }}>
         Este documento es confidencial y ha sido compartido para consulta clínica temporal.

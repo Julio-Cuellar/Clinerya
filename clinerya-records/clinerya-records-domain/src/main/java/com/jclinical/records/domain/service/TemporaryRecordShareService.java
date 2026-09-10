@@ -2,7 +2,11 @@ package com.jclinical.records.domain.service;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.MedicalHistory;
+import com.jclinical.records.domain.model.MedicalHistoryTemplate;
+import com.jclinical.records.domain.model.Prescription;
 import com.jclinical.records.domain.model.RecordAccessLog;
+import com.jclinical.records.domain.model.SharedSection;
 import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
@@ -10,7 +14,10 @@ import com.jclinical.records.domain.ports.out.ClinicLookupPort;
 import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
 import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
+import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
+import com.jclinical.records.domain.ports.out.PrescriptionRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 
@@ -21,6 +28,7 @@ import java.time.LocalDateTime;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class TemporaryRecordShareService implements ManageTemporaryShareUseCase {
@@ -33,29 +41,42 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private final ClinicLookupPort clinicLookup;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
     private final RecordAccessLogOutboxPort accessLogOutbox;
+    private final MedicalHistoryRepositoryPort medicalHistoryRepository;
+    private final MedicalHistoryTemplateRepositoryPort templateRepository;
+    private final PrescriptionRepositoryPort prescriptionRepository;
 
     public TemporaryRecordShareService(TemporaryRecordShareRepositoryPort repository,
                                        ClinicalNoteRepositoryPort noteRepository,
                                        PatientLookupPort patientLookup,
                                        ClinicLookupPort clinicLookup,
                                        PatientAccessAuthorizationPort accessAuthorizationPort,
-                                       RecordAccessLogOutboxPort accessLogOutbox) {
+                                       RecordAccessLogOutboxPort accessLogOutbox,
+                                       MedicalHistoryRepositoryPort medicalHistoryRepository,
+                                       MedicalHistoryTemplateRepositoryPort templateRepository,
+                                       PrescriptionRepositoryPort prescriptionRepository) {
         this.repository = repository;
         this.noteRepository = noteRepository;
         this.patientLookup = patientLookup;
         this.clinicLookup = clinicLookup;
         this.accessAuthorizationPort = accessAuthorizationPort;
         this.accessLogOutbox = accessLogOutbox;
+        this.medicalHistoryRepository = medicalHistoryRepository;
+        this.templateRepository = templateRepository;
+        this.prescriptionRepository = prescriptionRepository;
     }
 
     @Override
-    public TemporaryRecordShare createShareLink(UUID clinicId, UUID patientId, String email, int daysValid, UUID requestingUserId) {
+    public TemporaryRecordShare createShareLink(UUID clinicId, UUID patientId, String email, int daysValid,
+                                               Set<SharedSection> sections, UUID requestingUserId) {
         requireReadWrite(requestingUserId, clinicId, patientId, "No tienes permisos para compartir este expediente.");
 
         patientLookup.findPatient(patientId)
                 .orElseThrow(() -> new IllegalArgumentException("El paciente no existe."));
 
         String token = generateSecureToken();
+        Set<SharedSection> effectiveSections = (sections == null || sections.isEmpty())
+                ? SharedSection.all()
+                : sections;
 
         TemporaryRecordShare share = TemporaryRecordShare.builder()
                 .id(UUID.randomUUID())
@@ -64,6 +85,7 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 .email(email)
                 .tokenHash(hashToken(token))
                 .createdByUserId(requestingUserId)
+                .sharedSections(effectiveSections)
                 .expiresAt(LocalDateTime.now().plusDays(normalizeDaysValid(daysValid)))
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -95,8 +117,15 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
         String clinicName = clinicLookup.findClinicName(share.getClinicId())
                 .orElse("Clinica Medica");
 
-        List<ClinicalNote> notes = noteRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(
-                share.getPatientId(), share.getClinicId());
+        List<ClinicalNote> notes = share.includes(SharedSection.CLINICAL_NOTES)
+                ? loadNotes(share)
+                : List.of();
+        List<MedicalHistoryView> histories = share.includes(SharedSection.MEDICAL_HISTORY)
+                ? loadMedicalHistories(share)
+                : List.of();
+        List<PrescriptionView> prescriptions = share.includes(SharedSection.PRESCRIPTIONS)
+                ? loadPrescriptions(share)
+                : List.of();
 
         share.registerAccess(LocalDateTime.now());
         repository.save(share);
@@ -109,8 +138,54 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 patient.phone(),
                 patient.email(),
                 clinicName,
-                notes
+                share.getSharedSections() == null ? SharedSection.all() : share.getSharedSections(),
+                notes,
+                histories,
+                prescriptions
         );
+    }
+
+    private List<ClinicalNote> loadNotes(TemporaryRecordShare share) {
+        List<ClinicalNote> notes = noteRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(
+                share.getPatientId(), share.getClinicId());
+        if (!share.includes(SharedSection.VITAL_SIGNS)) {
+            notes.forEach(note -> note.setVitalSigns(null));
+        }
+        return notes;
+    }
+
+    private List<MedicalHistoryView> loadMedicalHistories(TemporaryRecordShare share) {
+        return medicalHistoryRepository.findByPatientIdAndClinicId(share.getPatientId(), share.getClinicId()).stream()
+                .map(history -> toMedicalHistoryView(share.getClinicId(), history))
+                .toList();
+    }
+
+    private MedicalHistoryView toMedicalHistoryView(UUID clinicId, MedicalHistory history) {
+        MedicalHistoryTemplate template = templateRepository
+                .findByIdAndClinicId(history.getTemplateId(), clinicId)
+                .orElse(null);
+        String templateName = template != null ? template.getName() : "Formulario";
+        String schemaJson = template != null ? template.getSchemaJson() : null;
+        return new MedicalHistoryView(templateName, schemaJson, history.getAnswersJson(), history.getUpdatedAt());
+    }
+
+    private List<PrescriptionView> loadPrescriptions(TemporaryRecordShare share) {
+        return prescriptionRepository.findByClinicIdAndPatientId(share.getClinicId(), share.getPatientId()).stream()
+                .map(this::toPrescriptionView)
+                .toList();
+    }
+
+    private PrescriptionView toPrescriptionView(Prescription prescription) {
+        List<PrescriptionItemView> items = prescription.getItems() == null ? List.of()
+                : prescription.getItems().stream()
+                        .map(item -> new PrescriptionItemView(
+                                item.getMedicationName(),
+                                item.getDosage(),
+                                item.getFrequency(),
+                                item.getDuration(),
+                                item.getInstructions()))
+                        .toList();
+        return new PrescriptionView(prescription.getCreatedAt(), prescription.getNotes(), items);
     }
 
     @Override
@@ -120,7 +195,8 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 .filter(TemporaryRecordShare::isUsable)
                 .map(s -> new ShareLinkView(
                         s.getId(), s.getEmail(), s.getCreatedByUserId(), s.getCreatedAt(),
-                        s.getExpiresAt(), s.getLastAccessedAt(), s.getAccessCount()))
+                        s.getExpiresAt(), s.getLastAccessedAt(), s.getAccessCount(),
+                        s.getSharedSections() == null ? SharedSection.all() : s.getSharedSections()))
                 .toList();
     }
 

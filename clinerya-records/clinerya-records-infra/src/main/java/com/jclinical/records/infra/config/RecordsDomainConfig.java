@@ -179,9 +179,13 @@ public class RecordsDomainConfig {
             PatientLookupPort patientLookup,
             ClinicLookupPort clinicLookup,
             PatientAccessAuthorizationPort accessAuthorizationPort,
-            RecordAccessLogOutboxPort accessLogOutbox) {
+            RecordAccessLogOutboxPort accessLogOutbox,
+            MedicalHistoryRepositoryPort medicalHistoryRepository,
+            MedicalHistoryTemplateRepositoryPort medicalHistoryTemplateRepository,
+            PrescriptionRepositoryPort prescriptionRepository) {
         return new TemporaryRecordShareService(repository, noteRepository, patientLookup, clinicLookup,
-                accessAuthorizationPort, accessLogOutbox);
+                accessAuthorizationPort, accessLogOutbox, medicalHistoryRepository,
+                medicalHistoryTemplateRepository, prescriptionRepository);
     }
 
     @Bean

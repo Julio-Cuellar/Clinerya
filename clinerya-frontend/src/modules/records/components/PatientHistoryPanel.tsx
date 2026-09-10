@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IconArrowLeft, IconUserShare, IconHistory, IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
+import { IconArrowLeft, IconUserShare, IconHistory, IconAlertTriangle, IconShieldCheck, IconLink } from "@tabler/icons-react";
 import { getFriendlyError, historyTemplatesApi, medicalHistoryApi, clinicsApi, privacyConsentApi } from "@shared/api/api";
 import type { HistoryTemplateResponse, MedicalHistoryResponse, PrivacyConsentResponse } from "@modules/records/types";
 import type { PatientResponse } from "@modules/patients/types";
@@ -9,6 +9,7 @@ import { VitalSignsChart } from "@modules/records/components/VitalSignsChart";
 import { PatientClinicalHeader } from "@modules/records/components/PatientClinicalHeader";
 import { HistoryFormModal } from "@modules/records/components/HistoryFormModal";
 import { InviteExternalAccessModal } from "@modules/collaboration/components/InviteExternalAccessModal";
+import { ManageTemporarySharesModal } from "@modules/collaboration/components/ManageTemporarySharesModal";
 import { RecordAccessLogsModal } from "@modules/records/components/RecordAccessLogsModal";
 import { PrivacyConsentModal } from "@modules/records/components/PrivacyConsentModal";
 
@@ -37,6 +38,7 @@ export function PatientHistoryPanel({
   const [error, setError] = useState("");
   const [activeTemplate, setActiveTemplate] = useState<HistoryTemplateResponse | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [sharesOpen, setSharesOpen] = useState(false);
   const [accessLogsOpen, setAccessLogsOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [clinic, setClinic] = useState<ClinicResponse | null>(null);
@@ -99,6 +101,12 @@ export function PatientHistoryPanel({
             <button className="btn secondary" type="button" onClick={() => setInviteOpen(true)}>
               <IconUserShare size={16} aria-hidden="true" />
               Compartir con especialista
+            </button>
+          )}
+          {allowSharing && (
+            <button className="btn secondary" type="button" onClick={() => setSharesOpen(true)}>
+              <IconLink size={16} aria-hidden="true" />
+              Enlaces temporales
             </button>
           )}
           <button className="btn secondary" type="button" onClick={onChangePatient}>
@@ -265,6 +273,15 @@ export function PatientHistoryPanel({
             setInviteOpen(false);
             setStatus("Invitación enviada. El especialista deberá aceptarla desde su cuenta.");
           }}
+        />
+      )}
+
+      {sharesOpen && (
+        <ManageTemporarySharesModal
+          clinicId={clinicId}
+          patientId={patient.id}
+          patientLabel={`${patient.firstName} ${patient.lastNamePaterno} ${patient.lastNameMaterno ?? ""}`.trim()}
+          onClose={() => setSharesOpen(false)}
         />
       )}
 

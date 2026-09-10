@@ -1,5 +1,6 @@
 package com.jclinical.records.infra.adapters.out.persistence;
 
+import com.jclinical.records.domain.model.SharedSection;
 import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +53,7 @@ public class SqlTemporaryRecordShareRepository implements TemporaryRecordShareRe
                 .recipientVerifiedAt(domain.getRecipientVerifiedAt())
                 .lastAccessedAt(domain.getLastAccessedAt())
                 .accessCount(domain.getAccessCount())
+                .sharedSections(SharedSection.toCsv(domain.getSharedSections()))
                 .build();
     }
 
@@ -70,6 +72,7 @@ public class SqlTemporaryRecordShareRepository implements TemporaryRecordShareRe
                 .recipientVerifiedAt(entity.getRecipientVerifiedAt())
                 .lastAccessedAt(entity.getLastAccessedAt())
                 .accessCount(entity.getAccessCount())
+                .sharedSections(SharedSection.parseCsv(entity.getSharedSections()))
                 .build();
     }
 }

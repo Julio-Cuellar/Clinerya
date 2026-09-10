@@ -254,10 +254,12 @@ export function OdontogramField({
           );
         })}
       </div>
-      <p className="odontogram-hint">
-        Haz clic en cualquier parte de un diente (una cara o el numero) para abrir la lista completa de condiciones y elegir la
-        que corresponda.
-      </p>
+      {!readOnly && (
+        <p className="odontogram-hint">
+          Haz clic en cualquier parte de un diente (una cara o el numero) para abrir la lista completa de condiciones y elegir la
+          que corresponda.
+        </p>
+      )}
     </div>
   );
 }

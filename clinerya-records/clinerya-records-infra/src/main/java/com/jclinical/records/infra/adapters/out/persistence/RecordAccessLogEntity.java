@@ -31,7 +31,8 @@ public class RecordAccessLogEntity {
     @Column(name = "patient_id", nullable = false)
     private UUID patientId;
 
-    @Column(name = "user_id", nullable = false)
+    // Nulo para consultas vía enlace compartido (sin usuario interno); ver V49.
+    @Column(name = "user_id")
     private UUID userId;
 
     @Column(name = "user_name", nullable = false)

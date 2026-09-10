@@ -101,7 +101,11 @@ import type {
   VoidCashExpenseRequest,
   VoidTicketRequest
 } from "@modules/cash/types";
-import type { ExternalAccessGrantResponse, InviteExternalAccessRequest } from "@modules/collaboration/types";
+import type {
+  ExternalAccessGrantResponse,
+  InviteExternalAccessRequest,
+  TemporaryShareView
+} from "@modules/collaboration/types";
 import type { NotificationListResponse } from "@modules/notifications/types";
 import type {
   BankAccountMovementResponse,
@@ -826,7 +830,11 @@ export const collaborationApi = {
     request<ExternalAccessGrantResponse>(`/v1/me/external-access/${grantId}/accept`, { method: "POST" }),
   reject: (grantId: string) =>
     request<ExternalAccessGrantResponse>(`/v1/me/external-access/${grantId}/reject`, { method: "POST" }),
-  createTemporaryShare: (clinicId: string, patientId: string, body: { email: string; daysValid: number }) =>
+  createTemporaryShare: (
+    clinicId: string,
+    patientId: string,
+    body: { email: string; daysValid: number; sections?: string[] }
+  ) =>
     request<{ token: string; expiresAt: string }>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`, {
       method: "POST",
       body: JSON.stringify(body)
@@ -837,15 +845,7 @@ export const collaborationApi = {
       body: JSON.stringify({ token })
     }),
   listTemporaryShares: (clinicId: string, patientId: string) =>
-    request<Array<{
-      id: string;
-      email: string;
-      createdByUserId?: string;
-      createdAt: string;
-      expiresAt: string;
-      lastAccessedAt?: string;
-      accessCount: number;
-    }>>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`),
+    request<TemporaryShareView[]>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`),
   revokeTemporaryShare: (clinicId: string, patientId: string, shareId: string) =>
     request<void>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares/${shareId}`, {
       method: "DELETE"

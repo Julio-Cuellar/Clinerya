@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -29,6 +30,9 @@ public class TemporaryRecordShare {
     private LocalDateTime lastAccessedAt;
     private int accessCount;
 
+    /** Secciones del expediente que este enlace expone. */
+    private Set<SharedSection> sharedSections;
+
     /**
      * Token en claro. Solo se llena al crear el enlace, para devolverlo una vez
      * al emisor. Nunca se persiste ni se vuelve a exponer.
@@ -50,5 +54,10 @@ public class TemporaryRecordShare {
     public void registerAccess(LocalDateTime when) {
         this.lastAccessedAt = when;
         this.accessCount += 1;
+    }
+
+    /** Un enlace sin secciones definidas expone todo (compatibilidad). */
+    public boolean includes(SharedSection section) {
+        return sharedSections == null || sharedSections.isEmpty() || sharedSections.contains(section);
     }
 }

@@ -1,5 +1,6 @@
 package com.jclinical.records.infra.adapters.in.web;
 
+import com.jclinical.records.domain.model.SharedSection;
 import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.ShareLinkView;
@@ -16,8 +17,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -36,7 +40,7 @@ public class TemporaryRecordShareController {
         int days = request.daysValid() > 0 ? request.daysValid() : 7;
 
         TemporaryRecordShare share = temporaryShareUseCase.createShareLink(
-                clinicId, patientId, request.email(), days, requestingUserId);
+                clinicId, patientId, request.email(), days, parseSections(request.sections()), requestingUserId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new TemporaryRecordShareResponse(
                 share.getId(),
@@ -80,9 +84,32 @@ public class TemporaryRecordShareController {
         return ResponseEntity.ok(summary);
     }
 
+    /**
+     * Nombres invalidos se ignoran; una lista vacia o nula se traduce a "todas las
+     * secciones" en el dominio.
+     */
+    private Set<SharedSection> parseSections(List<String> sections) {
+        if (sections == null || sections.isEmpty()) {
+            return SharedSection.all();
+        }
+        Set<SharedSection> parsed = sections.stream()
+                .filter(name -> name != null && !name.isBlank())
+                .map(name -> {
+                    try {
+                        return SharedSection.valueOf(name.trim().toUpperCase());
+                    } catch (IllegalArgumentException ex) {
+                        return null;
+                    }
+                })
+                .filter(section -> section != null)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(SharedSection.class)));
+        return parsed.isEmpty() ? SharedSection.all() : parsed;
+    }
+
     public record CreateShareRequest(
             String email,
-            int daysValid
+            int daysValid,
+            List<String> sections
     ) {}
 
     public record RedeemShareRequest(

@@ -57,4 +57,8 @@ public class TemporaryRecordShareEntity {
 
     @Column(name = "access_count", nullable = false)
     private int accessCount;
+
+    /** CSV de claves de SharedSection; ver V50. */
+    @Column(name = "shared_sections", nullable = false)
+    private String sharedSections;
 }
