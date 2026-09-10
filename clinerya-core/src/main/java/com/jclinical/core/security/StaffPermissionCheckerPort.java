@@ -1,0 +1,14 @@
+package com.jclinical.core.security;
+
+import java.util.UUID;
+
+/**
+ * Resuelve si un usuario tiene concedido un permiso operativo dentro de una clinica.
+ * Permite que los servicios de dominio de cualquier modulo apliquen control de acceso
+ * sin depender de la implementacion concreta del modelo de roles y overrides del
+ * modulo de personal.
+ */
+public interface StaffPermissionCheckerPort {
+
+    boolean hasPermission(UUID clinicId, UUID userId, StaffPermission permission);
+}

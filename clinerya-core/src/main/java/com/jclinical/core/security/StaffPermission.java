@@ -1,9 +1,10 @@
-package com.jclinical.staff.domain.model;
+package com.jclinical.core.security;
 
 public enum StaffPermission {
     VIEW_DASHBOARD,
     VIEW_DASHBOARD_METRICS,
     VIEW_OPERATIONAL_ALERTS,
+    VIEW_NOTIFICATIONS,
     MANAGE_AGENDA,
     VIEW_AGENDA,
     CREATE_APPOINTMENTS,
