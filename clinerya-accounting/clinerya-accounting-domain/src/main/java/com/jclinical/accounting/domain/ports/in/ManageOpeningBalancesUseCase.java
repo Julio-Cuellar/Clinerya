@@ -15,25 +15,36 @@ import java.util.UUID;
 
 public interface ManageOpeningBalancesUseCase {
 
-    OpeningBalanceSetup configureOpeningBalances(UUID clinicId, ConfigureOpeningBalancesCommand command);
+    OpeningBalanceSetup configureOpeningBalances(UUID actingUserId, UUID clinicId, ConfigureOpeningBalancesCommand command);
 
-    Optional<OpeningBalanceSetup> getOpeningBalances(UUID clinicId);
+    Optional<OpeningBalanceSetup> getOpeningBalances(UUID actingUserId, UUID clinicId);
 
+    /** Sin control de permiso: lo consumen validadores internos de caja, clinicas y nomina. */
     List<BankAccount> listBankAccounts(UUID clinicId);
 
-    List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, LocalDate today, int withinDays);
+    /** Ruta interna (scheduler de notificaciones de tarjetas de credito): sin control de permiso. */
+    default List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, LocalDate today, int withinDays) {
+        return listCreditAccountAlerts(null, clinicId, today, withinDays);
+    }
 
-    BankAccount createBankAccount(UUID clinicId, CreateBankAccountCommand command);
+    List<CreditAccountAlert> listCreditAccountAlerts(UUID actingUserId, UUID clinicId, LocalDate today, int withinDays);
 
-    BankAccount updateBankAccount(UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command);
+    /** Ruta interna (aprovisionamiento de caja chica al crear la clinica): sin control de permiso. */
+    default BankAccount createBankAccount(UUID clinicId, CreateBankAccountCommand command) {
+        return createBankAccount(null, clinicId, command);
+    }
 
-    BankAccount deactivateBankAccount(UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command);
+    BankAccount createBankAccount(UUID actingUserId, UUID clinicId, CreateBankAccountCommand command);
 
-    JournalEntry correctBankAccountBalance(UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command);
+    BankAccount updateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command);
 
-    List<BankAccountMovement> listBankAccountMovements(UUID clinicId, UUID bankAccountId);
+    BankAccount deactivateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command);
 
-    JournalEntry transferFunds(UUID clinicId, TransferFundsCommand command);
+    JournalEntry correctBankAccountBalance(UUID actingUserId, UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command);
+
+    List<BankAccountMovement> listBankAccountMovements(UUID actingUserId, UUID clinicId, UUID bankAccountId);
+
+    JournalEntry transferFunds(UUID actingUserId, UUID clinicId, TransferFundsCommand command);
 
     record ConfigureOpeningBalancesCommand(
             LocalDate entryDate,

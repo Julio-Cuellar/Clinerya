@@ -12,6 +12,9 @@ import com.jclinical.core.events.MermaCaducidadEvent;
 import com.jclinical.core.events.PaymentRegisteredEvent;
 import com.jclinical.core.events.PurchaseOrderCreatedEvent;
 import com.jclinical.core.events.PayrollPaymentRegisteredEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -47,9 +50,20 @@ public class JournalEntryService implements ManageJournalUseCase {
     private static final String RETENCIONES_NOMINA_NOMBRE = "Retenciones y deducciones por pagar";
 
     private final JournalEntryRepositoryPort repository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public JournalEntryService(JournalEntryRepositoryPort repository) {
+    public JournalEntryService(JournalEntryRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
         this.repository = repository;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     @Override
@@ -203,12 +217,15 @@ public class JournalEntryService implements ManageJournalUseCase {
     }
 
     @Override
-    public List<JournalEntry> listByClinic(UUID clinicId) {
+    public List<JournalEntry> listByClinic(UUID actingUserId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_JOURNAL_ENTRIES,
+                "No tienes permiso para consultar el diario contable de esta clinica.");
         return repository.findByClinicId(clinicId);
     }
 
     @Override
     public JournalQueryResult queryByClinic(
+            UUID actingUserId,
             UUID clinicId,
             LocalDate from,
             LocalDate to,
@@ -216,6 +233,8 @@ public class JournalEntryService implements ManageJournalUseCase {
             String sourceEventType,
             int page,
             int size) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_JOURNAL_ENTRIES,
+                "No tienes permiso para consultar el diario contable de esta clinica.");
         if (from != null && to != null && from.isAfter(to)) {
             throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final.");
         }
@@ -231,7 +250,9 @@ public class JournalEntryService implements ManageJournalUseCase {
     }
 
     @Override
-    public JournalEntry createManualEntry(UUID clinicId, JournalEntry entry) {
+    public JournalEntry createManualEntry(UUID actingUserId, UUID clinicId, JournalEntry entry) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CREATE_JOURNAL_ENTRIES,
+                "No tienes permiso para crear polizas manuales en esta clinica.");
         if (entry.getId() == null) {
             entry.setId(UUID.randomUUID());
         }

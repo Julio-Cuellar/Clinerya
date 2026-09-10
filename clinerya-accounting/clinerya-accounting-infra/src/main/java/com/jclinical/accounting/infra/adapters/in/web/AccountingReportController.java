@@ -4,6 +4,7 @@ import com.jclinical.accounting.domain.ports.in.GenerateAccountingReportsUseCase
 import com.jclinical.accounting.infra.adapters.in.web.dto.IncomeStatementResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.TrialBalanceResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.WasteReportResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class AccountingReportController {
 
     private final GenerateAccountingReportsUseCase reportsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/income-statement")
     public ResponseEntity<IncomeStatementResponse> incomeStatement(
@@ -36,7 +38,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(IncomeStatementResponse.from(
-                reportsUseCase.generateIncomeStatement(clinicId, from, to, compare)));
+                reportsUseCase.generateIncomeStatement(currentUserResolver.getCurrentUserId(), clinicId, from, to, compare)));
     }
 
     @GetMapping("/trial-balance")
@@ -49,7 +51,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(TrialBalanceResponse.from(
-                reportsUseCase.generateTrialBalance(clinicId, from, to)));
+                reportsUseCase.generateTrialBalance(currentUserResolver.getCurrentUserId(), clinicId, from, to)));
     }
 
     @GetMapping("/waste")
@@ -62,6 +64,6 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(WasteReportResponse.from(
-                reportsUseCase.generateWasteReport(clinicId, from, to)));
+                reportsUseCase.generateWasteReport(currentUserResolver.getCurrentUserId(), clinicId, from, to)));
     }
 }

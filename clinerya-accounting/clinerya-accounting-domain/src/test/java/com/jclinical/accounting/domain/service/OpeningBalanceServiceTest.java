@@ -18,6 +18,7 @@ import com.jclinical.accounting.domain.ports.in.ManageOpeningBalancesUseCase.Upd
 import com.jclinical.accounting.domain.ports.out.BankAccountRepositoryPort;
 import com.jclinical.accounting.domain.ports.out.JournalEntryRepositoryPort;
 import com.jclinical.accounting.domain.ports.out.OpeningBalanceSetupRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -40,11 +41,13 @@ class OpeningBalanceServiceTest {
     private final InMemorySetupRepository setupRepository = new InMemorySetupRepository();
     private final InMemoryBankAccountRepository bankAccountRepository = new InMemoryBankAccountRepository();
     private final InMemoryJournalEntryRepository journalEntryRepository = new InMemoryJournalEntryRepository();
+    private static final UUID ACTING_USER = UUID.randomUUID();
     private OpeningBalanceService service;
 
     @BeforeEach
     void setUp() {
-        service = new OpeningBalanceService(setupRepository, bankAccountRepository, journalEntryRepository);
+        service = new OpeningBalanceService(setupRepository, bankAccountRepository, journalEntryRepository,
+                (c, u, p) -> true);
     }
 
     @Test
@@ -52,7 +55,7 @@ class OpeningBalanceServiceTest {
         UUID clinicId = UUID.randomUUID();
         LocalDate entryDate = LocalDate.of(2026, 8, 10);
 
-        OpeningBalanceSetup setup = service.configureOpeningBalances(clinicId, new ConfigureOpeningBalancesCommand(
+        OpeningBalanceSetup setup = service.configureOpeningBalances(ACTING_USER, clinicId, new ConfigureOpeningBalancesCommand(
                 entryDate,
                 money("5000.00"),
                 money("2500.00"),
@@ -84,14 +87,14 @@ class OpeningBalanceServiceTest {
         ConfigureOpeningBalancesCommand emptyCommand =
                 new ConfigureOpeningBalancesCommand(LocalDate.now(), BigDecimal.ZERO, BigDecimal.ZERO, List.of(), null);
 
-        assertThrows(IllegalArgumentException.class, () -> service.configureOpeningBalances(clinicId, emptyCommand));
+        assertThrows(IllegalArgumentException.class, () -> service.configureOpeningBalances(ACTING_USER, clinicId, emptyCommand));
 
-        service.configureOpeningBalances(clinicId, new ConfigureOpeningBalancesCommand(
+        service.configureOpeningBalances(ACTING_USER, clinicId, new ConfigureOpeningBalancesCommand(
                 LocalDate.now(), money("1.00"), BigDecimal.ZERO, List.of(), null));
 
         ConfigureOpeningBalancesCommand duplicateCommand =
                 new ConfigureOpeningBalancesCommand(LocalDate.now(), money("1.00"), BigDecimal.ZERO, List.of(), null);
-        assertThrows(IllegalStateException.class, () -> service.configureOpeningBalances(clinicId, duplicateCommand));
+        assertThrows(IllegalStateException.class, () -> service.configureOpeningBalances(ACTING_USER, clinicId, duplicateCommand));
     }
 
     @Test
@@ -119,13 +122,13 @@ class OpeningBalanceServiceTest {
         assertEquals("21200", credit.getAccountCode());
         assertEquals(1, journalEntryRepository.entries.size());
 
-        List<CreditAccountAlert> alerts = service.listCreditAccountAlerts(clinicId, LocalDate.of(2026, 8, 10), 10);
+        List<CreditAccountAlert> alerts = service.listCreditAccountAlerts(ACTING_USER, clinicId, LocalDate.of(2026, 8, 10), 10);
 
         assertEquals(2, alerts.size());
         assertEquals(CreditAccountAlert.AlertType.CUTOFF, alerts.get(0).type());
         assertEquals(CreditAccountAlert.AlertType.PAYMENT_DUE, alerts.get(1).type());
 
-        BankAccount updated = service.updateBankAccount(clinicId, credit.getId(), new UpdateBankAccountCommand(
+        BankAccount updated = service.updateBankAccount(ACTING_USER, clinicId, credit.getId(), new UpdateBankAccountCommand(
                 "Santander",
                 "Tarjeta compras",
                 "4321",
@@ -153,13 +156,14 @@ class OpeningBalanceServiceTest {
         BankAccount destination = service.createBankAccount(clinicId, debitCommand("Banorte", "Reserva", "2222", money("100.00")));
 
         JournalEntry correction = service.correctBankAccountBalance(
+                ACTING_USER,
                 clinicId,
                 source.getId(),
                 new CorrectBankAccountBalanceCommand(LocalDate.of(2026, 8, 11), money("1300.00"), "corte bancario"));
 
         assertEquals("CuentaBancariaCorreccion", correction.getSourceEventType());
 
-        JournalEntry transfer = service.transferFunds(clinicId, new TransferFundsCommand(
+        JournalEntry transfer = service.transferFunds(ACTING_USER, clinicId, new TransferFundsCommand(
                 source.getId(),
                 destination.getId(),
                 money("250.00"),
@@ -168,11 +172,12 @@ class OpeningBalanceServiceTest {
 
         assertEquals("TransferenciaCuentaOperativa", transfer.getSourceEventType());
 
-        List<BankAccountMovement> sourceMovements = service.listBankAccountMovements(clinicId, source.getId());
+        List<BankAccountMovement> sourceMovements = service.listBankAccountMovements(ACTING_USER, clinicId, source.getId());
         assertEquals(3, sourceMovements.size());
         assertEquals(money("1050.00"), sourceMovements.get(2).balanceAfter());
 
         BankAccount inactive = service.deactivateBankAccount(
+                ACTING_USER,
                 clinicId,
                 destination.getId(),
                 new DeactivateBankAccountCommand(LocalDate.of(2026, 8, 13), "cuenta reemplazada"));
@@ -196,16 +201,16 @@ class OpeningBalanceServiceTest {
 
         TransferFundsCommand sameAccountCommand =
                 new TransferFundsCommand(source.getId(), source.getId(), money("1.00"), LocalDate.now(), null);
-        assertThrows(IllegalArgumentException.class, () -> service.transferFunds(clinicId, sameAccountCommand));
+        assertThrows(IllegalArgumentException.class, () -> service.transferFunds(ACTING_USER, clinicId, sameAccountCommand));
 
         TransferFundsCommand currencyMismatchCommand =
                 new TransferFundsCommand(source.getId(), usd.getId(), money("1.00"), LocalDate.now(), null);
-        assertThrows(IllegalArgumentException.class, () -> service.transferFunds(clinicId, currencyMismatchCommand));
+        assertThrows(IllegalArgumentException.class, () -> service.transferFunds(ACTING_USER, clinicId, currencyMismatchCommand));
 
         UpdateBankAccountCommand typeChangeCommand = new UpdateBankAccountCommand(
                 "BBVA", "Principal", "1111", "MXN", BankAccountType.CREDIT, OperationalAccountKind.BANK,
                 null, null, null, null, null, null, null, "cambio tipo");
-        assertThrows(IllegalStateException.class, () -> service.updateBankAccount(clinicId, source.getId(), typeChangeCommand));
+        assertThrows(IllegalStateException.class, () -> service.updateBankAccount(ACTING_USER, clinicId, source.getId(), typeChangeCommand));
     }
 
     private static CreateBankAccountCommand debitCommand(String bankName, String alias, String last4, BigDecimal openingBalance) {

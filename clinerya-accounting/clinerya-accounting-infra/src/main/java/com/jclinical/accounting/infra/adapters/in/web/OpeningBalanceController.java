@@ -20,6 +20,7 @@ import com.jclinical.accounting.infra.adapters.in.web.dto.JournalLineResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.OpeningBalanceSetupResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.UpdateBankAccountRequest;
 import com.jclinical.accounting.infra.adapters.in.web.dto.TransferFundsRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,10 +41,11 @@ import java.util.UUID;
 public class OpeningBalanceController {
 
     private final ManageOpeningBalancesUseCase openingBalancesUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/opening-balances")
     public ResponseEntity<OpeningBalanceSetupResponse> getOpeningBalances(@PathVariable UUID clinicId) {
-        return ResponseEntity.ok(openingBalancesUseCase.getOpeningBalances(clinicId)
+        return ResponseEntity.ok(openingBalancesUseCase.getOpeningBalances(currentUserResolver.getCurrentUserId(), clinicId)
                 .map(this::toResponse)
                 .orElse(null));
     }
@@ -52,7 +54,7 @@ public class OpeningBalanceController {
     public ResponseEntity<OpeningBalanceSetupResponse> createOpeningBalances(
             @PathVariable UUID clinicId,
             @RequestBody CreateOpeningBalanceSetupRequest request) {
-        OpeningBalanceSetup created = openingBalancesUseCase.configureOpeningBalances(clinicId, toCommand(request));
+        OpeningBalanceSetup created = openingBalancesUseCase.configureOpeningBalances(currentUserResolver.getCurrentUserId(), clinicId, toCommand(request));
         return ResponseEntity.ok(toResponse(created));
     }
 
@@ -68,7 +70,7 @@ public class OpeningBalanceController {
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "7") int withinDays) {
         return ResponseEntity.ok(openingBalancesUseCase
-                .listCreditAccountAlerts(clinicId, java.time.LocalDate.now(), withinDays)
+                .listCreditAccountAlerts(currentUserResolver.getCurrentUserId(), clinicId, java.time.LocalDate.now(), withinDays)
                 .stream()
                 .map(this::toCreditAlertResponse)
                 .toList());
@@ -79,6 +81,7 @@ public class OpeningBalanceController {
             @PathVariable UUID clinicId,
             @RequestBody CreateBankAccountRequest request) {
         BankAccount created = openingBalancesUseCase.createBankAccount(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 new ManageOpeningBalancesUseCase.CreateBankAccountCommand(
                         request.bankName(),
@@ -108,6 +111,7 @@ public class OpeningBalanceController {
             @PathVariable UUID bankAccountId,
             @RequestBody UpdateBankAccountRequest request) {
         BankAccount updated = openingBalancesUseCase.updateBankAccount(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 bankAccountId,
                 new ManageOpeningBalancesUseCase.UpdateBankAccountCommand(
@@ -136,6 +140,7 @@ public class OpeningBalanceController {
             @PathVariable UUID bankAccountId,
             @RequestBody CorrectBankAccountBalanceRequest request) {
         JournalEntry entry = openingBalancesUseCase.correctBankAccountBalance(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 bankAccountId,
                 new ManageOpeningBalancesUseCase.CorrectBankAccountBalanceCommand(
@@ -153,6 +158,7 @@ public class OpeningBalanceController {
             @PathVariable UUID bankAccountId,
             @RequestBody DeactivateBankAccountRequest request) {
         BankAccount account = openingBalancesUseCase.deactivateBankAccount(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 bankAccountId,
                 new ManageOpeningBalancesUseCase.DeactivateBankAccountCommand(
@@ -167,7 +173,7 @@ public class OpeningBalanceController {
     public ResponseEntity<List<BankAccountMovementResponse>> listBankAccountMovements(
             @PathVariable UUID clinicId,
             @PathVariable UUID bankAccountId) {
-        return ResponseEntity.ok(openingBalancesUseCase.listBankAccountMovements(clinicId, bankAccountId).stream()
+        return ResponseEntity.ok(openingBalancesUseCase.listBankAccountMovements(currentUserResolver.getCurrentUserId(), clinicId, bankAccountId).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -177,6 +183,7 @@ public class OpeningBalanceController {
             @PathVariable UUID clinicId,
             @RequestBody TransferFundsRequest request) {
         JournalEntry entry = openingBalancesUseCase.transferFunds(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 new ManageOpeningBalancesUseCase.TransferFundsCommand(
                         request.sourceAccountId(),

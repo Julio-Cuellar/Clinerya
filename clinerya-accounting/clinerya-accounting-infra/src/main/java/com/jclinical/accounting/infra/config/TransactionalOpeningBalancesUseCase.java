@@ -24,14 +24,14 @@ public class TransactionalOpeningBalancesUseCase implements ManageOpeningBalance
 
     @Override
     @Transactional
-    public OpeningBalanceSetup configureOpeningBalances(UUID clinicId, ConfigureOpeningBalancesCommand command) {
-        return openingBalanceService.configureOpeningBalances(clinicId, command);
+    public OpeningBalanceSetup configureOpeningBalances(UUID actingUserId, UUID clinicId, ConfigureOpeningBalancesCommand command) {
+        return openingBalanceService.configureOpeningBalances(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<OpeningBalanceSetup> getOpeningBalances(UUID clinicId) {
-        return openingBalanceService.getOpeningBalances(clinicId);
+    public Optional<OpeningBalanceSetup> getOpeningBalances(UUID actingUserId, UUID clinicId) {
+        return openingBalanceService.getOpeningBalances(actingUserId, clinicId);
     }
 
     @Override
@@ -42,43 +42,43 @@ public class TransactionalOpeningBalancesUseCase implements ManageOpeningBalance
 
     @Override
     @Transactional(readOnly = true)
-    public List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, java.time.LocalDate today, int withinDays) {
-        return openingBalanceService.listCreditAccountAlerts(clinicId, today, withinDays);
+    public List<CreditAccountAlert> listCreditAccountAlerts(UUID actingUserId, UUID clinicId, java.time.LocalDate today, int withinDays) {
+        return openingBalanceService.listCreditAccountAlerts(actingUserId, clinicId, today, withinDays);
     }
 
     @Override
     @Transactional
-    public BankAccount createBankAccount(UUID clinicId, CreateBankAccountCommand command) {
-        return openingBalanceService.createBankAccount(clinicId, command);
+    public BankAccount createBankAccount(UUID actingUserId, UUID clinicId, CreateBankAccountCommand command) {
+        return openingBalanceService.createBankAccount(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional
-    public BankAccount updateBankAccount(UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command) {
-        return openingBalanceService.updateBankAccount(clinicId, bankAccountId, command);
+    public BankAccount updateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command) {
+        return openingBalanceService.updateBankAccount(actingUserId, clinicId, bankAccountId, command);
     }
 
     @Override
     @Transactional
-    public BankAccount deactivateBankAccount(UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command) {
-        return openingBalanceService.deactivateBankAccount(clinicId, bankAccountId, command);
+    public BankAccount deactivateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command) {
+        return openingBalanceService.deactivateBankAccount(actingUserId, clinicId, bankAccountId, command);
     }
 
     @Override
     @Transactional
-    public JournalEntry correctBankAccountBalance(UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command) {
-        return openingBalanceService.correctBankAccountBalance(clinicId, bankAccountId, command);
+    public JournalEntry correctBankAccountBalance(UUID actingUserId, UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command) {
+        return openingBalanceService.correctBankAccountBalance(actingUserId, clinicId, bankAccountId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<BankAccountMovement> listBankAccountMovements(UUID clinicId, UUID bankAccountId) {
-        return openingBalanceService.listBankAccountMovements(clinicId, bankAccountId);
+    public List<BankAccountMovement> listBankAccountMovements(UUID actingUserId, UUID clinicId, UUID bankAccountId) {
+        return openingBalanceService.listBankAccountMovements(actingUserId, clinicId, bankAccountId);
     }
 
     @Override
     @Transactional
-    public JournalEntry transferFunds(UUID clinicId, TransferFundsCommand command) {
-        return openingBalanceService.transferFunds(clinicId, command);
+    public JournalEntry transferFunds(UUID actingUserId, UUID clinicId, TransferFundsCommand command) {
+        return openingBalanceService.transferFunds(actingUserId, clinicId, command);
     }
 }
