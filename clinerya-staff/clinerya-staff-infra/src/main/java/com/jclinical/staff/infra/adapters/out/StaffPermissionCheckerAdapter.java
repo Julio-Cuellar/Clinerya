@@ -1,10 +1,10 @@
 package com.jclinical.staff.infra.adapters.out;
 
 import com.jclinical.staff.domain.model.ClinicStaff;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
-import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

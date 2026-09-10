@@ -9,7 +9,7 @@ import com.jclinical.staff.domain.model.StaffCompensation;
 import com.jclinical.staff.domain.model.StaffPayrollLine;
 import com.jclinical.staff.domain.model.StaffPayrollPeriod;
 import com.jclinical.staff.domain.model.StaffPayrollPeriodStatus;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.CommissionPreviewEntry;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.PayrollLineSource;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase.PayrollLineSummary;
@@ -21,7 +21,7 @@ import com.jclinical.staff.domain.ports.out.StaffAttendanceRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffCompensationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
-import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -222,6 +222,27 @@ class StaffOperationsServiceTest {
                 service.closePayrollPeriod(clinicId, plainUserId, periodId));
         assertThrows(ClinicAccessDeniedException.class, () ->
                 service.payPayrollPeriod(clinicId, plainUserId, periodId, UUID.randomUUID(), LocalDate.now()));
+    }
+
+    @Test
+    void recordActivityRequiresManageStaffActivityPermission() {
+        UUID staffId = staffRepository.seedActive(clinicId);
+        assertThrows(ClinicAccessDeniedException.class, () -> service.recordActivity(
+                clinicId, plainUserId, staffId, StaffActivityType.SALE, null, null, null, BigDecimal.TEN, null));
+
+        grants.add(plainUserId + ":" + StaffPermission.MANAGE_STAFF_ACTIVITY);
+        service.recordActivity(clinicId, plainUserId, staffId, StaffActivityType.SALE, null, null, null,
+                BigDecimal.TEN, LocalDateTime.now());
+        assertEquals(1, service.listActivities(clinicId, plainUserId, staffId, null, null, null).size());
+    }
+
+    @Test
+    void listAttendanceRequiresManageAttendancePermission() {
+        assertThrows(ClinicAccessDeniedException.class, () ->
+                service.listAttendance(clinicId, plainUserId, null, null, null));
+
+        grants.add(plainUserId + ":" + StaffPermission.MANAGE_ATTENDANCE);
+        assertEquals(0, service.listAttendance(clinicId, plainUserId, null, null, null).size());
     }
 
     @Test

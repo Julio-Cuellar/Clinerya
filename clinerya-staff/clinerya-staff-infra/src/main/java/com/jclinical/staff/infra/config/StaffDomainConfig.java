@@ -15,7 +15,7 @@ import com.jclinical.staff.domain.ports.out.StaffCompensationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
-import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
 import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 import com.jclinical.staff.domain.service.ClinicStaffService;

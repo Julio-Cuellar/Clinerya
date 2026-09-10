@@ -1,11 +1,14 @@
 package com.jclinical.staff.infra.adapters.in.web;
 
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase.StaffSummary;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase.StaffInvitationSummary;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,11 +23,22 @@ import java.util.UUID;
 public class ClinicStaffController {
 
     private final ManageClinicStaffUseCase manageClinicStaffUseCase;
+    private final CurrentUserResolver currentUserResolver;
+    private final StaffPermissionCheckerPort permissionChecker;
+
+    private void require(UUID clinicId, StaffPermission permission, String deniedMessage) {
+        UUID actingUserId = currentUserResolver.getCurrentUserId();
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
+    }
 
     @GetMapping
     public ResponseEntity<List<StaffSummary>> getStaff(
             @PathVariable UUID clinicId,
             @RequestParam(required = false) String role) {
+        require(clinicId, StaffPermission.VIEW_STAFF,
+                "No tienes permiso para consultar el personal de esta clinica.");
         StaffRole staffRole = null;
         if (role != null && !role.trim().isEmpty()) {
             try {
@@ -41,6 +55,8 @@ public class ClinicStaffController {
     public ResponseEntity<StaffSummary> addStaff(
             @PathVariable UUID clinicId,
             @RequestBody AddStaffRequest request) {
+        require(clinicId, StaffPermission.MANAGE_STAFF,
+                "No tienes permiso para gestionar el personal de esta clinica.");
         if (request.role() == null || request.role().trim().isEmpty()) {
             throw new IllegalArgumentException("El rol de personal es obligatorio.");
         }
@@ -58,6 +74,8 @@ public class ClinicStaffController {
     public ResponseEntity<StaffInvitationSummary> inviteStaff(
             @PathVariable UUID clinicId,
             @RequestBody AddStaffRequest request) {
+        require(clinicId, StaffPermission.MANAGE_STAFF,
+                "No tienes permiso para gestionar el personal de esta clinica.");
         if (request.role() == null || request.role().trim().isEmpty()) {
             throw new IllegalArgumentException("El rol de personal es obligatorio.");
         }
@@ -73,6 +91,8 @@ public class ClinicStaffController {
 
     @GetMapping("/invitations")
     public ResponseEntity<List<StaffInvitationSummary>> getInvitations(@PathVariable UUID clinicId) {
+        require(clinicId, StaffPermission.VIEW_STAFF,
+                "No tienes permiso para consultar el personal de esta clinica.");
         List<StaffInvitationSummary> invitations = manageClinicStaffUseCase.listInvitations(clinicId);
         return ResponseEntity.ok(invitations);
     }
@@ -82,6 +102,8 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId,
             @RequestBody UpdateStaffRequest request) {
+        require(clinicId, StaffPermission.MANAGE_STAFF,
+                "No tienes permiso para gestionar el personal de esta clinica.");
         if (request.role() == null || request.role().trim().isEmpty()) {
             throw new IllegalArgumentException("El rol de personal es obligatorio.");
         }
@@ -99,6 +121,8 @@ public class ClinicStaffController {
     public ResponseEntity<ManageClinicStaffUseCase.PermissionSummary> getPermissions(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId) {
+        require(clinicId, StaffPermission.VIEW_STAFF,
+                "No tienes permiso para consultar el personal de esta clinica.");
         return ResponseEntity.ok(manageClinicStaffUseCase.getPermissions(clinicId, staffId));
     }
 
@@ -107,6 +131,8 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId,
             @RequestBody UpdatePermissionsRequest request) {
+        require(clinicId, StaffPermission.MANAGE_STAFF_PERMISSIONS,
+                "No tienes permiso para gestionar los permisos del personal de esta clinica.");
         List<ManageClinicStaffUseCase.PermissionChange> changes = request == null || request.permissions() == null
                 ? List.of()
                 : request.permissions().stream()
@@ -119,6 +145,8 @@ public class ClinicStaffController {
     public ResponseEntity<Void> removeStaff(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId) {
+        require(clinicId, StaffPermission.MANAGE_STAFF,
+                "No tienes permiso para gestionar el personal de esta clinica.");
         manageClinicStaffUseCase.removeStaff(clinicId, staffId);
         return ResponseEntity.noContent().build();
     }

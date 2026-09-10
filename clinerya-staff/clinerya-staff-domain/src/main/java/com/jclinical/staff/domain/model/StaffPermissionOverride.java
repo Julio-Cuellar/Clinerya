@@ -1,5 +1,6 @@
 package com.jclinical.staff.domain.model;
 
+import com.jclinical.core.security.StaffPermission;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
