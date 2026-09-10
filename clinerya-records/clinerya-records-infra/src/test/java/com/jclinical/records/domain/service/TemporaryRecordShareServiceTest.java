@@ -13,6 +13,7 @@ import com.jclinical.records.domain.model.SharedSection;
 import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.model.VitalSigns;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.SharedRecordSummary;
+import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.SharedStudyContent;
 import com.jclinical.records.domain.ports.out.ClinicLookupPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
@@ -20,6 +21,7 @@ import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPo
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.PrescriptionRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
+import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,7 @@ class TemporaryRecordShareServiceTest {
     @Mock private MedicalHistoryRepositoryPort medicalHistoryRepository;
     @Mock private MedicalHistoryTemplateRepositoryPort templateRepository;
     @Mock private PrescriptionRepositoryPort prescriptionRepository;
+    @Mock private SharedStudyLookupPort sharedStudyLookup;
 
     private TemporaryRecordShareService service;
     private UUID clinicId;
@@ -64,7 +67,7 @@ class TemporaryRecordShareServiceTest {
     void setUp() {
         service = new TemporaryRecordShareService(
                 repository, noteRepository, patientLookup, clinicLookup, authorization, accessLogOutbox,
-                medicalHistoryRepository, templateRepository, prescriptionRepository);
+                medicalHistoryRepository, templateRepository, prescriptionRepository, sharedStudyLookup);
         clinicId = UUID.randomUUID();
         patientId = UUID.randomUUID();
         actingUserId = UUID.randomUUID();
@@ -215,6 +218,80 @@ class TemporaryRecordShareServiceTest {
         assertThat(summary.prescriptions()).singleElement()
                 .satisfies(view -> assertThat(view.notes()).isEqualTo("Reposo"));
         verify(noteRepository, never()).findByPatientIdAndClinicIdOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
+    void redeemIncludesStudiesWhenShared() {
+        TemporaryRecordShare stored = storedShare(EnumSet.of(SharedSection.STUDIES));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(patientLookup.findPatient(patientId)).thenReturn(Optional.of(patientDetails()));
+        when(clinicLookup.findClinicName(clinicId)).thenReturn(Optional.of("Clinica Norte"));
+        UUID studyId = UUID.randomUUID();
+        when(sharedStudyLookup.listStudies(patientId, clinicId, "patient_studies")).thenReturn(List.of(
+                new SharedStudyLookupPort.SharedStudy(studyId, "rx.pdf", "application/pdf", 1234L, LocalDateTime.now())));
+
+        SharedRecordSummary summary = service.getSharedRecord("some-token", "ip", "ua");
+
+        assertThat(summary.studies()).singleElement()
+                .satisfies(view -> {
+                    assertThat(view.id()).isEqualTo(studyId);
+                    assertThat(view.filename()).isEqualTo("rx.pdf");
+                });
+        verify(noteRepository, never()).findByPatientIdAndClinicIdOrderByCreatedAtDesc(any(), any());
+    }
+
+    @Test
+    void downloadStudyReturnsContentAndLogsIt() {
+        TemporaryRecordShare stored = storedShare(EnumSet.of(SharedSection.STUDIES));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+        UUID studyId = UUID.randomUUID();
+        byte[] bytes = {1, 2, 3};
+        when(sharedStudyLookup.readStudy(studyId, patientId, clinicId, "patient_studies"))
+                .thenReturn(Optional.of(new SharedStudyLookupPort.SharedStudyContent("rx.pdf", "application/pdf", bytes)));
+
+        SharedStudyContent content = service.getSharedStudyContent("some-token", studyId, "203.0.113.9", "curl/8");
+
+        assertThat(content.bytes()).isEqualTo(bytes);
+        assertThat(content.contentType()).isEqualTo("application/pdf");
+        ArgumentCaptor<RecordAccessLog> log = ArgumentCaptor.forClass(RecordAccessLog.class);
+        verify(accessLogOutbox).enqueue(log.capture());
+        assertThat(log.getValue().getResourceType()).isEqualTo("TEMPORARY_SHARE_STUDY");
+        assertThat(log.getValue().getResourceId()).isEqualTo(studyId);
+        assertThat(log.getValue().getUserId()).isNull();
+    }
+
+    @Test
+    void downloadStudyRejectedWhenLinkDoesNotShareStudies() {
+        TemporaryRecordShare stored = storedShare(EnumSet.of(SharedSection.CLINICAL_NOTES));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+
+        assertThatThrownBy(() -> service.getSharedStudyContent("some-token", UUID.randomUUID(), "ip", "ua"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(sharedStudyLookup, never()).readStudy(any(), any(), any(), any());
+        verify(accessLogOutbox, never()).enqueue(any());
+    }
+
+    @Test
+    void downloadStudyRejectsUnknownAttachment() {
+        TemporaryRecordShare stored = storedShare(EnumSet.of(SharedSection.STUDIES));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+        when(sharedStudyLookup.readStudy(any(), any(), any(), any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getSharedStudyContent("some-token", UUID.randomUUID(), "ip", "ua"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(accessLogOutbox, never()).enqueue(any());
+    }
+
+    @Test
+    void downloadStudyRejectsRevokedLink() {
+        TemporaryRecordShare stored = storedShare(EnumSet.of(SharedSection.STUDIES));
+        stored.setRevokedAt(LocalDateTime.now().minusMinutes(1));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+
+        assertThatThrownBy(() -> service.getSharedStudyContent("some-token", UUID.randomUUID(), "ip", "ua"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(sharedStudyLookup, never()).readStudy(any(), any(), any(), any());
     }
 
     @Test

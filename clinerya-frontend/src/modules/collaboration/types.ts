@@ -47,5 +47,6 @@ export const SHARE_SECTION_OPTIONS: Array<{ key: string; label: string; hint: st
   { key: "CLINICAL_NOTES", label: "Notas clínicas", hint: "Notas de evolución SOAP" },
   { key: "MEDICAL_HISTORY", label: "Historia clínica", hint: "Formularios y antecedentes" },
   { key: "VITAL_SIGNS", label: "Signos vitales", hint: "Dentro de cada nota" },
-  { key: "PRESCRIPTIONS", label: "Prescripciones", hint: "Recetas emitidas" }
+  { key: "PRESCRIPTIONS", label: "Prescripciones", hint: "Recetas emitidas" },
+  { key: "STUDIES", label: "Estudios", hint: "Rayos X, laboratorios y otros documentos" }
 ];

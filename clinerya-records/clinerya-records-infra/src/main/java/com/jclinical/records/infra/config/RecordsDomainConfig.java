@@ -32,6 +32,7 @@ import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.ClinicLookupPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
+import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
 import com.jclinical.records.domain.ports.out.PrivacyConsentRepositoryPort;
 import com.jclinical.records.domain.service.ClinicalNoteService;
 import com.jclinical.records.domain.service.HistoryTemplateService;
@@ -182,10 +183,11 @@ public class RecordsDomainConfig {
             RecordAccessLogOutboxPort accessLogOutbox,
             MedicalHistoryRepositoryPort medicalHistoryRepository,
             MedicalHistoryTemplateRepositoryPort medicalHistoryTemplateRepository,
-            PrescriptionRepositoryPort prescriptionRepository) {
+            PrescriptionRepositoryPort prescriptionRepository,
+            SharedStudyLookupPort sharedStudyLookup) {
         return new TemporaryRecordShareService(repository, noteRepository, patientLookup, clinicLookup,
                 accessAuthorizationPort, accessLogOutbox, medicalHistoryRepository,
-                medicalHistoryTemplateRepository, prescriptionRepository);
+                medicalHistoryTemplateRepository, prescriptionRepository, sharedStudyLookup);
     }
 
     @Bean

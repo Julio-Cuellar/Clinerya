@@ -47,6 +47,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             "/api/v1/public/shared-history", new Limit(30, FIFTEEN_MINUTES)
     );
 
+    // Descarga de estudios por enlace compartido: la ruta lleva el id del adjunto,
+    // así que se limita por prefijo (todas las descargas comparten bucket por IP).
+    private static final String SHARED_STUDY_PREFIX = "/api/v1/public/shared-history/studies/";
+    private static final Limit SHARED_STUDY_LIMIT = new Limit(60, FIFTEEN_MINUTES);
+
     private static final long STALE_BUCKET_MILLIS = 30 * 60_000L;
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
@@ -72,14 +77,20 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        Limit limit = LIMITS_BY_PATH.get(request.getRequestURI());
+        String uri = request.getRequestURI();
+        Limit limit = LIMITS_BY_PATH.get(uri);
+        String limitKey = uri;
+        if (limit == null && uri.startsWith(SHARED_STUDY_PREFIX)) {
+            limit = SHARED_STUDY_LIMIT;
+            limitKey = SHARED_STUDY_PREFIX;
+        }
         if (limit == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String clientIp = clientIp(request);
-        String key = clientIp + "|" + request.getRequestURI();
+        String key = clientIp + "|" + limitKey;
 
         if (isOverLimit(key, limit)) {
             log.warn("Límite de peticiones excedido: IP='{}', endpoint='{}'", clientIp, request.getRequestURI());

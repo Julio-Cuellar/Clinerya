@@ -844,6 +844,15 @@ export const collaborationApi = {
       method: "POST",
       body: JSON.stringify({ token })
     }),
+  getSharedStudyContent: async (token: string, attachmentId: string): Promise<Blob> => {
+    const response = await fetch(`${API_BASE_URL}/v1/public/shared-history/studies/${attachmentId}/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    if (!response.ok) throw new ApiClientError("No se pudo descargar el estudio.", response.status);
+    return response.blob();
+  },
   listTemporaryShares: (clinicId: string, patientId: string) =>
     request<TemporaryShareView[]>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`),
   revokeTemporaryShare: (clinicId: string, patientId: string, shareId: string) =>

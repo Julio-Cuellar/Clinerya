@@ -20,6 +20,12 @@ public interface ManageTemporaryShareUseCase {
      */
     SharedRecordSummary getSharedRecord(String token, String ipAddress, String userAgent);
 
+    /**
+     * Descarga de un estudio (adjunto) expuesto por un enlace compartido que
+     * incluya la seccion STUDIES. Cada descarga se registra en la bitacora.
+     */
+    SharedStudyContent getSharedStudyContent(String token, UUID attachmentId, String ipAddress, String userAgent);
+
     List<ShareLinkView> listActiveShares(UUID clinicId, UUID patientId, UUID requestingUserId);
 
     void revokeShare(UUID clinicId, UUID shareId, UUID requestingUserId);
@@ -34,7 +40,22 @@ public interface ManageTemporaryShareUseCase {
             Set<SharedSection> sections,
             List<ClinicalNote> clinicalNotes,
             List<MedicalHistoryView> medicalHistories,
-            List<PrescriptionView> prescriptions
+            List<PrescriptionView> prescriptions,
+            List<SharedStudyView> studies
+    ) {}
+
+    record SharedStudyView(
+            UUID id,
+            String filename,
+            String contentType,
+            long sizeBytes,
+            LocalDateTime createdAt
+    ) {}
+
+    record SharedStudyContent(
+            String filename,
+            String contentType,
+            byte[] bytes
     ) {}
 
     record MedicalHistoryView(

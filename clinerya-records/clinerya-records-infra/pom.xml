@@ -50,6 +50,12 @@
             <artifactId>clinerya-users-infra</artifactId>
         </dependency>
 
+        <!-- Lectura de estudios (adjuntos) para exponerlos por enlace compartido -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-attachments</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

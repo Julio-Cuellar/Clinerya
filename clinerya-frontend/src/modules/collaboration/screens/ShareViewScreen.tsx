@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IconPrinter, IconAlertTriangle, IconFileText, IconPill, IconClipboardText } from "@tabler/icons-react";
+import { IconPrinter, IconAlertTriangle, IconFileText, IconPill, IconClipboardText, IconDownload, IconFolderOpen } from "@tabler/icons-react";
 import { collaborationApi, getFriendlyError } from "@shared/api/api";
 import { parseSchema, parseAnswers, parseTableRows, type TemplateElement } from "@modules/records/types";
 import { TableFieldEditor } from "@shared/ui/TableFieldEditor";
@@ -24,6 +24,14 @@ interface SharedPrescription {
   }>;
 }
 
+interface SharedStudy {
+  id: string;
+  filename: string;
+  contentType?: string;
+  sizeBytes?: number;
+  createdAt?: string;
+}
+
 interface PublicSharedRecord {
   patientId: string;
   patientFullName: string;
@@ -34,6 +42,7 @@ interface PublicSharedRecord {
   sections?: string[];
   medicalHistories?: SharedMedicalHistory[];
   prescriptions?: SharedPrescription[];
+  studies?: SharedStudy[];
   clinicalNotes: Array<{
     id: string;
     doctorId: string;
@@ -118,12 +127,46 @@ function HistoryAnswerRow({ element, raw }: RenderedAnswer) {
   );
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
 export function ShareViewScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [record, setRecord] = useState<PublicSharedRecord | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [studyError, setStudyError] = useState("");
 
   const token = new URLSearchParams(window.location.search).get("token") || "";
+
+  const downloadStudy = async (study: SharedStudy) => {
+    setDownloadingId(study.id);
+    setStudyError("");
+    try {
+      const blob = await collaborationApi.getSharedStudyContent(token, study.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = study.filename || "estudio";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (caught) {
+      setStudyError(getFriendlyError(caught));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -360,6 +403,41 @@ export function ShareViewScreen() {
                   <p style={{ margin: "10px 0 0 0", fontSize: "13px", color: "var(--color-text-2)", whiteSpace: "pre-wrap" }}>{prescription.notes}</p>
                 )}
               </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Estudios */}
+      {(record.studies?.length ?? 0) > 0 && (
+        <section style={{ marginTop: "30px" }} className="no-print">
+          <h2 style={{ fontSize: "18px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <IconFolderOpen size={20} />
+            Estudios
+          </h2>
+          {studyError && <p className="alert error">{studyError}</p>}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {record.studies!.map((study) => (
+              <div
+                key={study.id}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", background: "var(--color-bg-1)", border: "1px solid var(--color-border)", borderRadius: "8px", padding: "12px 16px" }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ fontSize: "14px", wordBreak: "break-word" }}>{study.filename}</strong>
+                  <span style={{ display: "block", fontSize: "12px", color: "var(--color-text-3)" }}>
+                    {[study.createdAt ? new Date(study.createdAt).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "", formatBytes(study.sizeBytes)].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  disabled={downloadingId === study.id}
+                  onClick={() => void downloadStudy(study)}
+                >
+                  <IconDownload size={16} style={{ marginRight: "6px" }} />
+                  {downloadingId === study.id ? "Descargando..." : "Descargar"}
+                </button>
+              </div>
             ))}
           </div>
         </section>

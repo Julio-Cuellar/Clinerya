@@ -382,12 +382,21 @@ ruta legacy; las escrituras nuevas usan `ENC_GCM_V2:`.
       vigentes se borraron en la migración (efímeros, <=30 días, sin token en claro
       recuperable).
 - [x] **Revocación**: columna `revoked_at` + `GET`/`DELETE
-      /api/v1/clinics/{clinicId}/patients/{patientId}/temporary-shares` para listar y
-      revocar. Falta la pantalla de gestión en el frontend (API lista: `listTemporaryShares`,
-      `revokeTemporaryShare`).
+      /api/v1/clinics/{clinicId}/patients/{patientId}/temporary-shares`. Pantalla de
+      gestión en el frontend (`ManageTemporarySharesModal`, botón "Enlaces temporales"
+      en el panel de historia clínica) — commits `e32b639` / `<commit B>`.
 - [x] **Cada consulta se registra en `RecordAccessLog`** vía el outbox
-      (`resourceType=TEMPORARY_SHARE`, `actionType=VIEW`, `userId=null`), más
-      `last_accessed_at`/`access_count` en la fila.
+      (`resourceType=TEMPORARY_SHARE` / `TEMPORARY_SHARE_STUDY`, `actionType=VIEW`,
+      `userId=null`), más `last_accessed_at`/`access_count` en la fila. `V49` volvió
+      `record_access_log(_outbox).user_id` NULLABLE porque una consulta por enlace no
+      tiene usuario interno.
+- [x] **Selector de secciones al generar** (`shared_sections` CSV, `V50`; enum
+      `SharedSection`): notas SOAP, historia clínica (formularios con tablas y
+      odontograma renderizados), signos vitales, prescripciones, y **estudios**
+      (adjuntos `patient_studies`) vía `POST /api/v1/public/shared-history/studies/{id}/content`
+      — sirve el binario como `attachment`+`nosniff`, rate limit por prefijo, puerto
+      `SharedStudyLookupPort` sobre el módulo de adjuntos. Commits `e32b639` (4 secciones)
+      + commit B (estudios).
 - [ ] **Verificar al destinatario** con un código de un solo uso al correo: columna
       `recipient_verified_at` reservada en `V48`, pero el flujo (envío + pantalla para
       introducir el código) queda pendiente — necesita frontend y una plantilla de correo.

@@ -39,6 +39,7 @@ public class SecurityConfig {
                     "/api/v1/auth/login",
                     "/api/v1/auth/refresh",
                     "/api/v1/public/shared-history",
+                    "/api/v1/public/shared-history/**",
                     "/api/v1/integrations/google-calendar/callback",
                     "/api/v1/info",
                     "/actuator/health",

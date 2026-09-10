@@ -19,6 +19,7 @@ import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPo
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.PrescriptionRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
+import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 
 import java.nio.charset.StandardCharsets;
@@ -35,6 +36,9 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
     private static final int TOKEN_BYTES = 32;
 
+    /** Id del elemento de plantilla bajo el que se guardan los estudios del paciente. */
+    private static final String STUDIES_ELEMENT_ID = "patient_studies";
+
     private final TemporaryRecordShareRepositoryPort repository;
     private final ClinicalNoteRepositoryPort noteRepository;
     private final PatientLookupPort patientLookup;
@@ -44,6 +48,7 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private final MedicalHistoryRepositoryPort medicalHistoryRepository;
     private final MedicalHistoryTemplateRepositoryPort templateRepository;
     private final PrescriptionRepositoryPort prescriptionRepository;
+    private final SharedStudyLookupPort sharedStudyLookup;
 
     public TemporaryRecordShareService(TemporaryRecordShareRepositoryPort repository,
                                        ClinicalNoteRepositoryPort noteRepository,
@@ -53,7 +58,8 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                                        RecordAccessLogOutboxPort accessLogOutbox,
                                        MedicalHistoryRepositoryPort medicalHistoryRepository,
                                        MedicalHistoryTemplateRepositoryPort templateRepository,
-                                       PrescriptionRepositoryPort prescriptionRepository) {
+                                       PrescriptionRepositoryPort prescriptionRepository,
+                                       SharedStudyLookupPort sharedStudyLookup) {
         this.repository = repository;
         this.noteRepository = noteRepository;
         this.patientLookup = patientLookup;
@@ -63,6 +69,7 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
         this.medicalHistoryRepository = medicalHistoryRepository;
         this.templateRepository = templateRepository;
         this.prescriptionRepository = prescriptionRepository;
+        this.sharedStudyLookup = sharedStudyLookup;
     }
 
     @Override
@@ -126,10 +133,13 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
         List<PrescriptionView> prescriptions = share.includes(SharedSection.PRESCRIPTIONS)
                 ? loadPrescriptions(share)
                 : List.of();
+        List<SharedStudyView> studies = share.includes(SharedSection.STUDIES)
+                ? loadStudies(share)
+                : List.of();
 
         share.registerAccess(LocalDateTime.now());
         repository.save(share);
-        recordConsultation(share, ipAddress, userAgent);
+        recordConsultation(share, ipAddress, userAgent, "TEMPORARY_SHARE", share.getId());
 
         return new SharedRecordSummary(
                 patient.id(),
@@ -141,8 +151,37 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 share.getSharedSections() == null ? SharedSection.all() : share.getSharedSections(),
                 notes,
                 histories,
-                prescriptions
+                prescriptions,
+                studies
         );
+    }
+
+    @Override
+    public SharedStudyContent getSharedStudyContent(String token, UUID attachmentId, String ipAddress, String userAgent) {
+        if (token == null || token.isBlank() || attachmentId == null) {
+            throw new IllegalArgumentException("Solicitud de estudio invalida.");
+        }
+
+        TemporaryRecordShare share = repository.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido."));
+
+        if (share.isRevoked()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida fue revocado.");
+        }
+        if (share.isExpired()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
+        }
+        if (!share.includes(SharedSection.STUDIES)) {
+            throw new IllegalArgumentException("Este enlace no comparte estudios.");
+        }
+
+        SharedStudyLookupPort.SharedStudyContent content = sharedStudyLookup
+                .readStudy(attachmentId, share.getPatientId(), share.getClinicId(), STUDIES_ELEMENT_ID)
+                .orElseThrow(() -> new IllegalArgumentException("El estudio solicitado no existe en este expediente."));
+
+        recordConsultation(share, ipAddress, userAgent, "TEMPORARY_SHARE_STUDY", attachmentId);
+
+        return new SharedStudyContent(content.filename(), content.contentType(), content.bytes());
     }
 
     private List<ClinicalNote> loadNotes(TemporaryRecordShare share) {
@@ -172,6 +211,13 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private List<PrescriptionView> loadPrescriptions(TemporaryRecordShare share) {
         return prescriptionRepository.findByClinicIdAndPatientId(share.getClinicId(), share.getPatientId()).stream()
                 .map(this::toPrescriptionView)
+                .toList();
+    }
+
+    private List<SharedStudyView> loadStudies(TemporaryRecordShare share) {
+        return sharedStudyLookup.listStudies(share.getPatientId(), share.getClinicId(), STUDIES_ELEMENT_ID).stream()
+                .map(study -> new SharedStudyView(
+                        study.id(), study.filename(), study.contentType(), study.sizeBytes(), study.createdAt()))
                 .toList();
     }
 
@@ -223,15 +269,16 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
         }
     }
 
-    private void recordConsultation(TemporaryRecordShare share, String ipAddress, String userAgent) {
+    private void recordConsultation(TemporaryRecordShare share, String ipAddress, String userAgent,
+                                    String resourceType, UUID resourceId) {
         RecordAccessLog log = RecordAccessLog.builder()
                 .id(UUID.randomUUID())
                 .clinicId(share.getClinicId())
                 .patientId(share.getPatientId())
                 .userId(null)
                 .userName(truncate("enlace-compartido:" + share.getEmail(), 255))
-                .resourceType("TEMPORARY_SHARE")
-                .resourceId(share.getId())
+                .resourceType(resourceType)
+                .resourceId(resourceId)
                 .actionType("VIEW")
                 .ipAddress(truncate(ipAddress, 64))
                 .userAgent(truncate(userAgent, 512))

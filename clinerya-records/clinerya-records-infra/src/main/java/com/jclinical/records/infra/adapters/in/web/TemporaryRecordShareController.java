@@ -5,10 +5,13 @@ import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.ShareLinkView;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.SharedRecordSummary;
+import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase.SharedStudyContent;
 import com.jclinical.users.infra.security.CurrentUserResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +20,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -82,6 +87,37 @@ public class TemporaryRecordShareController {
                 servletRequest.getRemoteAddr(),
                 servletRequest.getHeader("User-Agent"));
         return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * Descarga de un estudio expuesto por el enlace. El token va en el cuerpo. Se
+     * sirve como {@code attachment} y con {@code nosniff}: un PDF renombrado no
+     * debe abrirse ni ejecutarse en nuestro origen.
+     */
+    @PostMapping("/api/v1/public/shared-history/studies/{attachmentId}/content")
+    public ResponseEntity<byte[]> getSharedStudyContent(
+            @PathVariable UUID attachmentId,
+            @RequestBody RedeemShareRequest request,
+            HttpServletRequest servletRequest) {
+        SharedStudyContent content = temporaryShareUseCase.getSharedStudyContent(
+                request.token(),
+                attachmentId,
+                servletRequest.getRemoteAddr(),
+                servletRequest.getHeader("User-Agent"));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(content.filename()))
+                .header("X-Content-Type-Options", "nosniff")
+                .body(content.bytes());
+    }
+
+    /** Cabecera segun RFC 6266; el nombre lo eligio quien subio el archivo. */
+    private String contentDisposition(String originalFilename) {
+        String name = originalFilename == null || originalFilename.isBlank() ? "archivo" : originalFilename;
+        String sanitized = name.replaceAll("[\\p{Cntrl}\"\\\\/]", "_");
+        String ascii = sanitized.replaceAll("[^\\x20-\\x7E]", "_");
+        String utf8 = URLEncoder.encode(sanitized, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + ascii + "\"; filename*=UTF-8''" + utf8;
     }
 
     /**
