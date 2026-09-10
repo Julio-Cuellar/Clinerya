@@ -33,9 +33,12 @@ class RoomBlockServiceTest {
 
     private RoomBlockService service;
 
+    private final UUID actingUserId = UUID.randomUUID();
+
     @BeforeEach
     void setUp() {
-        service = new RoomBlockService(roomBlockRepository, appointmentRepository, roomValidator);
+        service = new RoomBlockService(roomBlockRepository, appointmentRepository, roomValidator,
+                (clinicId, userId, permission) -> true);
     }
 
     @Test
@@ -52,7 +55,7 @@ class RoomBlockServiceTest {
 
         CreateRoomBlockCommand command =
                 new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.MAINTENANCE, "Cambio de equipo", null);
-        assertThrows(IllegalStateException.class, () -> service.createBlock(clinicId, command));
+        assertThrows(IllegalStateException.class, () -> service.createBlock(actingUserId, clinicId, command));
     }
 
     @Test
@@ -68,7 +71,7 @@ class RoomBlockServiceTest {
         when(appointmentRepository.existsOverlappingAppointmentByRoom(roomId, clinicId, startsAt, endsAt, null)).thenReturn(false);
         when(roomBlockRepository.save(any(RoomBlock.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        RoomBlock created = service.createBlock(clinicId,
+        RoomBlock created = service.createBlock(actingUserId, clinicId,
                 new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.CLEANING, "Limpieza profunda", null));
 
         assertEquals(roomId, created.getRoomId());

@@ -10,41 +10,59 @@ import java.util.UUID;
 
 public interface ManageAppointmentsUseCase {
 
-    Appointment createAppointment(UUID clinicId, CreateAppointmentCommand command);
+    /** Ruta interna (importacion de calendario, seeders): sin control de permiso. */
+    default Appointment createAppointment(UUID clinicId, CreateAppointmentCommand command) {
+        return createAppointment(null, clinicId, command);
+    }
 
-    List<Appointment> createAppointmentSeries(UUID clinicId, CreateAppointmentSeriesCommand command);
+    Appointment createAppointment(UUID actingUserId, UUID clinicId, CreateAppointmentCommand command);
+
+    List<Appointment> createAppointmentSeries(UUID actingUserId, UUID clinicId, CreateAppointmentSeriesCommand command);
 
     default Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd) {
-        return rescheduleAppointment(appointmentId, clinicId, newStart, newEnd, false);
+        return rescheduleAppointment(null, appointmentId, clinicId, newStart, newEnd, false);
     }
 
-    Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport);
+    /** Ruta interna (sincronizacion de calendario externo): sin control de permiso. */
+    default Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport) {
+        return rescheduleAppointment(null, appointmentId, clinicId, newStart, newEnd, externalImport);
+    }
+
+    Appointment rescheduleAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport);
 
     default Appointment transitionStatus(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus) {
-        return transitionStatus(appointmentId, clinicId, targetStatus, null, null);
+        return transitionStatus(null, appointmentId, clinicId, targetStatus, null, null);
     }
 
-    Appointment transitionStatus(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId);
+    /** Ruta interna (sincronizacion de calendario externo, seeders): sin control de permiso. */
+    default Appointment transitionStatus(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId) {
+        return transitionStatus(null, appointmentId, clinicId, targetStatus, cancellationReason, cancelledByUserId);
+    }
 
+    Appointment transitionStatus(UUID actingUserId, UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId);
+
+    /** Sin control de permiso: paso interno del flujo de vinculacion de eventos externos. */
     Appointment attachExternalCalendarEvent(UUID appointmentId, UUID clinicId, String externalCalendarEventId);
 
-    void deleteAppointment(UUID appointmentId, UUID clinicId);
+    void deleteAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId);
 
+    /** Sin control de permiso: lo consumen orquestadores internos de integraciones. */
     Appointment getAppointment(UUID appointmentId, UUID clinicId);
 
-    List<Appointment> listByClinicRange(UUID clinicId, LocalDateTime from, LocalDateTime to);
+    List<Appointment> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to);
 
-    List<Appointment> listByQuotation(UUID quotationId, UUID clinicId);
+    List<Appointment> listByQuotation(UUID actingUserId, UUID quotationId, UUID clinicId);
 
-    List<Appointment> listByPatient(UUID patientId, UUID clinicId);
+    List<Appointment> listByPatient(UUID actingUserId, UUID patientId, UUID clinicId);
 
+    /** Sin control de permiso: lo consume el modulo de caja (cobros pendientes). */
     List<Appointment> listCompletedByClinic(UUID clinicId);
 
-    List<DoctorSnapshot> listDoctors(UUID clinicId);
+    List<DoctorSnapshot> listDoctors(UUID actingUserId, UUID clinicId);
 
-    Appointment assignPatient(UUID appointmentId, UUID clinicId, UUID patientId);
+    Appointment assignPatient(UUID actingUserId, UUID appointmentId, UUID clinicId, UUID patientId);
 
-    List<Appointment> listWithoutPatient(UUID clinicId);
+    List<Appointment> listWithoutPatient(UUID actingUserId, UUID clinicId);
 
     record CreateAppointmentCommand(
             UUID patientId,
