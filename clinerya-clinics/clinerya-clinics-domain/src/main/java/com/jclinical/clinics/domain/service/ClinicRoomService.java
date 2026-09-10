@@ -5,6 +5,9 @@ import com.jclinical.clinics.domain.model.ClinicRoomStaffAssignment;
 import com.jclinical.clinics.domain.ports.in.ManageClinicRoomsUseCase;
 import com.jclinical.clinics.domain.ports.out.ClinicRoomStaffAssignmentRepositoryPort;
 import com.jclinical.clinics.domain.ports.out.ClinicRoomRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.StaffRole;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
@@ -18,17 +21,31 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     private final ClinicRoomRepositoryPort roomRepository;
     private final ClinicRoomStaffAssignmentRepositoryPort assignmentRepository;
     private final ClinicStaffRepositoryPort clinicStaffRepository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public ClinicRoomService(ClinicRoomRepositoryPort roomRepository,
                              ClinicRoomStaffAssignmentRepositoryPort assignmentRepository,
-                             ClinicStaffRepositoryPort clinicStaffRepository) {
+                             ClinicStaffRepositoryPort clinicStaffRepository,
+                             StaffPermissionCheckerPort permissionChecker) {
         this.roomRepository = roomRepository;
         this.assignmentRepository = assignmentRepository;
         this.clinicStaffRepository = clinicStaffRepository;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     @Override
-    public ClinicRoom createRoom(UUID clinicId, String name, String code, String colorHex, String description) {
+    public ClinicRoom createRoom(UUID actingUserId, UUID clinicId, String name, String code, String colorHex, String description) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CREATE_ROOMS,
+                "No tienes permiso para crear consultorios en esta clinica.");
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre del consultorio o sillón es obligatorio.");
         }
@@ -52,7 +69,9 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     }
 
     @Override
-    public ClinicRoom updateRoom(UUID clinicId, UUID roomId, String name, String code, String colorHex, String description) {
+    public ClinicRoom updateRoom(UUID actingUserId, UUID clinicId, UUID roomId, String name, String code, String colorHex, String description) {
+        requirePermission(clinicId, actingUserId, StaffPermission.EDIT_ROOMS,
+                "No tienes permiso para editar consultorios en esta clinica.");
         ClinicRoom room = roomRepository.findByIdAndClinicId(roomId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El consultorio especificado no existe."));
 
@@ -73,7 +92,9 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     }
 
     @Override
-    public void deactivateRoom(UUID clinicId, UUID roomId) {
+    public void deactivateRoom(UUID actingUserId, UUID clinicId, UUID roomId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.EDIT_ROOMS,
+                "No tienes permiso para editar consultorios en esta clinica.");
         ClinicRoom room = roomRepository.findByIdAndClinicId(roomId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El consultorio especificado no existe."));
         room.deactivate();
@@ -81,7 +102,9 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     }
 
     @Override
-    public void activateRoom(UUID clinicId, UUID roomId) {
+    public void activateRoom(UUID actingUserId, UUID clinicId, UUID roomId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.EDIT_ROOMS,
+                "No tienes permiso para editar consultorios en esta clinica.");
         ClinicRoom room = roomRepository.findByIdAndClinicId(roomId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El consultorio especificado no existe."));
         room.activate();
@@ -89,23 +112,33 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     }
 
     @Override
-    public List<ClinicRoom> getRoomsByClinic(UUID clinicId) {
+    public List<ClinicRoom> getRoomsByClinic(UUID actingUserId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_ROOMS,
+                "No tienes permiso para consultar los consultorios de esta clinica.");
         return roomRepository.findByClinicId(clinicId);
     }
 
     @Override
-    public List<ClinicRoom> getActiveRoomsByClinic(UUID clinicId) {
+    public List<ClinicRoom> getActiveRoomsByClinic(UUID actingUserId, UUID clinicId) {
+        if (actingUserId != null) {
+            requirePermission(clinicId, actingUserId, StaffPermission.VIEW_ROOMS,
+                    "No tienes permiso para consultar los consultorios de esta clinica.");
+        }
         return roomRepository.findActiveByClinicId(clinicId);
     }
 
     @Override
-    public List<ClinicRoomStaffAssignment> getStaffAssignments(UUID clinicId, UUID roomId) {
+    public List<ClinicRoomStaffAssignment> getStaffAssignments(UUID actingUserId, UUID clinicId, UUID roomId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_ROOMS,
+                "No tienes permiso para consultar los consultorios de esta clinica.");
         ensureRoom(clinicId, roomId);
         return assignmentRepository.findByClinicIdAndRoomId(clinicId, roomId);
     }
 
     @Override
-    public ClinicRoomStaffAssignment assignStaff(UUID clinicId, UUID roomId, UUID staffId) {
+    public ClinicRoomStaffAssignment assignStaff(UUID actingUserId, UUID clinicId, UUID roomId, UUID staffId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.ASSIGN_ROOM_STAFF,
+                "No tienes permiso para asignar personal a consultorios en esta clinica.");
         ClinicRoom room = ensureRoom(clinicId, roomId);
         if (!room.isActive()) {
             throw new IllegalStateException("No se puede asignar personal a un consultorio inactivo.");
@@ -139,7 +172,9 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
     }
 
     @Override
-    public void unassignStaff(UUID clinicId, UUID roomId, UUID staffId) {
+    public void unassignStaff(UUID actingUserId, UUID clinicId, UUID roomId, UUID staffId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.ASSIGN_ROOM_STAFF,
+                "No tienes permiso para asignar personal a consultorios en esta clinica.");
         ensureRoom(clinicId, roomId);
         ClinicRoomStaffAssignment assignment = assignmentRepository
                 .findByClinicIdAndRoomIdAndStaffId(clinicId, roomId, staffId)
