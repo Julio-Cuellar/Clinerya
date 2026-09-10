@@ -10,21 +10,21 @@ import java.util.UUID;
 
 public interface ManageTicketsUseCase {
 
-    Ticket registerTicket(UUID clinicId, RegisterTicketCommand command);
+    Ticket registerTicket(UUID actingUserId, UUID clinicId, RegisterTicketCommand command);
 
-    Ticket getTicket(UUID ticketId, UUID clinicId);
+    Ticket getTicket(UUID actingUserId, UUID ticketId, UUID clinicId);
 
-    List<Ticket> listBySession(UUID cashSessionId, UUID clinicId);
+    List<Ticket> listBySession(UUID actingUserId, UUID cashSessionId, UUID clinicId);
 
-    List<Ticket> listByClinicRange(UUID clinicId, LocalDateTime from, LocalDateTime to);
+    List<Ticket> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to);
 
-    List<Ticket> listByQuotation(UUID quotationId, UUID clinicId);
+    List<Ticket> listByQuotation(UUID actingUserId, UUID quotationId, UUID clinicId);
 
-    List<Ticket> listByPatient(UUID patientId, UUID clinicId);
+    List<Ticket> listByPatient(UUID actingUserId, UUID patientId, UUID clinicId);
 
-    Ticket voidTicket(UUID ticketId, UUID clinicId, VoidTicketCommand command);
+    Ticket voidTicket(UUID actingUserId, UUID ticketId, UUID clinicId, VoidTicketCommand command);
 
-    QuotationBalance getQuotationBalance(UUID quotationId, UUID patientId, UUID clinicId);
+    QuotationBalance getQuotationBalance(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId);
 
     record PaymentLineCommand(PaymentMethod method, BigDecimal amount, String reference, UUID bankAccountId) {}
 

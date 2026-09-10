@@ -20,25 +20,25 @@ public class TransactionalCashExpenseUseCase implements ManageCashExpensesUseCas
 
     @Override
     @Transactional
-    public CashExpense registerExpense(UUID clinicId, RegisterExpenseCommand command) {
-        return cashExpenseService.registerExpense(clinicId, command);
+    public CashExpense registerExpense(UUID actingUserId, UUID clinicId, RegisterExpenseCommand command) {
+        return cashExpenseService.registerExpense(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CashExpense getExpense(UUID expenseId, UUID clinicId) {
-        return cashExpenseService.getExpense(expenseId, clinicId);
+    public CashExpense getExpense(UUID actingUserId, UUID expenseId, UUID clinicId) {
+        return cashExpenseService.getExpense(actingUserId, expenseId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CashExpense> listBySession(UUID cashSessionId, UUID clinicId) {
-        return cashExpenseService.listBySession(cashSessionId, clinicId);
+    public List<CashExpense> listBySession(UUID actingUserId, UUID cashSessionId, UUID clinicId) {
+        return cashExpenseService.listBySession(actingUserId, cashSessionId, clinicId);
     }
 
     @Override
     @Transactional
-    public CashExpense voidExpense(UUID expenseId, UUID clinicId, VoidExpenseCommand command) {
-        return cashExpenseService.voidExpense(expenseId, clinicId, command);
+    public CashExpense voidExpense(UUID actingUserId, UUID expenseId, UUID clinicId, VoidExpenseCommand command) {
+        return cashExpenseService.voidExpense(actingUserId, expenseId, clinicId, command);
     }
 }

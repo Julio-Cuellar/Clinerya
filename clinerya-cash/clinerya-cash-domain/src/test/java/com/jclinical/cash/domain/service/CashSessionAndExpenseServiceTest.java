@@ -13,6 +13,8 @@ import com.jclinical.core.events.CashExpenseRegisteredEvent;
 import com.jclinical.core.events.CashExpenseVoidedEvent;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -34,16 +36,23 @@ class CashSessionAndExpenseServiceTest {
     private final StubStaffValidator staffValidator = new StubStaffValidator();
     private final RecordingPublisher publisher = new RecordingPublisher();
 
+    private final UUID actingUserId = UUID.randomUUID();
+    private final UUID unauthorizedUserId = UUID.randomUUID();
+    private final StaffPermissionCheckerPort permissionChecker =
+            (clinicId, userId, permission) -> actingUserId.equals(userId);
+
     private final CashSessionService sessionService = new CashSessionService(
             sessionRepository,
             ticketRepository,
             staffValidator,
-            expenseRepository);
+            expenseRepository,
+            permissionChecker);
     private final CashExpenseService expenseService = new CashExpenseService(
             expenseRepository,
             sessionRepository,
             staffValidator,
-            publisher);
+            publisher,
+            permissionChecker);
 
     @Test
     void opensAndClosesSessionUsingTicketCashAndExpenses() {
@@ -52,12 +61,14 @@ class CashSessionAndExpenseServiceTest {
         staffValidator.activeStaffId = staffId;
 
         CashSession opened = sessionService.openSession(
+                actingUserId,
                 clinicId,
                 new CashSessionService.OpenSessionCommand(staffId, new BigDecimal("100.00")));
         ticketRepository.activeCashBySession = new BigDecimal("250.00");
         expenseRepository.activeAmountBySession = new BigDecimal("40.00");
 
         CashSession closed = sessionService.closeSession(
+                actingUserId,
                 clinicId,
                 new CashSessionService.CloseSessionCommand(staffId, new BigDecimal("320.00")));
 
@@ -72,11 +83,11 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(actingUserId, clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
 
         CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalStateException.class,
-                () -> sessionService.openSession(clinicId, command));
+                () -> sessionService.openSession(actingUserId, clinicId, command));
     }
 
     @Test
@@ -86,7 +97,28 @@ class CashSessionAndExpenseServiceTest {
 
         CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalArgumentException.class,
-                () -> sessionService.openSession(clinicId, command));
+                () -> sessionService.openSession(actingUserId, clinicId, command));
+    }
+
+    @Test
+    void rejectsCashOperationsWithoutPermission() {
+        UUID clinicId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        staffValidator.activeStaffId = staffId;
+
+        CashSessionService.OpenSessionCommand openCommand =
+                new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> sessionService.openSession(unauthorizedUserId, clinicId, openCommand));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> sessionService.listSessions(unauthorizedUserId, clinicId));
+
+        CashExpenseService.RegisterExpenseCommand expenseCommand =
+                new CashExpenseService.RegisterExpenseCommand("Gasolina", BigDecimal.ONE, staffId);
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> expenseService.registerExpense(unauthorizedUserId, clinicId, expenseCommand));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> expenseService.registerExpense(null, clinicId, expenseCommand));
     }
 
     @Test
@@ -94,9 +126,10 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(actingUserId, clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
 
         CashExpense expense = expenseService.registerExpense(
+                actingUserId,
                 clinicId,
                 new CashExpenseService.RegisterExpenseCommand("Gasolina", new BigDecimal("120.00"), staffId));
 
@@ -114,12 +147,14 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(actingUserId, clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
         CashExpense expense = expenseService.registerExpense(
+                actingUserId,
                 clinicId,
                 new CashExpenseService.RegisterExpenseCommand("Gasolina", new BigDecimal("120.00"), staffId));
 
         CashExpense voided = expenseService.voidExpense(
+                actingUserId,
                 expense.getId(),
                 clinicId,
                 new CashExpenseService.VoidExpenseCommand(staffId, "Duplicado"));

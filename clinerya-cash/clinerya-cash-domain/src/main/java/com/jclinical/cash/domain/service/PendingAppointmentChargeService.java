@@ -7,6 +7,9 @@ import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort;
 import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort.QuotationItemSnapshot;
 import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort.QuotationSnapshot;
 import com.jclinical.cash.domain.ports.out.TicketRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,20 +25,29 @@ public class PendingAppointmentChargeService implements ManagePendingAppointment
     private final CashAppointmentPort appointmentPort;
     private final CashQuotationValidatorPort quotationValidator;
     private final TicketRepositoryPort ticketRepository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public PendingAppointmentChargeService(
             CashAppointmentPort appointmentPort,
             CashQuotationValidatorPort quotationValidator,
-            TicketRepositoryPort ticketRepository) {
+            TicketRepositoryPort ticketRepository,
+            StaffPermissionCheckerPort permissionChecker) {
         this.appointmentPort = appointmentPort;
         this.quotationValidator = quotationValidator;
         this.ticketRepository = ticketRepository;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public List<PendingAppointmentCharge> listPendingCharges(UUID clinicId) {
+    public List<PendingAppointmentCharge> listPendingCharges(UUID actingUserId, UUID clinicId) {
         if (clinicId == null) {
             throw new IllegalArgumentException("La clinica es obligatoria.");
+        }
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_CASH)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para consultar la caja de esta clinica.");
         }
 
         Map<UUID, List<CompletedAppointmentSnapshot>> appointmentsByQuotation = new LinkedHashMap<>();
