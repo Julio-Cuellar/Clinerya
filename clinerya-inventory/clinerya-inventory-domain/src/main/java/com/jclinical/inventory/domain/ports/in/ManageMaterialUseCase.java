@@ -9,15 +9,16 @@ import java.util.UUID;
 
 public interface ManageMaterialUseCase {
 
-    Material createMaterial(UUID clinicId, CreateMaterialCommand command);
+    Material createMaterial(UUID actingUserId, UUID clinicId, CreateMaterialCommand command);
 
-    Material updateMaterial(UUID materialId, UUID clinicId, UpdateMaterialCommand command);
+    Material updateMaterial(UUID actingUserId, UUID materialId, UUID clinicId, UpdateMaterialCommand command);
 
-    void deactivateMaterial(UUID materialId, UUID clinicId);
+    void deactivateMaterial(UUID actingUserId, UUID materialId, UUID clinicId);
 
+    /** Sin control de permiso: lo consumen flujos internos (cotizaciones, consumo en visita). */
     Optional<Material> getMaterial(UUID materialId, UUID clinicId);
 
-    List<Material> getMaterialsByClinic(UUID clinicId, boolean includeInactive);
+    List<Material> getMaterialsByClinic(UUID actingUserId, UUID clinicId, boolean includeInactive);
 
     record CreateMaterialCommand(
             String name,

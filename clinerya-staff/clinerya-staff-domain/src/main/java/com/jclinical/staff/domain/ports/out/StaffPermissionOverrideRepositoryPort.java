@@ -1,6 +1,6 @@
 package com.jclinical.staff.domain.ports.out;
 
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 
 import java.util.List;

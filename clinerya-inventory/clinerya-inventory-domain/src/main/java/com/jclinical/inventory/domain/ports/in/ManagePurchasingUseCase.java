@@ -13,31 +13,31 @@ import java.util.UUID;
 
 public interface ManagePurchasingUseCase {
 
-    Supplier createSupplier(UUID clinicId, CreateSupplierCommand command);
+    Supplier createSupplier(UUID actingUserId, UUID clinicId, CreateSupplierCommand command);
 
-    Supplier updateSupplier(UUID clinicId, UUID supplierId, UpdateSupplierCommand command);
+    Supplier updateSupplier(UUID actingUserId, UUID clinicId, UUID supplierId, UpdateSupplierCommand command);
 
-    List<Supplier> listSuppliers(UUID clinicId);
+    List<Supplier> listSuppliers(UUID actingUserId, UUID clinicId);
 
-    List<SupplierMaterial> listSupplierMaterials(UUID clinicId, UUID supplierId);
+    List<SupplierMaterial> listSupplierMaterials(UUID actingUserId, UUID clinicId, UUID supplierId);
 
-    SupplierMaterial addSupplierMaterial(UUID clinicId, UUID supplierId, AddSupplierMaterialCommand command);
+    SupplierMaterial addSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, AddSupplierMaterialCommand command);
 
-    void removeSupplierMaterial(UUID clinicId, UUID supplierId, UUID materialId);
+    void removeSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, UUID materialId);
 
-    PurchaseOrder createPurchaseOrder(UUID clinicId, CreatePurchaseOrderCommand command);
+    PurchaseOrder createPurchaseOrder(UUID actingUserId, UUID clinicId, CreatePurchaseOrderCommand command);
 
-    PurchaseOrder getPurchaseOrder(UUID clinicId, UUID orderId);
+    PurchaseOrder getPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId);
 
-    List<PurchaseOrder> listPurchaseOrders(UUID clinicId);
+    List<PurchaseOrder> listPurchaseOrders(UUID actingUserId, UUID clinicId);
 
-    PurchaseOrder markPurchaseOrderOrdered(UUID clinicId, UUID orderId);
+    PurchaseOrder markPurchaseOrderOrdered(UUID actingUserId, UUID clinicId, UUID orderId);
 
-    PurchaseOrder cancelPurchaseOrder(UUID clinicId, UUID orderId);
+    PurchaseOrder cancelPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId);
 
-    PurchaseReceipt receivePurchaseOrder(UUID clinicId, UUID orderId, ReceivePurchaseOrderCommand command);
+    PurchaseReceipt receivePurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId, ReceivePurchaseOrderCommand command);
 
-    List<PurchaseReceipt> listReceipts(UUID clinicId, UUID orderId);
+    List<PurchaseReceipt> listReceipts(UUID actingUserId, UUID clinicId, UUID orderId);
 
     record CreateSupplierCommand(
             String name,

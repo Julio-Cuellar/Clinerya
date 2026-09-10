@@ -1,6 +1,7 @@
 package com.jclinical.treatments.domain.service;
 
 import com.jclinical.core.events.DomainEventPublisherPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.treatments.domain.model.ItemProgressStatus;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
@@ -60,6 +61,9 @@ class VisitServiceTest {
 
     private VisitService visitService;
 
+    private final UUID actingUserId = UUID.randomUUID();
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+
     private UUID patientId;
     private UUID clinicId;
     private UUID quotationId;
@@ -73,7 +77,8 @@ class VisitServiceTest {
                 quotationRepository,
                 patientValidator,
                 inventoryMaterialPort,
-                eventPublisher
+                eventPublisher,
+                permissionChecker
         );
 
         patientId = UUID.randomUUID();
@@ -143,7 +148,7 @@ class VisitServiceTest {
         when(visitRepository.save(any(Visit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        Visit registered = visitService.registerVisit(patientId, quotationId, clinicId, command);
+        Visit registered = visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
 
         // Assert
         assertNotNull(registered);
@@ -190,7 +195,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
         });
 
         assertEquals("El paciente no existe en esta clínica.", exception.getMessage());
@@ -213,7 +218,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
         });
 
         assertEquals("La cotización no existe para este paciente en esta clínica.", exception.getMessage());
@@ -245,7 +250,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
         });
 
         assertEquals("Solo se pueden registrar sesiones clínicas para cotizaciones aceptadas.", exception.getMessage());
@@ -282,7 +287,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
         });
 
         assertTrue(exception.getMessage().contains("no pertenece a esta cotización."));
@@ -303,7 +308,7 @@ class VisitServiceTest {
                 .thenReturn(List.of(visit));
 
         // Act
-        List<Visit> result = visitService.getVisitsByQuotation(quotationId, patientId, clinicId);
+        List<Visit> result = visitService.getVisitsByQuotation(actingUserId, quotationId, patientId, clinicId);
 
         // Assert
         assertEquals(1, result.size());
@@ -325,7 +330,7 @@ class VisitServiceTest {
                 .thenReturn(Optional.of(visit));
 
         // Act
-        Visit result = visitService.getVisitDetails(visitId, patientId, clinicId);
+        Visit result = visitService.getVisitDetails(actingUserId, visitId, patientId, clinicId);
 
         // Assert
         assertNotNull(result);
@@ -343,7 +348,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.getVisitDetails(visitId, patientId, clinicId);
+            visitService.getVisitDetails(actingUserId, visitId, patientId, clinicId);
         });
 
         assertEquals("La visita no existe.", exception.getMessage());

@@ -23,7 +23,7 @@ public class ExternalEventLinkingOrchestrator {
     private final ManageAppointmentsUseCase appointmentsUseCase;
 
     @Transactional
-    public void linkEventToPatient(UUID clinicId, UUID eventId, UUID patientId, String reason) {
+    public void linkEventToPatient(UUID clinicId, UUID actingUserId, UUID eventId, UUID patientId, String reason) {
         ExternalCalendarEvent event = externalEventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento externo no encontrado"));
 
@@ -52,7 +52,7 @@ public class ExternalEventLinkingOrchestrator {
         Appointment appointment = appointmentsUseCase.createAppointment(clinicId, command);
 
         // 2. Marcar el evento externo como LINKED
-        manageExternalEventsUseCase.markAsLinked(clinicId, eventId, appointment.getId());
+        manageExternalEventsUseCase.markAsLinked(clinicId, actingUserId, eventId, appointment.getId());
 
         // 3. Enlazar la nueva Appointment al googleEventId
         appointmentsUseCase.attachExternalCalendarEvent(appointment.getId(), clinicId, event.getGoogleEventId());

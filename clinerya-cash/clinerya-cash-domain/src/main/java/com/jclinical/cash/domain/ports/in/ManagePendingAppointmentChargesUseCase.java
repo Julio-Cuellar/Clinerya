@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface ManagePendingAppointmentChargesUseCase {
 
-    List<PendingAppointmentCharge> listPendingCharges(UUID clinicId);
+    List<PendingAppointmentCharge> listPendingCharges(UUID actingUserId, UUID clinicId);
 
     record PendingAppointmentCharge(
             UUID appointmentId,

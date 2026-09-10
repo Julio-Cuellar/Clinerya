@@ -9,9 +9,18 @@ import java.util.UUID;
 
 public interface ManageClinicScheduleUseCase {
 
-    List<ClinicSchedule> getSchedule(UUID clinicId);
+    /** Ruta interna (validacion de horario al crear/reprogramar citas): sin control de permiso. */
+    default List<ClinicSchedule> getSchedule(UUID clinicId) {
+        return getSchedule(null, clinicId);
+    }
 
-    List<ClinicSchedule> updateSchedule(UUID clinicId, List<DayScheduleCommand> days);
+    List<ClinicSchedule> getSchedule(UUID actingUserId, UUID clinicId);
+
+    default List<ClinicSchedule> updateSchedule(UUID clinicId, List<DayScheduleCommand> days) {
+        return updateSchedule(null, clinicId, days);
+    }
+
+    List<ClinicSchedule> updateSchedule(UUID actingUserId, UUID clinicId, List<DayScheduleCommand> days);
 
     record DayScheduleCommand(
             DayOfWeek dayOfWeek,

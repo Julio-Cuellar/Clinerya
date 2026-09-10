@@ -1,6 +1,7 @@
 package com.jclinical.integrations.infra.adapters.in.web;
 
 import com.jclinical.integrations.domain.ports.in.ManageCalendarIntegrationUseCase;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import com.jclinical.integrations.infra.adapters.in.web.dto.AuthorizationUrlResponse;
 import com.jclinical.integrations.infra.adapters.in.web.dto.CalendarConnectionStatusResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,13 +30,15 @@ import java.util.UUID;
 public class GoogleCalendarController {
 
     private final ManageCalendarIntegrationUseCase calendarIntegrationUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/connect")
     public ResponseEntity<AuthorizationUrlResponse> connect(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId,
             @RequestParam(defaultValue = "false") boolean importPastEvents) {
-        String authorizationUrl = calendarIntegrationUseCase.getAuthorizationUrl(clinicId, staffId, importPastEvents);
+        String authorizationUrl = calendarIntegrationUseCase.getAuthorizationUrl(
+                clinicId, currentUserResolver.getCurrentUserId(), staffId, importPastEvents);
         return ResponseEntity.ok(new AuthorizationUrlResponse(authorizationUrl));
     }
 
@@ -44,7 +47,7 @@ public class GoogleCalendarController {
     public ResponseEntity<Void> disconnect(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId) {
-        calendarIntegrationUseCase.disconnect(clinicId, staffId);
+        calendarIntegrationUseCase.disconnect(clinicId, currentUserResolver.getCurrentUserId(), staffId);
         return ResponseEntity.noContent().build();
     }
 
@@ -52,7 +55,7 @@ public class GoogleCalendarController {
     public ResponseEntity<CalendarConnectionStatusResponse> status(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId) {
-        var status = calendarIntegrationUseCase.getStatus(clinicId, staffId);
+        var status = calendarIntegrationUseCase.getStatus(clinicId, currentUserResolver.getCurrentUserId(), staffId);
         return ResponseEntity.ok(new CalendarConnectionStatusResponse(status.connected(), status.email(), status.importPastEvents()));
     }
 
@@ -61,7 +64,8 @@ public class GoogleCalendarController {
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId,
             @RequestBody CalendarPreferencesRequest request) {
-        calendarIntegrationUseCase.updatePreferences(clinicId, staffId, request.importPastEvents());
+        calendarIntegrationUseCase.updatePreferences(
+                clinicId, currentUserResolver.getCurrentUserId(), staffId, request.importPastEvents());
         return ResponseEntity.ok().build();
     }
 }

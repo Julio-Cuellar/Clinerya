@@ -1,5 +1,8 @@
 package com.jclinical.integrations.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.integrations.domain.model.ExternalCalendarEvent;
 import com.jclinical.integrations.domain.model.ExternalEventStatus;
 import com.jclinical.integrations.domain.ports.in.ManageExternalCalendarEventsUseCase;
@@ -14,14 +17,17 @@ import java.util.UUID;
 public class ManageExternalCalendarEventsService implements ManageExternalCalendarEventsUseCase {
 
     private final ExternalCalendarEventRepositoryPort repositoryPort;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     @Override
-    public List<ExternalCalendarEvent> listPending(UUID clinicId, LocalDateTime from, LocalDateTime to) {
+    public List<ExternalCalendarEvent> listPending(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         return repositoryPort.findByClinicIdAndDateRangeAndStatus(clinicId, from, to, ExternalEventStatus.PENDING_REVIEW);
     }
 
     @Override
-    public void dismiss(UUID clinicId, UUID eventId) {
+    public void dismiss(UUID clinicId, UUID actingUserId, UUID eventId) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         ExternalCalendarEvent event = repositoryPort.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento externo no encontrado"));
         if (!event.getClinicId().equals(clinicId)) {
@@ -33,7 +39,8 @@ public class ManageExternalCalendarEventsService implements ManageExternalCalend
     }
 
     @Override
-    public void markAsLinked(UUID clinicId, UUID eventId, UUID appointmentId) {
+    public void markAsLinked(UUID clinicId, UUID actingUserId, UUID eventId, UUID appointmentId) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         ExternalCalendarEvent event = repositoryPort.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("Evento externo no encontrado"));
         if (!event.getClinicId().equals(clinicId)) {
@@ -43,5 +50,14 @@ public class ManageExternalCalendarEventsService implements ManageExternalCalend
         event.setLinkedAppointmentId(appointmentId);
         event.setUpdatedAt(LocalDateTime.now());
         repositoryPort.save(event);
+    }
+
+    private void requireIntegrationsPermission(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_INTEGRATIONS)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para gestionar las integraciones de esta clinica.");
+        }
     }
 }

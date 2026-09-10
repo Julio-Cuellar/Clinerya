@@ -16,12 +16,13 @@ public interface ManageStaffOperationsUseCase {
 
     AttendanceSummary clockOut(UUID clinicId, UUID attendanceId, LocalDateTime clockOutAt, String notes);
 
-    List<AttendanceSummary> listAttendance(UUID clinicId, UUID staffId, LocalDate from, LocalDate to);
+    List<AttendanceSummary> listAttendance(UUID clinicId, UUID actingUserId, UUID staffId, LocalDate from, LocalDate to);
 
-    ActivitySummary recordActivity(UUID clinicId, UUID staffId, StaffActivityType type, String referenceType,
-                                   UUID referenceId, String description, BigDecimal amount, LocalDateTime occurredAt);
+    ActivitySummary recordActivity(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
+                                   String referenceType, UUID referenceId, String description, BigDecimal amount,
+                                   LocalDateTime occurredAt);
 
-    List<ActivitySummary> listActivities(UUID clinicId, UUID staffId, StaffActivityType type,
+    List<ActivitySummary> listActivities(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
                                          LocalDateTime from, LocalDateTime to);
 
     PayrollPeriodSummary createPayrollPeriod(UUID clinicId, UUID actingUserId, String name, LocalDate periodStart,

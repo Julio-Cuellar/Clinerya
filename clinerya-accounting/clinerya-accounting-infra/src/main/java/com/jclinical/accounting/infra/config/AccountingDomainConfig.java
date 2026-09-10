@@ -19,6 +19,7 @@ import com.jclinical.accounting.infra.adapters.out.persistence.JournalEntryMappe
 import com.jclinical.accounting.infra.adapters.out.persistence.JournalLineEntity;
 import com.jclinical.accounting.infra.adapters.out.persistence.OpeningBalanceSetupEntity;
 import com.jclinical.accounting.infra.adapters.out.persistence.OpeningBalanceSetupMapper;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,21 +31,24 @@ import java.util.List;
 public class AccountingDomainConfig {
 
     @Bean
-    public JournalEntryService journalEntryService(JournalEntryRepositoryPort repository) {
-        return new JournalEntryService(repository);
+    public JournalEntryService journalEntryService(JournalEntryRepositoryPort repository,
+                                                  StaffPermissionCheckerPort permissionChecker) {
+        return new JournalEntryService(repository, permissionChecker);
     }
 
     @Bean
-    public IncomeStatementService incomeStatementService(JournalEntryRepositoryPort repository) {
-        return new IncomeStatementService(repository);
+    public IncomeStatementService incomeStatementService(JournalEntryRepositoryPort repository,
+                                                        StaffPermissionCheckerPort permissionChecker) {
+        return new IncomeStatementService(repository, permissionChecker);
     }
 
     @Bean
     public OpeningBalanceService openingBalanceService(
             OpeningBalanceSetupRepositoryPort setupRepository,
             BankAccountRepositoryPort bankAccountRepository,
-            JournalEntryRepositoryPort journalEntryRepository) {
-        return new OpeningBalanceService(setupRepository, bankAccountRepository, journalEntryRepository);
+            JournalEntryRepositoryPort journalEntryRepository,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new OpeningBalanceService(setupRepository, bankAccountRepository, journalEntryRepository, permissionChecker);
     }
 
     @Bean

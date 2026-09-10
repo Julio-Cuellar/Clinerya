@@ -7,6 +7,7 @@ import com.jclinical.cash.domain.ports.in.ManageCashExpensesUseCase.VoidExpenseC
 import com.jclinical.cash.infra.adapters.in.web.dto.CashExpenseResponse;
 import com.jclinical.cash.infra.adapters.in.web.dto.RegisterCashExpenseRequest;
 import com.jclinical.cash.infra.adapters.in.web.dto.VoidCashExpenseRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class CashExpenseController {
 
     private final ManageCashExpensesUseCase cashExpensesUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("")
     public ResponseEntity<CashExpenseResponse> registerExpense(
@@ -36,7 +38,8 @@ public class CashExpenseController {
                 request.amount(),
                 request.createdByStaffId()
         );
-        CashExpense expense = cashExpensesUseCase.registerExpense(clinicId, command);
+        CashExpense expense = cashExpensesUseCase.registerExpense(
+                currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(expense));
     }
 
@@ -44,7 +47,8 @@ public class CashExpenseController {
     public ResponseEntity<CashExpenseResponse> getExpense(
             @PathVariable UUID clinicId,
             @PathVariable UUID expenseId) {
-        CashExpense expense = cashExpensesUseCase.getExpense(expenseId, clinicId);
+        CashExpense expense = cashExpensesUseCase.getExpense(
+                currentUserResolver.getCurrentUserId(), expenseId, clinicId);
         return ResponseEntity.ok(toResponse(expense));
     }
 
@@ -52,7 +56,8 @@ public class CashExpenseController {
     public ResponseEntity<List<CashExpenseResponse>> listBySession(
             @PathVariable UUID clinicId,
             @PathVariable UUID cashSessionId) {
-        List<CashExpenseResponse> responses = cashExpensesUseCase.listBySession(cashSessionId, clinicId).stream()
+        List<CashExpenseResponse> responses = cashExpensesUseCase
+                .listBySession(currentUserResolver.getCurrentUserId(), cashSessionId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -64,7 +69,8 @@ public class CashExpenseController {
             @PathVariable UUID expenseId,
             @RequestBody VoidCashExpenseRequest request) {
         VoidExpenseCommand command = new VoidExpenseCommand(request.staffId(), request.reason());
-        CashExpense expense = cashExpensesUseCase.voidExpense(expenseId, clinicId, command);
+        CashExpense expense = cashExpensesUseCase.voidExpense(
+                currentUserResolver.getCurrentUserId(), expenseId, clinicId, command);
         return ResponseEntity.ok(toResponse(expense));
     }
 

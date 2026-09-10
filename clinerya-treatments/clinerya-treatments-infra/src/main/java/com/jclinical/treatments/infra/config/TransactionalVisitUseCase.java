@@ -20,19 +20,19 @@ public class TransactionalVisitUseCase implements ManageVisitsUseCase {
 
     @Override
     @Transactional
-    public Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command) {
-        return visitService.registerVisit(patientId, quotationId, clinicId, command);
+    public Visit registerVisit(UUID actingUserId, UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command) {
+        return visitService.registerVisit(actingUserId, patientId, quotationId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        return visitService.getVisitsByQuotation(quotationId, patientId, clinicId);
+    public List<Visit> getVisitsByQuotation(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId) {
+        return visitService.getVisitsByQuotation(actingUserId, quotationId, patientId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId) {
-        return visitService.getVisitDetails(visitId, patientId, clinicId);
+    public Visit getVisitDetails(UUID actingUserId, UUID visitId, UUID patientId, UUID clinicId) {
+        return visitService.getVisitDetails(actingUserId, visitId, patientId, clinicId);
     }
 }

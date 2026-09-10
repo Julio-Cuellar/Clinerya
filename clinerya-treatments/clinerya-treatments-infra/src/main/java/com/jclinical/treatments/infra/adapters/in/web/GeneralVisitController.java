@@ -9,6 +9,7 @@ import com.jclinical.treatments.domain.ports.in.ManageVisitsUseCase.RegisterVisi
 import com.jclinical.treatments.domain.ports.in.ManageVisitsUseCase.RegisterVisitMaterialUsageCommand;
 import com.jclinical.treatments.infra.adapters.in.web.dto.CreateVisitRequest;
 import com.jclinical.treatments.infra.adapters.in.web.dto.VisitResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,7 @@ import java.util.UUID;
 public class GeneralVisitController {
 
     private final ManageVisitsUseCase visitsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<VisitResponse> registerGeneralVisit(
@@ -43,7 +45,8 @@ public class GeneralVisitController {
                 request.notes(),
                 toLineItemCommands(request.items())
         );
-        Visit visit = visitsUseCase.registerVisit(patientId, null, request.clinicId(), command);
+        Visit visit = visitsUseCase.registerVisit(
+                currentUserResolver.getCurrentUserId(), patientId, null, request.clinicId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(visit));
     }
 
