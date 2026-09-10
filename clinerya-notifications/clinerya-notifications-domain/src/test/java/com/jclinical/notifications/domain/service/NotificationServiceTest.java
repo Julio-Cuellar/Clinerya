@@ -1,5 +1,8 @@
 package com.jclinical.notifications.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.notifications.domain.model.Notification;
 import com.jclinical.notifications.domain.ports.in.ManageNotificationsUseCase.NotificationList;
 import com.jclinical.notifications.domain.ports.in.ManageNotificationsUseCase.PublishNotificationCommand;
@@ -22,7 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class NotificationServiceTest {
 
     private final InMemoryNotificationRepository repository = new InMemoryNotificationRepository();
-    private final NotificationService service = new NotificationService(repository);
+    private final UUID actingUserId = UUID.randomUUID();
+    private final StaffPermissionCheckerPort permissionChecker = (clinic, userId, permission) ->
+            actingUserId.equals(userId) && permission == StaffPermission.VIEW_NOTIFICATIONS;
+    private final NotificationService service = new NotificationService(repository, permissionChecker);
 
     @Test
     void publishesNewNotificationWithNormalizedFields() {
@@ -73,7 +79,7 @@ class NotificationServiceTest {
         second.setReadAt(LocalDateTime.now());
         repository.save(second);
 
-        NotificationList list = service.list(clinicId, false, 500);
+        NotificationList list = service.list(clinicId, actingUserId, false, 500);
 
         assertEquals(2, list.items().size());
         assertEquals(1, list.unreadCount());
@@ -88,8 +94,8 @@ class NotificationServiceTest {
         UUID clinicId = UUID.randomUUID();
         Notification notification = service.publish(command(clinicId, "WARNING", "Stock bajo"));
 
-        Notification read = service.markRead(clinicId, notification.getId());
-        Notification readAgain = service.markRead(clinicId, notification.getId());
+        Notification read = service.markRead(clinicId, actingUserId, notification.getId());
+        Notification readAgain = service.markRead(clinicId, actingUserId, notification.getId());
 
         assertNotNull(read.getReadAt());
         assertEquals(read.getReadAt(), readAgain.getReadAt());
@@ -103,9 +109,9 @@ class NotificationServiceTest {
         PublishNotificationCommand invalidSeverityCommand =
                 new PublishNotificationCommand(clinicId, "inventory", "key", "LOUD", "Titulo", "Mensaje", null, null);
         assertThrows(IllegalArgumentException.class, () -> service.publish(invalidSeverityCommand));
-        assertThrows(IllegalArgumentException.class, () -> service.list(null, false, 10));
+        assertThrows(IllegalArgumentException.class, () -> service.list(null, actingUserId, false, 10));
         UUID missingNotificationId = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class, () -> service.markRead(clinicId, missingNotificationId));
+        assertThrows(IllegalArgumentException.class, () -> service.markRead(clinicId, actingUserId, missingNotificationId));
     }
 
     @Test
@@ -116,10 +122,23 @@ class NotificationServiceTest {
         service.publish(new PublishNotificationCommand(clinicId, "agenda", "late", "WARNING", "Retraso", "Paciente tarde", null, null));
         service.publish(command(otherClinicId, "WARNING", "Otra"));
 
-        service.markAllRead(clinicId);
+        service.markAllRead(clinicId, actingUserId);
 
         assertEquals(0, repository.countUnreadByClinicId(clinicId));
         assertEquals(1, repository.countUnreadByClinicId(otherClinicId));
+    }
+
+    @Test
+    void readOperationsRequireViewNotificationsPermission() {
+        UUID clinicId = UUID.randomUUID();
+        UUID strangerId = UUID.randomUUID();
+        Notification notification = service.publish(command(clinicId, "WARNING", "Stock bajo"));
+
+        assertThrows(ClinicAccessDeniedException.class, () -> service.list(clinicId, strangerId, false, 10));
+        assertThrows(ClinicAccessDeniedException.class, () -> service.list(clinicId, null, false, 10));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.markRead(clinicId, strangerId, notification.getId()));
+        assertThrows(ClinicAccessDeniedException.class, () -> service.markAllRead(clinicId, strangerId));
     }
 
     private static PublishNotificationCommand command(UUID clinicId, String severity, String title) {

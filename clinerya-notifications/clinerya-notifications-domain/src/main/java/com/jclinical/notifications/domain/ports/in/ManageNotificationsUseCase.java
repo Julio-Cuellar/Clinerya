@@ -10,11 +10,11 @@ public interface ManageNotificationsUseCase {
 
     Notification publish(PublishNotificationCommand command);
 
-    NotificationList list(UUID clinicId, boolean unreadOnly, int limit);
+    NotificationList list(UUID clinicId, UUID actingUserId, boolean unreadOnly, int limit);
 
-    Notification markRead(UUID clinicId, UUID notificationId);
+    Notification markRead(UUID clinicId, UUID actingUserId, UUID notificationId);
 
-    void markAllRead(UUID clinicId);
+    void markAllRead(UUID clinicId, UUID actingUserId);
 
     record PublishNotificationCommand(
             UUID clinicId,

@@ -41,19 +41,19 @@ public class TransactionalNotificationsUseCase implements ManageNotificationsUse
 
     @Override
     @Transactional(readOnly = true)
-    public NotificationList list(UUID clinicId, boolean unreadOnly, int limit) {
-        return notificationService.list(clinicId, unreadOnly, limit);
+    public NotificationList list(UUID clinicId, UUID actingUserId, boolean unreadOnly, int limit) {
+        return notificationService.list(clinicId, actingUserId, unreadOnly, limit);
     }
 
     @Override
     @Transactional
-    public Notification markRead(UUID clinicId, UUID notificationId) {
-        return notificationService.markRead(clinicId, notificationId);
+    public Notification markRead(UUID clinicId, UUID actingUserId, UUID notificationId) {
+        return notificationService.markRead(clinicId, actingUserId, notificationId);
     }
 
     @Override
     @Transactional
-    public void markAllRead(UUID clinicId) {
-        notificationService.markAllRead(clinicId);
+    public void markAllRead(UUID clinicId, UUID actingUserId) {
+        notificationService.markAllRead(clinicId, actingUserId);
     }
 }
