@@ -24,21 +24,22 @@ public class TransactionalAccountingReportUseCase implements GenerateAccountingR
     @Transactional(readOnly = true)
     public IncomeStatementReport generateIncomeStatement(
             UUID clinicId,
+            UUID actingUserId,
             LocalDate from,
             LocalDate to,
             boolean includeComparison) {
-        return incomeStatementService.generateIncomeStatement(clinicId, from, to, includeComparison);
+        return incomeStatementService.generateIncomeStatement(clinicId, actingUserId, from, to, includeComparison);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public TrialBalanceReport generateTrialBalance(UUID clinicId, LocalDate from, LocalDate to) {
-        return incomeStatementService.generateTrialBalance(clinicId, from, to);
+    public TrialBalanceReport generateTrialBalance(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to) {
+        return incomeStatementService.generateTrialBalance(clinicId, actingUserId, from, to);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public WasteReport generateWasteReport(UUID clinicId, LocalDate from, LocalDate to) {
-        return incomeStatementService.generateWasteReport(clinicId, from, to);
+    public WasteReport generateWasteReport(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to) {
+        return incomeStatementService.generateWasteReport(clinicId, actingUserId, from, to);
     }
 }

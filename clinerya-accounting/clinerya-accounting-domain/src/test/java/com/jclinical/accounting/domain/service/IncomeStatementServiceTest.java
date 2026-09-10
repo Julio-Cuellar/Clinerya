@@ -5,6 +5,7 @@ import com.jclinical.accounting.domain.model.JournalEntry;
 import com.jclinical.accounting.domain.model.JournalLine;
 import com.jclinical.accounting.domain.model.JournalQueryResult;
 import com.jclinical.accounting.domain.ports.out.JournalEntryRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -19,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class IncomeStatementServiceTest {
 
     private final InMemoryJournalRepository repository = new InMemoryJournalRepository();
-    private final IncomeStatementService service = new IncomeStatementService(repository);
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+    private final IncomeStatementService service = new IncomeStatementService(repository, permissionChecker);
+    private final UUID actingUserId = UUID.randomUUID();
 
     @Test
     void calculatesCurrentPeriodComparisonAccountsAndTrend() {
@@ -45,6 +48,7 @@ class IncomeStatementServiceTest {
 
         IncomeStatementReport report = service.generateIncomeStatement(
                 clinicId,
+                actingUserId,
                 LocalDate.parse("2026-07-01"),
                 LocalDate.parse("2026-07-07"),
                 true);
@@ -82,6 +86,7 @@ class IncomeStatementServiceTest {
 
         IncomeStatementReport report = service.generateIncomeStatement(
                 clinicId,
+                actingUserId,
                 LocalDate.parse("2026-07-01"),
                 LocalDate.parse("2026-07-01"),
                 false);

@@ -12,6 +12,9 @@ import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import com.jclinical.core.events.MermaCaducidadEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -26,19 +29,29 @@ public class InventoryMovementService {
     private final InventoryMovementRepositoryPort movementRepository;
     private final InventoryBatchRepositoryPort batchRepository;
     private final DomainEventPublisherPort eventPublisher;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public InventoryMovementService(
             MaterialRepositoryPort materialRepository,
             InventoryMovementRepositoryPort movementRepository,
             InventoryBatchRepositoryPort batchRepository,
-            DomainEventPublisherPort eventPublisher) {
+            DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         this.materialRepository = materialRepository;
         this.movementRepository = movementRepository;
         this.batchRepository = batchRepository;
         this.eventPublisher = eventPublisher;
+        this.permissionChecker = permissionChecker;
     }
 
-    public InventoryMovement registerPurchaseEntry(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
+        }
+    }
+
+    public InventoryMovement registerPurchaseEntry(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
         if (command.type() != MovementType.PURCHASE_ENTRY) {
             throw new IllegalArgumentException("El tipo de movimiento debe ser PURCHASE_ENTRY.");
         }
@@ -89,7 +102,12 @@ public class InventoryMovementService {
         );
     }
 
-    public InventoryMovement registerAdjustment(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+    public InventoryMovement registerAdjustment(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
+        return doRegisterAdjustment(clinicId, materialId, command);
+    }
+
+    private InventoryMovement doRegisterAdjustment(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
         if (command.type() == null || !command.type().isAdjustment()) {
             throw new IllegalArgumentException("El ajuste debe ser ADJUSTMENT_IN o ADJUSTMENT_OUT.");
         }
@@ -128,7 +146,8 @@ public class InventoryMovementService {
         return movement;
     }
 
-    public InventoryMovement registerSaleExit(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+    public InventoryMovement registerSaleExit(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
         if (command.type() != MovementType.SALE_EXIT) {
             throw new IllegalArgumentException("El tipo de movimiento debe ser SALE_EXIT.");
         }
@@ -178,7 +197,8 @@ public class InventoryMovementService {
                 ));
     }
 
-    public List<InventoryMovement> listMovementsByMaterial(UUID clinicId, UUID materialId, int page, int size) {
+    public List<InventoryMovement> listMovementsByMaterial(UUID clinicId, UUID materialId, UUID actingUserId, int page, int size) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
         if (page < 0) {
             throw new IllegalArgumentException("La página no puede ser negativa.");
         }
@@ -189,7 +209,8 @@ public class InventoryMovementService {
         return movementRepository.findByMaterialIdAndClinicId(materialId, clinicId, page, size);
     }
 
-    public List<InventoryMovement> listMovementsByClinic(UUID clinicId, int page, int size) {
+    public List<InventoryMovement> listMovementsByClinic(UUID clinicId, UUID actingUserId, int page, int size) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
         if (page < 0) {
             throw new IllegalArgumentException("La página no puede ser negativa.");
         }
@@ -199,16 +220,18 @@ public class InventoryMovementService {
         return movementRepository.findByClinicId(clinicId, page, size);
     }
 
-    public List<InventoryBatch> listBatchesByMaterial(UUID clinicId, UUID materialId) {
+    public List<InventoryBatch> listBatchesByMaterial(UUID clinicId, UUID materialId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
         ensureMaterialExists(materialId, clinicId);
         return batchRepository.findByMaterialIdAndClinicId(materialId, clinicId);
     }
 
-    public List<InventoryMovement> registerExpiredBatchWastes(UUID clinicId, LocalDate asOfDate) {
+    public List<InventoryMovement> registerExpiredBatchWastes(UUID clinicId, UUID actingUserId, LocalDate asOfDate) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_LOTS);
         LocalDate cutoffDate = asOfDate != null ? asOfDate : LocalDate.now();
         return batchRepository.findExpiredWithRemainingForUpdate(clinicId, cutoffDate).stream()
                 .filter(batch -> batch.getRemainingQuantity() != null && batch.getRemainingQuantity().signum() > 0)
-                .map(batch -> registerAdjustment(
+                .map(batch -> doRegisterAdjustment(
                         clinicId,
                         batch.getMaterialId(),
                         new RegisterMovementCommand(

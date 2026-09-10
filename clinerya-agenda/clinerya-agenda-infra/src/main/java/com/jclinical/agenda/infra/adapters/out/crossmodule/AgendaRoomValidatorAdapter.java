@@ -17,7 +17,7 @@ public class AgendaRoomValidatorAdapter implements RoomValidatorPort {
 
     @Override
     public Optional<RoomSnapshot> findActiveRoom(UUID roomId, UUID clinicId) {
-        return clinicRoomsUseCase.getActiveRoomsByClinic(clinicId).stream()
+        return clinicRoomsUseCase.getActiveRoomsByClinicForSystem(clinicId).stream()
                 .filter(room -> room.getId().equals(roomId))
                 .map(this::toSnapshot)
                 .findFirst();

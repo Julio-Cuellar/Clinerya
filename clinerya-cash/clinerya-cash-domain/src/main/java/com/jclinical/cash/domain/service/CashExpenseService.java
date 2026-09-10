@@ -11,6 +11,9 @@ import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import com.jclinical.core.events.CashExpenseRegisteredEvent;
 import com.jclinical.core.events.CashExpenseVoidedEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,20 +25,24 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
     private final CashSessionRepositoryPort cashSessionRepository;
     private final CashStaffValidatorPort staffValidator;
     private final DomainEventPublisherPort eventPublisher;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public CashExpenseService(
             CashExpenseRepositoryPort expenseRepository,
             CashSessionRepositoryPort cashSessionRepository,
             CashStaffValidatorPort staffValidator,
-            DomainEventPublisherPort eventPublisher) {
+            DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         this.expenseRepository = expenseRepository;
         this.cashSessionRepository = cashSessionRepository;
         this.staffValidator = staffValidator;
         this.eventPublisher = eventPublisher;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public CashExpense registerExpense(UUID clinicId, RegisterExpenseCommand command) {
+    public CashExpense registerExpense(UUID clinicId, UUID actingUserId, RegisterExpenseCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_EXPENSES);
         staffValidator.findActiveStaff(command.createdByStaffId(), clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El empleado indicado no existe o no está activo en esta clínica."));
 
@@ -77,19 +84,23 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
     }
 
     @Override
-    public CashExpense getExpense(UUID expenseId, UUID clinicId) {
+    public CashExpense getExpense(UUID expenseId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return expenseRepository.findByIdAndClinicId(expenseId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El egreso no existe en esta clínica."));
     }
 
     @Override
-    public List<CashExpense> listBySession(UUID cashSessionId, UUID clinicId) {
+    public List<CashExpense> listBySession(UUID cashSessionId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return expenseRepository.findByCashSessionId(cashSessionId, clinicId);
     }
 
     @Override
-    public CashExpense voidExpense(UUID expenseId, UUID clinicId, VoidExpenseCommand command) {
-        CashExpense expense = getExpense(expenseId, clinicId);
+    public CashExpense voidExpense(UUID expenseId, UUID clinicId, UUID actingUserId, VoidExpenseCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_EXPENSES);
+        CashExpense expense = expenseRepository.findByIdAndClinicId(expenseId, clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("El egreso no existe en esta clínica."));
 
         staffValidator.findActiveStaff(command.staffId(), clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El empleado indicado no existe o no está activo en esta clínica."));
@@ -108,5 +119,11 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
         ));
 
         return saved;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+        }
     }
 }

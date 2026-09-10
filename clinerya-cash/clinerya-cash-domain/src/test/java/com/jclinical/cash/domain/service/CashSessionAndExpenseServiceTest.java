@@ -13,6 +13,8 @@ import com.jclinical.core.events.CashExpenseRegisteredEvent;
 import com.jclinical.core.events.CashExpenseVoidedEvent;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -33,17 +35,21 @@ class CashSessionAndExpenseServiceTest {
     private final InMemoryCashExpenseRepository expenseRepository = new InMemoryCashExpenseRepository();
     private final StubStaffValidator staffValidator = new StubStaffValidator();
     private final RecordingPublisher publisher = new RecordingPublisher();
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+    private final UUID actingUserId = UUID.randomUUID();
 
     private final CashSessionService sessionService = new CashSessionService(
             sessionRepository,
             ticketRepository,
             staffValidator,
-            expenseRepository);
+            expenseRepository,
+            permissionChecker);
     private final CashExpenseService expenseService = new CashExpenseService(
             expenseRepository,
             sessionRepository,
             staffValidator,
-            publisher);
+            publisher,
+            permissionChecker);
 
     @Test
     void opensAndClosesSessionUsingTicketCashAndExpenses() {
@@ -53,12 +59,14 @@ class CashSessionAndExpenseServiceTest {
 
         CashSession opened = sessionService.openSession(
                 clinicId,
+                actingUserId,
                 new CashSessionService.OpenSessionCommand(staffId, new BigDecimal("100.00")));
         ticketRepository.activeCashBySession = new BigDecimal("250.00");
         expenseRepository.activeAmountBySession = new BigDecimal("40.00");
 
         CashSession closed = sessionService.closeSession(
                 clinicId,
+                actingUserId,
                 new CashSessionService.CloseSessionCommand(staffId, new BigDecimal("320.00")));
 
         assertEquals(opened.getId(), closed.getId());
@@ -72,11 +80,11 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(clinicId, actingUserId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
 
         CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalStateException.class,
-                () -> sessionService.openSession(clinicId, command));
+                () -> sessionService.openSession(clinicId, actingUserId, command));
     }
 
     @Test
@@ -86,7 +94,7 @@ class CashSessionAndExpenseServiceTest {
 
         CashSessionService.OpenSessionCommand command = new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO);
         assertThrows(IllegalArgumentException.class,
-                () -> sessionService.openSession(clinicId, command));
+                () -> sessionService.openSession(clinicId, actingUserId, command));
     }
 
     @Test
@@ -94,10 +102,11 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(clinicId, actingUserId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
 
         CashExpense expense = expenseService.registerExpense(
                 clinicId,
+                actingUserId,
                 new CashExpenseService.RegisterExpenseCommand("Gasolina", new BigDecimal("120.00"), staffId));
 
         assertEquals(CashExpenseStatus.ACTIVE, expense.getStatus());
@@ -114,14 +123,16 @@ class CashSessionAndExpenseServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         staffValidator.activeStaffId = staffId;
-        sessionService.openSession(clinicId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
+        sessionService.openSession(clinicId, actingUserId, new CashSessionService.OpenSessionCommand(staffId, BigDecimal.ZERO));
         CashExpense expense = expenseService.registerExpense(
                 clinicId,
+                actingUserId,
                 new CashExpenseService.RegisterExpenseCommand("Gasolina", new BigDecimal("120.00"), staffId));
 
         CashExpense voided = expenseService.voidExpense(
                 expense.getId(),
                 clinicId,
+                actingUserId,
                 new CashExpenseService.VoidExpenseCommand(staffId, "Duplicado"));
 
         assertEquals(CashExpenseStatus.VOIDED, voided.getStatus());

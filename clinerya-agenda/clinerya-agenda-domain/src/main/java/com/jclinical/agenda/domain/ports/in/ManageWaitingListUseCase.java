@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface ManageWaitingListUseCase {
     WaitingListEntry addToWaitingList(
             UUID clinicId,
+            UUID actingUserId,
             UUID patientId,
             UUID doctorStaffId,
             UUID roomId,
@@ -18,9 +19,9 @@ public interface ManageWaitingListUseCase {
             String notes
     );
 
-    WaitingListEntry updateStatus(UUID clinicId, UUID entryId, WaitingListEntry.Status status);
+    WaitingListEntry updateStatus(UUID clinicId, UUID entryId, UUID actingUserId, WaitingListEntry.Status status);
 
-    List<WaitingListEntry> listWaitingList(UUID clinicId, boolean waitingOnly);
+    List<WaitingListEntry> listWaitingList(UUID clinicId, UUID actingUserId, boolean waitingOnly);
 
-    void removeFromWaitingList(UUID clinicId, UUID entryId);
+    void removeFromWaitingList(UUID clinicId, UUID entryId, UUID actingUserId);
 }

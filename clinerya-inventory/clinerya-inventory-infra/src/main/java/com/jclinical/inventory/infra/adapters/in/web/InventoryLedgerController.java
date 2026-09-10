@@ -5,6 +5,7 @@ import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.ports.in.ManageInventoryMovementUseCase;
 import com.jclinical.inventory.domain.ports.in.ManageMaterialUseCase;
 import com.jclinical.inventory.infra.adapters.in.web.dto.GeneralLedgerEntryResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,16 +26,17 @@ public class InventoryLedgerController {
 
     private final ManageInventoryMovementUseCase movementUseCase;
     private final ManageMaterialUseCase materialUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<GeneralLedgerEntryResponse>> getClinicLedger(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size) {
-        Map<UUID, Material> materialsById = materialUseCase.getMaterialsByClinic(clinicId, true).stream()
+        Map<UUID, Material> materialsById = materialUseCase.getMaterialsByClinic(clinicId, currentUserResolver.getCurrentUserId(), true).stream()
                 .collect(java.util.stream.Collectors.toMap(Material::getId, Function.identity()));
 
-        List<GeneralLedgerEntryResponse> responses = movementUseCase.listMovementsByClinic(clinicId, page, size).stream()
+        List<GeneralLedgerEntryResponse> responses = movementUseCase.listMovementsByClinic(clinicId, currentUserResolver.getCurrentUserId(), page, size).stream()
                 .map(movement -> toResponse(movement, materialsById.get(movement.getMaterialId())))
                 .toList();
         return ResponseEntity.ok(responses);

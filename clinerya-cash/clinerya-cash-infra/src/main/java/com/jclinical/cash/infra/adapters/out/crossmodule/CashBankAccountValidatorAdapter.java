@@ -21,7 +21,7 @@ public class CashBankAccountValidatorAdapter implements CashBankAccountValidator
         if (bankAccountId == null || clinicId == null) {
             return Optional.empty();
         }
-        return openingBalancesUseCase.listBankAccounts(clinicId).stream()
+        return openingBalancesUseCase.listBankAccountsForSystem(clinicId).stream()
                 .filter(account -> bankAccountId.equals(account.getId()))
                 .filter(BankAccount::isActive)
                 .filter(account -> account.getAccountType() == BankAccountType.DEBIT)

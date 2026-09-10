@@ -30,6 +30,11 @@
 
         <dependency>
             <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jclinical</groupId>
             <artifactId>clinerya-accounting-domain</artifactId>
         </dependency>
 

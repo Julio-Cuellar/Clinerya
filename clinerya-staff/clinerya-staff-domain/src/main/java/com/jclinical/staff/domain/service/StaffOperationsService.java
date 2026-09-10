@@ -11,7 +11,7 @@ import com.jclinical.staff.domain.model.StaffPayrollLine;
 import com.jclinical.staff.domain.model.StaffPayrollPeriod;
 import com.jclinical.staff.domain.model.StaffPayrollPeriodStatus;
 import com.jclinical.staff.domain.model.StaffPayrollPaymentStatus;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffActivityRepositoryPort;
@@ -19,7 +19,7 @@ import com.jclinical.staff.domain.ports.out.StaffAttendanceRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffCompensationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
-import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 
 import java.math.BigDecimal;

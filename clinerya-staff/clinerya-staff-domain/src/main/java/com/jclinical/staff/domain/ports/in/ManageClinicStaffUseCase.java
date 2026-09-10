@@ -1,7 +1,7 @@
 package com.jclinical.staff.domain.ports.in;
 
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 
 import java.time.LocalDateTime;
@@ -17,19 +17,19 @@ public interface ManageClinicStaffUseCase {
 
     Optional<StaffSummary> getActiveStaffByUserAndClinic(UUID userId, UUID clinicId);
 
-    StaffSummary addStaff(UUID clinicId, String email, StaffRole role);
+    StaffSummary addStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role);
 
-    StaffInvitationSummary inviteStaff(UUID clinicId, String email, StaffRole role);
+    StaffInvitationSummary inviteStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role);
 
     List<StaffInvitationSummary> listInvitations(UUID clinicId);
 
-    StaffSummary updateStaff(UUID clinicId, UUID staffId, StaffRole role);
+    StaffSummary updateStaff(UUID clinicId, UUID actingUserId, UUID staffId, StaffRole role);
 
     PermissionSummary getPermissions(UUID clinicId, UUID staffId);
 
-    PermissionSummary updatePermissions(UUID clinicId, UUID staffId, List<PermissionChange> changes);
+    PermissionSummary updatePermissions(UUID clinicId, UUID actingUserId, UUID staffId, List<PermissionChange> changes);
 
-    void removeStaff(UUID clinicId, UUID staffId);
+    void removeStaff(UUID clinicId, UUID actingUserId, UUID staffId);
 
     record PermissionChange(
             StaffPermission permission,

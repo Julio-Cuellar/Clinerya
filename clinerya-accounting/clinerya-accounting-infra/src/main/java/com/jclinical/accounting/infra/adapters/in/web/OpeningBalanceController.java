@@ -20,6 +20,7 @@ import com.jclinical.accounting.infra.adapters.in.web.dto.JournalLineResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.OpeningBalanceSetupResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.UpdateBankAccountRequest;
 import com.jclinical.accounting.infra.adapters.in.web.dto.TransferFundsRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,10 +41,11 @@ import java.util.UUID;
 public class OpeningBalanceController {
 
     private final ManageOpeningBalancesUseCase openingBalancesUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/opening-balances")
     public ResponseEntity<OpeningBalanceSetupResponse> getOpeningBalances(@PathVariable UUID clinicId) {
-        return ResponseEntity.ok(openingBalancesUseCase.getOpeningBalances(clinicId)
+        return ResponseEntity.ok(openingBalancesUseCase.getOpeningBalances(clinicId, currentUserResolver.getCurrentUserId())
                 .map(this::toResponse)
                 .orElse(null));
     }
@@ -52,13 +54,13 @@ public class OpeningBalanceController {
     public ResponseEntity<OpeningBalanceSetupResponse> createOpeningBalances(
             @PathVariable UUID clinicId,
             @RequestBody CreateOpeningBalanceSetupRequest request) {
-        OpeningBalanceSetup created = openingBalancesUseCase.configureOpeningBalances(clinicId, toCommand(request));
+        OpeningBalanceSetup created = openingBalancesUseCase.configureOpeningBalances(clinicId, currentUserResolver.getCurrentUserId(), toCommand(request));
         return ResponseEntity.ok(toResponse(created));
     }
 
     @GetMapping({"/bank-accounts", "/operational-accounts"})
     public ResponseEntity<List<BankAccountResponse>> listBankAccounts(@PathVariable UUID clinicId) {
-        return ResponseEntity.ok(openingBalancesUseCase.listBankAccounts(clinicId).stream()
+        return ResponseEntity.ok(openingBalancesUseCase.listBankAccounts(clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -68,7 +70,7 @@ public class OpeningBalanceController {
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "7") int withinDays) {
         return ResponseEntity.ok(openingBalancesUseCase
-                .listCreditAccountAlerts(clinicId, java.time.LocalDate.now(), withinDays)
+                .listCreditAccountAlerts(clinicId, currentUserResolver.getCurrentUserId(), java.time.LocalDate.now(), withinDays)
                 .stream()
                 .map(this::toCreditAlertResponse)
                 .toList());
@@ -80,6 +82,7 @@ public class OpeningBalanceController {
             @RequestBody CreateBankAccountRequest request) {
         BankAccount created = openingBalancesUseCase.createBankAccount(
                 clinicId,
+                currentUserResolver.getCurrentUserId(),
                 new ManageOpeningBalancesUseCase.CreateBankAccountCommand(
                         request.bankName(),
                         request.alias(),
@@ -110,6 +113,7 @@ public class OpeningBalanceController {
         BankAccount updated = openingBalancesUseCase.updateBankAccount(
                 clinicId,
                 bankAccountId,
+                currentUserResolver.getCurrentUserId(),
                 new ManageOpeningBalancesUseCase.UpdateBankAccountCommand(
                         request.bankName(),
                         request.alias(),
@@ -138,6 +142,7 @@ public class OpeningBalanceController {
         JournalEntry entry = openingBalancesUseCase.correctBankAccountBalance(
                 clinicId,
                 bankAccountId,
+                currentUserResolver.getCurrentUserId(),
                 new ManageOpeningBalancesUseCase.CorrectBankAccountBalanceCommand(
                         request.entryDate(),
                         request.correctedBalance(),
@@ -155,6 +160,7 @@ public class OpeningBalanceController {
         BankAccount account = openingBalancesUseCase.deactivateBankAccount(
                 clinicId,
                 bankAccountId,
+                currentUserResolver.getCurrentUserId(),
                 new ManageOpeningBalancesUseCase.DeactivateBankAccountCommand(
                         request.entryDate(),
                         request.reason()
@@ -167,7 +173,7 @@ public class OpeningBalanceController {
     public ResponseEntity<List<BankAccountMovementResponse>> listBankAccountMovements(
             @PathVariable UUID clinicId,
             @PathVariable UUID bankAccountId) {
-        return ResponseEntity.ok(openingBalancesUseCase.listBankAccountMovements(clinicId, bankAccountId).stream()
+        return ResponseEntity.ok(openingBalancesUseCase.listBankAccountMovements(clinicId, bankAccountId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -178,6 +184,7 @@ public class OpeningBalanceController {
             @RequestBody TransferFundsRequest request) {
         JournalEntry entry = openingBalancesUseCase.transferFunds(
                 clinicId,
+                currentUserResolver.getCurrentUserId(),
                 new ManageOpeningBalancesUseCase.TransferFundsCommand(
                         request.sourceAccountId(),
                         request.destinationAccountId(),

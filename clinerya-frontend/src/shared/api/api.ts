@@ -203,12 +203,22 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 export const authApi = {
   register: (body: RegisterRequest) =>
     request<UserProfile>("/v1/users/register", { method: "POST", body: JSON.stringify(body) }),
-  verifyEmail: (token: string) =>
-    request<MessageResponse>("/v1/users/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+  verifyEmail: (email: string, token: string) =>
+    request<MessageResponse>("/v1/users/verify-email", { method: "POST", body: JSON.stringify({ email, token }) }),
   resendVerification: (email: string) =>
     request<MessageResponse>("/v1/users/resend-verification", {
       method: "POST",
       body: JSON.stringify({ email })
+    }),
+  requestPasswordReset: (email: string) =>
+    request<MessageResponse>("/v1/users/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    }),
+  confirmPasswordReset: (token: string, newPassword: string) =>
+    request<MessageResponse>("/v1/users/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword })
     }),
   login: (body: LoginRequest) =>
     request<LoginResponse>("/v1/auth/login", { method: "POST", body: JSON.stringify(body) }),
@@ -218,7 +228,14 @@ export const authApi = {
       { method: "POST", body: JSON.stringify({ refreshToken: sessionStore.getRefreshToken() }) },
       false
     ),
-  logout: () => request<void>("/v1/auth/logout", { method: "POST" }, false),
+  // Se manda el refresh token para que el backend tambien lo invalide: si no, sobrevive
+  // al logout y sigue emitiendo tokens de acceso durante toda su vigencia.
+  logout: () =>
+    request<void>(
+      "/v1/auth/logout",
+      { method: "POST", body: JSON.stringify({ refreshToken: sessionStore.getRefreshToken() }) },
+      false
+    ),
   me: () => request<UserProfile>("/v1/auth/me"),
   changePassword: (body: any) =>
     request<{ message: string }>("/v1/users/change-password", { method: "POST", body: JSON.stringify(body) }),

@@ -8,9 +8,9 @@ import com.jclinical.records.domain.model.MedicalHistoryTemplate;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
 import com.jclinical.records.domain.ports.out.TemplateClinicalDataSyncPort;
 

@@ -7,6 +7,9 @@ import com.jclinical.cash.domain.ports.out.CashExpenseRepositoryPort;
 import com.jclinical.cash.domain.ports.out.CashSessionRepositoryPort;
 import com.jclinical.cash.domain.ports.out.CashStaffValidatorPort;
 import com.jclinical.cash.domain.ports.out.TicketRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,20 +23,24 @@ public class CashSessionService implements ManageCashSessionUseCase {
     private final TicketRepositoryPort ticketRepository;
     private final CashStaffValidatorPort staffValidator;
     private final CashExpenseRepositoryPort expenseRepository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public CashSessionService(
             CashSessionRepositoryPort cashSessionRepository,
             TicketRepositoryPort ticketRepository,
             CashStaffValidatorPort staffValidator,
-            CashExpenseRepositoryPort expenseRepository) {
+            CashExpenseRepositoryPort expenseRepository,
+            StaffPermissionCheckerPort permissionChecker) {
         this.cashSessionRepository = cashSessionRepository;
         this.ticketRepository = ticketRepository;
         this.staffValidator = staffValidator;
         this.expenseRepository = expenseRepository;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public CashSession openSession(UUID clinicId, OpenSessionCommand command) {
+    public CashSession openSession(UUID clinicId, UUID actingUserId, OpenSessionCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_CASH_CUTS);
         if (command.openingAmount() == null || command.openingAmount().signum() < 0) {
             throw new IllegalArgumentException("El monto de apertura no puede ser negativo.");
         }
@@ -59,7 +66,8 @@ public class CashSessionService implements ManageCashSessionUseCase {
     }
 
     @Override
-    public CashSession closeSession(UUID clinicId, CloseSessionCommand command) {
+    public CashSession closeSession(UUID clinicId, UUID actingUserId, CloseSessionCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_CASH_CUTS);
         CashSession session = cashSessionRepository.findOpenByClinicIdForUpdate(clinicId)
                 .orElseThrow(() -> new IllegalStateException("No hay un turno de caja abierto para cerrar."));
 
@@ -80,18 +88,31 @@ public class CashSessionService implements ManageCashSessionUseCase {
     }
 
     @Override
-    public Optional<CashSession> getCurrentSession(UUID clinicId) {
+    public Optional<CashSession> getCurrentSession(UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return cashSessionRepository.findOpenByClinicId(clinicId);
     }
 
     @Override
-    public CashSession getSession(UUID sessionId, UUID clinicId) {
+    public CashSession getSession(UUID sessionId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return cashSessionRepository.findByIdAndClinicId(sessionId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El turno de caja no existe en esta clínica."));
     }
 
     @Override
-    public List<CashSession> listSessions(UUID clinicId) {
+    public List<CashSession> listSessions(UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return cashSessionRepository.findByClinicId(clinicId);
+    }
+
+    /**
+     * Mismo patron que QuotationService/MedicalHistoryService: la autorizacion vive en el
+     * dominio, no en el controlador, para que un endpoint nuevo no pueda saltarsela.
+     */
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+        }
     }
 }

@@ -1,11 +1,12 @@
 package com.jclinical.staff.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
 import com.jclinical.staff.domain.model.DoctorProfile;
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
@@ -14,6 +15,7 @@ import com.jclinical.staff.domain.ports.out.ClinicStaffInvitationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
+import com.jclinical.staff.domain.ports.out.StaffInvitationNotifierPort;
 
 import java.security.SecureRandom;
 import java.time.LocalDate;
@@ -35,17 +37,20 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     private final UserDirectoryPort userDirectory;
     private final ClinicStaffInvitationRepositoryPort invitationRepository;
     private final StaffPermissionOverrideRepositoryPort permissionOverrideRepository;
+    private final StaffInvitationNotifierPort invitationNotifier;
 
     public ClinicStaffService(ClinicStaffRepositoryPort clinicStaffRepository,
                                DoctorProfileRepositoryPort doctorProfileRepository,
                                UserDirectoryPort userDirectory,
                                ClinicStaffInvitationRepositoryPort invitationRepository,
-                               StaffPermissionOverrideRepositoryPort permissionOverrideRepository) {
+                               StaffPermissionOverrideRepositoryPort permissionOverrideRepository,
+                               StaffInvitationNotifierPort invitationNotifier) {
         this.clinicStaffRepository = clinicStaffRepository;
         this.doctorProfileRepository = doctorProfileRepository;
         this.userDirectory = userDirectory;
         this.invitationRepository = invitationRepository;
         this.permissionOverrideRepository = permissionOverrideRepository;
+        this.invitationNotifier = invitationNotifier;
     }
 
     @Override
@@ -73,7 +78,8 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffSummary addStaff(UUID clinicId, String email, StaffRole role) {
+    public StaffSummary addStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
         if (email == null || email.trim().isEmpty()) {
             throw new IllegalArgumentException("El correo electrónico es obligatorio.");
         }
@@ -123,7 +129,8 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffInvitationSummary inviteStaff(UUID clinicId, String email, StaffRole role) {
+    public StaffInvitationSummary inviteStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
         if (email == null || email.trim().isEmpty()) {
             throw new IllegalArgumentException("El correo electrónico es obligatorio.");
         }
@@ -139,8 +146,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         if (existing.isPresent()) {
             ClinicStaffInvitation activeInv = existing.get();
             if (!activeInv.isExpired()) {
-                System.out.println(">>>> [INVITACION-PERSONAL] Invitación activa reutilizada para '"
-                        + normalizedEmail + "': http://localhost:5173/confirm-staff?token=" + activeInv.getToken());
+                invitationNotifier.sendInvitation(normalizedEmail, activeInv.getRole(), activeInv.getToken(), activeInv.getExpiresAt());
                 return toInvitationSummary(activeInv);
             }
         }
@@ -160,8 +166,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
 
         invitationRepository.save(invitation);
 
-        System.out.println(">>>> [INVITACION-PERSONAL] Enlace generado para '"
-                + normalizedEmail + "': http://localhost:5173/confirm-staff?token=" + token);
+        invitationNotifier.sendInvitation(normalizedEmail, role, token, invitation.getExpiresAt());
 
         return toInvitationSummary(invitation);
     }
@@ -175,7 +180,8 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffSummary updateStaff(UUID clinicId, UUID staffId, StaffRole role) {
+    public StaffSummary updateStaff(UUID clinicId, UUID actingUserId, UUID staffId, StaffRole role) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
         ClinicStaff staff = clinicStaffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Miembro del personal no encontrado"));
         if (!staff.getClinicId().equals(clinicId)) {
@@ -229,7 +235,8 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public PermissionSummary updatePermissions(UUID clinicId, UUID staffId, List<PermissionChange> changes) {
+    public PermissionSummary updatePermissions(UUID clinicId, UUID actingUserId, UUID staffId, List<PermissionChange> changes) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_PERMISSIONS);
         ClinicStaff staff = findActiveStaff(clinicId, staffId);
         if (staff.getRole() == StaffRole.ADMIN) {
             throw new IllegalStateException("Los permisos del superadministrador no se pueden modificar.");
@@ -262,7 +269,8 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public void removeStaff(UUID clinicId, UUID staffId) {
+    public void removeStaff(UUID clinicId, UUID actingUserId, UUID staffId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
         ClinicStaff staff = clinicStaffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Miembro del personal no encontrado"));
         if (!staff.getClinicId().equals(clinicId)) {
@@ -271,6 +279,17 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         staff.setActive(false);
         staff.setUpdatedAt(LocalDateTime.now());
         clinicStaffRepository.save(staff);
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission) {
+        ClinicStaff actingStaff = clinicStaffRepository.findByClinicIdAndUserId(clinicId, actingUserId)
+                .filter(ClinicStaff::isActive)
+                .orElseThrow(() -> new ClinicAccessDeniedException("No perteneces al personal de esta clínica."));
+        boolean granted = getPermissions(clinicId, actingStaff.getId()).permissions().stream()
+                .anyMatch(item -> item.permission() == permission && item.enabled());
+        if (!granted) {
+            throw new ClinicAccessDeniedException("No tienes permiso para gestionar al personal de esta clínica.");
+        }
     }
 
     private ClinicStaff findActiveStaff(UUID clinicId, UUID staffId) {

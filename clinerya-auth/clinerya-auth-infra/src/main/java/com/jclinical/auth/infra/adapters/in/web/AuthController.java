@@ -49,10 +49,16 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) RefreshRequest request) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            logoutUseCase.logout(token);
+            logoutUseCase.logout(authHeader.substring(7));
+        }
+        // El refresh token no viaja en la cabecera. Sin invalidarlo aqui sobrevive al
+        // logout y sigue emitiendo tokens de acceso durante toda su vigencia.
+        if (request != null && request.refreshToken() != null) {
+            logoutUseCase.logout(request.refreshToken());
         }
         return ResponseEntity.ok().build();
     }

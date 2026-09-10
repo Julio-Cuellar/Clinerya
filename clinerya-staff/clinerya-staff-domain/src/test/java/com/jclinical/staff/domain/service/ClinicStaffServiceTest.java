@@ -1,9 +1,10 @@
 package com.jclinical.staff.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorProfile;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.model.StaffRole;
@@ -38,6 +39,7 @@ class ClinicStaffServiceTest {
     private final InMemoryUserDirectory userDirectory = new InMemoryUserDirectory();
     private final InMemoryInvitationRepository invitationRepository = new InMemoryInvitationRepository();
     private final InMemoryPermissionOverrideRepository permissionRepository = new InMemoryPermissionOverrideRepository();
+    private final List<String> notifiedInvitationEmails = new ArrayList<>();
     private ClinicStaffService service;
 
     @BeforeEach
@@ -47,15 +49,17 @@ class ClinicStaffServiceTest {
                 doctorProfileRepository,
                 userDirectory,
                 invitationRepository,
-                permissionRepository);
+                permissionRepository,
+                (email, role, token, expiresAt) -> notifiedInvitationEmails.add(email));
     }
 
     @Test
     void addsDoctorCreatesProfileAndListsActiveStaff() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = seedAdmin(clinicId);
         UUID userId = userDirectory.addUser("doctor@clinerya.com", "Dra. Ana Lopez");
 
-        StaffSummary summary = service.addStaff(clinicId, " Doctor@Clinerya.com ", StaffRole.DOCTOR);
+        StaffSummary summary = service.addStaff(clinicId, actingUserId, " Doctor@Clinerya.com ", StaffRole.DOCTOR);
 
         assertEquals(clinicId, summary.clinicId());
         assertEquals(userId, summary.userId());
@@ -70,14 +74,15 @@ class ClinicStaffServiceTest {
     @Test
     void rejectsDuplicateActiveStaffAndReactivatesInactiveStaff() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = seedAdmin(clinicId);
         UUID userId = userDirectory.addUser("recepcion@clinerya.com", "Recepcion");
-        StaffSummary first = service.addStaff(clinicId, "recepcion@clinerya.com", StaffRole.RECEPTIONIST);
+        StaffSummary first = service.addStaff(clinicId, actingUserId, "recepcion@clinerya.com", StaffRole.RECEPTIONIST);
 
         assertThrows(IllegalStateException.class,
-                () -> service.addStaff(clinicId, "recepcion@clinerya.com", StaffRole.ASSISTANT));
+                () -> service.addStaff(clinicId, actingUserId, "recepcion@clinerya.com", StaffRole.ASSISTANT));
 
-        service.removeStaff(clinicId, first.staffId());
-        StaffSummary reactivated = service.addStaff(clinicId, "recepcion@clinerya.com", StaffRole.ASSISTANT);
+        service.removeStaff(clinicId, actingUserId, first.staffId());
+        StaffSummary reactivated = service.addStaff(clinicId, actingUserId, "recepcion@clinerya.com", StaffRole.ASSISTANT);
 
         assertEquals(first.staffId(), reactivated.staffId());
         assertEquals(userId, reactivated.userId());
@@ -88,17 +93,19 @@ class ClinicStaffServiceTest {
     @Test
     void managesInvitationsAndFiltersExpiredOnes() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = seedAdmin(clinicId);
         userDirectory.addUser("registrado@clinerya.com", "Registrado");
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.inviteStaff(clinicId, "registrado@clinerya.com", StaffRole.ACCOUNTANT));
+                () -> service.inviteStaff(clinicId, actingUserId, "registrado@clinerya.com", StaffRole.ACCOUNTANT));
 
-        StaffInvitationSummary invitation = service.inviteStaff(clinicId, " Nuevo@Clinerya.com ", StaffRole.ACCOUNTANT);
-        StaffInvitationSummary reused = service.inviteStaff(clinicId, "nuevo@clinerya.com", StaffRole.ACCOUNTANT);
+        StaffInvitationSummary invitation = service.inviteStaff(clinicId, actingUserId, " Nuevo@Clinerya.com ", StaffRole.ACCOUNTANT);
+        StaffInvitationSummary reused = service.inviteStaff(clinicId, actingUserId, "nuevo@clinerya.com", StaffRole.ACCOUNTANT);
 
         assertEquals(invitation.invitationId(), reused.invitationId());
         assertEquals("nuevo@clinerya.com", invitation.email());
         assertNotNull(invitation.token());
+        assertEquals(List.of("nuevo@clinerya.com", "nuevo@clinerya.com"), notifiedInvitationEmails);
 
         invitationRepository.save(ClinicStaffInvitation.builder()
                 .id(UUID.randomUUID())
@@ -117,10 +124,11 @@ class ClinicStaffServiceTest {
     @Test
     void updatesRolesCreatesDoctorProfileAndProtectsAdminRole() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = seedAdmin(clinicId);
         UUID assistantId = userDirectory.addUser("asistente@clinerya.com", "Asistente");
-        StaffSummary assistant = service.addStaff(clinicId, "asistente@clinerya.com", StaffRole.ASSISTANT);
+        StaffSummary assistant = service.addStaff(clinicId, actingUserId, "asistente@clinerya.com", StaffRole.ASSISTANT);
 
-        StaffSummary updated = service.updateStaff(clinicId, assistant.staffId(), StaffRole.DOCTOR);
+        StaffSummary updated = service.updateStaff(clinicId, actingUserId, assistant.staffId(), StaffRole.DOCTOR);
 
         assertEquals(assistantId, updated.userId());
         assertEquals(StaffRole.DOCTOR, updated.role());
@@ -130,14 +138,16 @@ class ClinicStaffServiceTest {
         staffRepository.save(admin);
 
         assertThrows(IllegalStateException.class,
-                () -> service.updateStaff(clinicId, admin.getId(), StaffRole.RECEPTIONIST));
+                () -> service.updateStaff(clinicId, actingUserId, admin.getId(), StaffRole.RECEPTIONIST));
     }
 
     @Test
     void calculatesAndUpdatesPermissionOverrides() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = seedAdmin(clinicId);
         StaffSummary receptionist = service.addStaff(
                 clinicId,
+                actingUserId,
                 emailFor(userDirectory.addUser("permisos@clinerya.com", "Permisos")),
                 StaffRole.RECEPTIONIST);
 
@@ -150,13 +160,13 @@ class ClinicStaffServiceTest {
         changes.add(new PermissionChange(StaffPermission.MANAGE_ACCOUNTING, StaffPermissionOverrideState.GRANTED));
         changes.add(new PermissionChange(StaffPermission.VIEW_AGENDA, StaffPermissionOverrideState.REVOKED));
         changes.add(null);
-        PermissionSummary updated = service.updatePermissions(clinicId, receptionist.staffId(), changes);
+        PermissionSummary updated = service.updatePermissions(clinicId, actingUserId, receptionist.staffId(), changes);
 
         assertTrue(enabled(updated, StaffPermission.MANAGE_ACCOUNTING));
         assertFalse(enabled(updated, StaffPermission.VIEW_AGENDA));
         assertEquals(2, permissionRepository.overrides.size());
 
-        PermissionSummary inheritedAgain = service.updatePermissions(clinicId, receptionist.staffId(), List.of(
+        PermissionSummary inheritedAgain = service.updatePermissions(clinicId, actingUserId, receptionist.staffId(), List.of(
                 new PermissionChange(StaffPermission.VIEW_AGENDA, StaffPermissionOverrideState.INHERIT)));
 
         assertTrue(enabled(inheritedAgain, StaffPermission.VIEW_AGENDA));
@@ -172,8 +182,37 @@ class ClinicStaffServiceTest {
         PermissionSummary summary = service.getPermissions(clinicId, admin.getId());
 
         assertTrue(summary.permissions().stream().allMatch(item -> item.enabled()));
-        assertThrows(IllegalStateException.class, () -> service.updatePermissions(clinicId, admin.getId(), List.of(
+        assertThrows(IllegalStateException.class, () -> service.updatePermissions(clinicId, admin.getUserId(), admin.getId(), List.of(
                 new PermissionChange(StaffPermission.VIEW_AGENDA, StaffPermissionOverrideState.REVOKED))));
+    }
+
+    @Test
+    void deniesStaffManagementActionsToCallerWithoutPermission() {
+        UUID clinicId = UUID.randomUUID();
+        UUID receptionistUserId = userDirectory.addUser("mostrador@clinerya.com", "Mostrador");
+        ClinicStaff receptionist = staff(clinicId, receptionistUserId, StaffRole.RECEPTIONIST);
+        staffRepository.save(receptionist);
+
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.addStaff(clinicId, receptionistUserId, "nuevo@clinerya.com", StaffRole.ADMIN));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.inviteStaff(clinicId, receptionistUserId, "invitado@clinerya.com", StaffRole.ADMIN));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.updateStaff(clinicId, receptionistUserId, receptionist.getId(), StaffRole.ADMIN));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.updatePermissions(clinicId, receptionistUserId, receptionist.getId(), List.of(
+                        new PermissionChange(StaffPermission.MANAGE_STAFF, StaffPermissionOverrideState.GRANTED))));
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.removeStaff(clinicId, receptionistUserId, receptionist.getId()));
+    }
+
+    @Test
+    void deniesStaffManagementToUsersOutsideTheClinic() {
+        UUID clinicId = UUID.randomUUID();
+        UUID outsiderUserId = userDirectory.addUser("afuera@clinerya.com", "Afuera");
+
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.addStaff(clinicId, outsiderUserId, "nuevo@clinerya.com", StaffRole.ADMIN));
     }
 
     private static boolean enabled(PermissionSummary summary, StaffPermission permission) {
@@ -182,6 +221,12 @@ class ClinicStaffServiceTest {
                 .findFirst()
                 .orElseThrow()
                 .enabled();
+    }
+
+    private UUID seedAdmin(UUID clinicId) {
+        UUID adminUserId = userDirectory.addUser("admin-" + UUID.randomUUID() + "@clinerya.com", "Admin");
+        staffRepository.save(staff(clinicId, adminUserId, StaffRole.ADMIN));
+        return adminUserId;
     }
 
     private static ClinicStaff staff(UUID clinicId, UUID userId, StaffRole role) {

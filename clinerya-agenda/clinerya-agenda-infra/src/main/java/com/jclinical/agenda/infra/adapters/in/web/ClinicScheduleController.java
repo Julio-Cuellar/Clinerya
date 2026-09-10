@@ -5,6 +5,7 @@ import com.jclinical.agenda.domain.ports.in.ManageClinicScheduleUseCase;
 import com.jclinical.agenda.domain.ports.in.ManageClinicScheduleUseCase.DayScheduleCommand;
 import com.jclinical.agenda.infra.adapters.in.web.dto.DayScheduleRequest;
 import com.jclinical.agenda.infra.adapters.in.web.dto.DayScheduleResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,10 +24,11 @@ import java.util.UUID;
 public class ClinicScheduleController {
 
     private final ManageClinicScheduleUseCase clinicScheduleUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<DayScheduleResponse>> getSchedule(@PathVariable UUID clinicId) {
-        List<DayScheduleResponse> responses = clinicScheduleUseCase.getSchedule(clinicId).stream()
+        List<DayScheduleResponse> responses = clinicScheduleUseCase.getSchedule(clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -39,7 +41,7 @@ public class ClinicScheduleController {
         List<DayScheduleCommand> commands = requests.stream()
                 .map(request -> new DayScheduleCommand(request.dayOfWeek(), request.open(), request.startTime(), request.endTime()))
                 .toList();
-        List<DayScheduleResponse> responses = clinicScheduleUseCase.updateSchedule(clinicId, commands).stream()
+        List<DayScheduleResponse> responses = clinicScheduleUseCase.updateSchedule(clinicId, currentUserResolver.getCurrentUserId(), commands).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);

@@ -6,6 +6,7 @@ import com.jclinical.agenda.domain.ports.in.ManageRoomBlocksUseCase.CreateRoomBl
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.RoomValidatorPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,11 +32,13 @@ class RoomBlockServiceTest {
     @Mock
     private RoomValidatorPort roomValidator;
 
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+    private final UUID actingUserId = UUID.randomUUID();
     private RoomBlockService service;
 
     @BeforeEach
     void setUp() {
-        service = new RoomBlockService(roomBlockRepository, appointmentRepository, roomValidator);
+        service = new RoomBlockService(roomBlockRepository, appointmentRepository, roomValidator, permissionChecker);
     }
 
     @Test
@@ -52,7 +55,7 @@ class RoomBlockServiceTest {
 
         CreateRoomBlockCommand command =
                 new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.MAINTENANCE, "Cambio de equipo", null);
-        assertThrows(IllegalStateException.class, () -> service.createBlock(clinicId, command));
+        assertThrows(IllegalStateException.class, () -> service.createBlock(clinicId, actingUserId, command));
     }
 
     @Test
@@ -68,7 +71,7 @@ class RoomBlockServiceTest {
         when(appointmentRepository.existsOverlappingAppointmentByRoom(roomId, clinicId, startsAt, endsAt, null)).thenReturn(false);
         when(roomBlockRepository.save(any(RoomBlock.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        RoomBlock created = service.createBlock(clinicId,
+        RoomBlock created = service.createBlock(clinicId, actingUserId,
                 new CreateRoomBlockCommand(roomId, startsAt, endsAt, RoomBlockType.CLEANING, "Limpieza profunda", null));
 
         assertEquals(roomId, created.getRoomId());

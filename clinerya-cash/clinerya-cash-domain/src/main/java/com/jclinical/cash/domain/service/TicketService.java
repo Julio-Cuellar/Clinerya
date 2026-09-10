@@ -16,6 +16,9 @@ import com.jclinical.cash.domain.ports.out.TicketRepositoryPort;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import com.jclinical.core.events.PaymentRegisteredEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -31,6 +34,7 @@ public class TicketService implements ManageTicketsUseCase {
     private final CashStaffValidatorPort staffValidator;
     private final CashBankAccountValidatorPort bankAccountValidator;
     private final DomainEventPublisherPort eventPublisher;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public TicketService(
             TicketRepositoryPort ticketRepository,
@@ -39,7 +43,8 @@ public class TicketService implements ManageTicketsUseCase {
             CashQuotationValidatorPort quotationValidator,
             CashStaffValidatorPort staffValidator,
             CashBankAccountValidatorPort bankAccountValidator,
-            DomainEventPublisherPort eventPublisher) {
+            DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         this.ticketRepository = ticketRepository;
         this.cashSessionRepository = cashSessionRepository;
         this.patientValidator = patientValidator;
@@ -47,10 +52,12 @@ public class TicketService implements ManageTicketsUseCase {
         this.staffValidator = staffValidator;
         this.bankAccountValidator = bankAccountValidator;
         this.eventPublisher = eventPublisher;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public Ticket registerTicket(UUID clinicId, RegisterTicketCommand command) {
+    public Ticket registerTicket(UUID clinicId, UUID actingUserId, RegisterTicketCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.CREATE_CHARGES);
         if (!patientValidator.existsByIdAndClinicId(command.patientId(), clinicId)) {
             throw new IllegalArgumentException("El paciente no existe en esta clinica.");
         }
@@ -177,18 +184,21 @@ public class TicketService implements ManageTicketsUseCase {
     }
 
     @Override
-    public Ticket getTicket(UUID ticketId, UUID clinicId) {
+    public Ticket getTicket(UUID ticketId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return ticketRepository.findByIdAndClinicId(ticketId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El ticket no existe en esta clinica."));
     }
 
     @Override
-    public List<Ticket> listBySession(UUID cashSessionId, UUID clinicId) {
+    public List<Ticket> listBySession(UUID cashSessionId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return ticketRepository.findByCashSessionId(cashSessionId, clinicId);
     }
 
     @Override
-    public List<Ticket> listByClinicRange(UUID clinicId, LocalDateTime from, LocalDateTime to) {
+    public List<Ticket> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         if (from == null || to == null || !from.isBefore(to)) {
             throw new IllegalArgumentException("El rango de fechas es invalido.");
         }
@@ -196,18 +206,22 @@ public class TicketService implements ManageTicketsUseCase {
     }
 
     @Override
-    public List<Ticket> listByQuotation(UUID quotationId, UUID clinicId) {
+    public List<Ticket> listByQuotation(UUID quotationId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return ticketRepository.findByQuotationIdAndClinicId(quotationId, clinicId);
     }
 
     @Override
-    public List<Ticket> listByPatient(UUID patientId, UUID clinicId) {
+    public List<Ticket> listByPatient(UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         return ticketRepository.findByPatientIdAndClinicId(patientId, clinicId);
     }
 
     @Override
-    public Ticket voidTicket(UUID ticketId, UUID clinicId, VoidTicketCommand command) {
-        Ticket ticket = getTicket(ticketId, clinicId);
+    public Ticket voidTicket(UUID ticketId, UUID clinicId, UUID actingUserId, VoidTicketCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_REFUNDS);
+        Ticket ticket = ticketRepository.findByIdAndClinicId(ticketId, clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("El ticket no existe en esta clinica."));
 
         staffValidator.findActiveStaff(command.staffId(), clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El empleado indicado no existe o no esta activo en esta clinica."));
@@ -217,7 +231,8 @@ public class TicketService implements ManageTicketsUseCase {
     }
 
     @Override
-    public QuotationBalance getQuotationBalance(UUID quotationId, UUID patientId, UUID clinicId) {
+    public QuotationBalance getQuotationBalance(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
         QuotationSnapshot snapshot = quotationValidator.findQuotation(quotationId, patientId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "La cotizacion indicada no existe o no pertenece a este paciente."));
@@ -226,6 +241,12 @@ public class TicketService implements ManageTicketsUseCase {
         BigDecimal remainingBalance = snapshot.grandTotal().subtract(paidAmount);
 
         return new QuotationBalance(quotationId, snapshot.grandTotal(), paidAmount, remainingBalance);
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+        }
     }
 
     private void validatePaymentLines(List<PaymentLineCommand> paymentLines, UUID clinicId) {

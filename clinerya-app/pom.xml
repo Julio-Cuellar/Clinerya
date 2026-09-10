@@ -117,6 +117,15 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Test de arquitectura: evita que un controlador nuevo bajo /api/v1/clinics o
+             /api/v1/patients se agregue sin resolver al usuario autenticado (P3). -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>1.2.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

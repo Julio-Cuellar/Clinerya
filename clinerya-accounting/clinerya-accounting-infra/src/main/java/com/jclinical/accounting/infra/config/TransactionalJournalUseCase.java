@@ -48,20 +48,20 @@ public class TransactionalJournalUseCase implements ManageJournalUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public List<JournalEntry> listByClinic(UUID clinicId) {
-        return journalEntryService.listByClinic(clinicId);
+    public List<JournalEntry> listByClinic(UUID clinicId, UUID actingUserId) {
+        return journalEntryService.listByClinic(clinicId, actingUserId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public JournalQueryResult queryByClinic(UUID clinicId, LocalDate from, LocalDate to, String search, String sourceEventType, int page, int size) {
-        return journalEntryService.queryByClinic(clinicId, from, to, search, sourceEventType, page, size);
+    public JournalQueryResult queryByClinic(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to, String search, String sourceEventType, int page, int size) {
+        return journalEntryService.queryByClinic(clinicId, actingUserId, from, to, search, sourceEventType, page, size);
     }
 
     @Override
     @Transactional
-    public JournalEntry createManualEntry(UUID clinicId, JournalEntry entry) {
-        return journalEntryService.createManualEntry(clinicId, entry);
+    public JournalEntry createManualEntry(UUID clinicId, UUID actingUserId, JournalEntry entry) {
+        return journalEntryService.createManualEntry(clinicId, actingUserId, entry);
     }
 
     @Override

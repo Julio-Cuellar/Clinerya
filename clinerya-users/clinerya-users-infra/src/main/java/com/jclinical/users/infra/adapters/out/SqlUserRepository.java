@@ -35,6 +35,12 @@ public class SqlUserRepository implements UserRepositoryPort {
     }
 
     @Override
+    public Optional<User> findByPasswordResetTokenHash(String tokenHash) {
+        return springDataRepository.findByPasswordResetTokenHash(tokenHash)
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public boolean existsByEmail(String email) {
         return springDataRepository.existsByEmail(email);
     }

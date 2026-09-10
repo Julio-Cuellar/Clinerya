@@ -1,6 +1,5 @@
-package com.jclinical.staff.domain.ports.out;
+package com.jclinical.core.security;
 
-import com.jclinical.staff.domain.model.StaffPermission;
 
 import java.util.UUID;
 

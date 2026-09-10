@@ -49,7 +49,7 @@ public class ExternalEventLinkingOrchestrator {
                 "Creado a partir de evento externo de Google Calendar: " + event.getGoogleEventId()
         );
 
-        Appointment appointment = appointmentsUseCase.createAppointment(clinicId, command);
+        Appointment appointment = appointmentsUseCase.createAppointmentForSystem(clinicId, command);
 
         // 2. Marcar el evento externo como LINKED
         manageExternalEventsUseCase.markAsLinked(clinicId, eventId, appointment.getId());

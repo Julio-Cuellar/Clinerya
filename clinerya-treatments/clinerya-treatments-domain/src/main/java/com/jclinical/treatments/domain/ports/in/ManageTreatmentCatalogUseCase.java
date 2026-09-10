@@ -9,15 +9,15 @@ import java.util.UUID;
 
 public interface ManageTreatmentCatalogUseCase {
 
-    TreatmentCatalogItem createCatalogItem(UUID clinicId, CreateCatalogItemCommand command);
+    TreatmentCatalogItem createCatalogItem(UUID clinicId, UUID actingUserId, CreateCatalogItemCommand command);
 
-    TreatmentCatalogItem updateCatalogItem(UUID itemId, UUID clinicId, UpdateCatalogItemCommand command);
+    TreatmentCatalogItem updateCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId, UpdateCatalogItemCommand command);
 
-    void deactivateCatalogItem(UUID itemId, UUID clinicId);
+    void deactivateCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId);
 
-    Optional<TreatmentCatalogItem> getCatalogItem(UUID itemId, UUID clinicId);
+    Optional<TreatmentCatalogItem> getCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId);
 
-    List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID clinicId, boolean includeInactive);
+    List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID clinicId, UUID actingUserId, boolean includeInactive);
 
     record CatalogMaterialCommand(
         UUID materialId,

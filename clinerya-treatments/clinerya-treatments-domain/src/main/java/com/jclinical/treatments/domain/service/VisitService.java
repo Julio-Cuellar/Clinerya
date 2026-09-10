@@ -1,6 +1,10 @@
 package com.jclinical.treatments.domain.service;
 
 import com.jclinical.core.events.ConsumoConciliadoEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import com.jclinical.treatments.domain.model.Visit;
@@ -30,23 +34,26 @@ public class VisitService implements ManageVisitsUseCase {
     private final PatientValidatorPort patientValidator;
     private final InventoryMaterialPort inventoryMaterialPort;
     private final DomainEventPublisherPort eventPublisher;
+    private final PatientAccessAuthorizationPort accessAuthorizationPort;
 
     public VisitService(
             VisitRepositoryPort visitRepository,
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
             InventoryMaterialPort inventoryMaterialPort,
-            DomainEventPublisherPort eventPublisher) {
+            DomainEventPublisherPort eventPublisher,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
         this.visitRepository = visitRepository;
         this.quotationRepository = quotationRepository;
         this.patientValidator = patientValidator;
         this.inventoryMaterialPort = inventoryMaterialPort;
         this.eventPublisher = eventPublisher;
+        this.accessAuthorizationPort = accessAuthorizationPort;
     }
 
     @Override
-    public Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command) {
-        validatePatient(patientId, clinicId);
+    public Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, UUID actingUserId, RegisterVisitCommand command) {
+        authorize(actingUserId, patientId, clinicId, true);
 
         Quotation quotation = null;
         if (quotationId != null) {
@@ -163,16 +170,28 @@ public class VisitService implements ManageVisitsUseCase {
     }
 
     @Override
-    public List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        validatePatient(patientId, clinicId);
+    public List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, patientId, clinicId, false);
         return visitRepository.findByQuotationIdAndPatientIdAndClinicId(quotationId, patientId, clinicId);
     }
 
     @Override
-    public Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId) {
-        validatePatient(patientId, clinicId);
+    public Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, patientId, clinicId, false);
         return visitRepository.findByIdAndPatientIdAndClinicId(visitId, patientId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La visita no existe."));
+    }
+
+    /** Misma politica que QuotationService y el modulo de expediente. */
+    private void authorize(UUID actingUserId, UUID patientId, UUID clinicId, boolean requireWrite) {
+        validatePatient(patientId, clinicId);
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("No tienes acceso a este expediente.");
+        }
+        AccessDecision decision = accessAuthorizationPort.resolveAccess(actingUserId, clinicId, patientId);
+        if (decision.level() == AccessLevel.NONE || (requireWrite && decision.level() != AccessLevel.READ_WRITE)) {
+            throw new ClinicAccessDeniedException("No tienes acceso a este expediente.");
+        }
     }
 
     private void validatePatient(UUID patientId, UUID clinicId) {

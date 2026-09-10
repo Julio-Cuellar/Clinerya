@@ -32,7 +32,7 @@ public class TransactionalMaterialReservationUseCase implements ManageMaterialRe
 
     @Override
     @Transactional(readOnly = true)
-    public List<MaterialReservationDetail> listActiveReservations(UUID clinicId) {
-        return reservationService.listActiveReservations(clinicId);
+    public List<MaterialReservationDetail> listActiveReservations(UUID clinicId, UUID actingUserId) {
+        return reservationService.listActiveReservations(clinicId, actingUserId);
     }
 }

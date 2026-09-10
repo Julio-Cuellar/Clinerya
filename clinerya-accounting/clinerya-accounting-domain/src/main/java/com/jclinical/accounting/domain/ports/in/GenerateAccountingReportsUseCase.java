@@ -11,11 +11,12 @@ public interface GenerateAccountingReportsUseCase {
 
     IncomeStatementReport generateIncomeStatement(
             UUID clinicId,
+            UUID actingUserId,
             LocalDate from,
             LocalDate to,
             boolean includeComparison);
 
-    TrialBalanceReport generateTrialBalance(UUID clinicId, LocalDate from, LocalDate to);
+    TrialBalanceReport generateTrialBalance(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to);
 
-    WasteReport generateWasteReport(UUID clinicId, LocalDate from, LocalDate to);
+    WasteReport generateWasteReport(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to);
 }

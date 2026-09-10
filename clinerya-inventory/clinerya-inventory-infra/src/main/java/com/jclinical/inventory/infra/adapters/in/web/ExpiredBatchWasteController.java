@@ -3,6 +3,7 @@ package com.jclinical.inventory.infra.adapters.in.web;
 import com.jclinical.inventory.domain.model.InventoryMovement;
 import com.jclinical.inventory.domain.ports.in.ManageInventoryMovementUseCase;
 import com.jclinical.inventory.infra.adapters.in.web.dto.InventoryMovementResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +23,13 @@ import java.util.UUID;
 public class ExpiredBatchWasteController {
 
     private final ManageInventoryMovementUseCase movementUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("/regularize-expired")
     public ResponseEntity<List<InventoryMovementResponse>> regularizeExpired(
             @PathVariable UUID clinicId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        List<InventoryMovementResponse> response = movementUseCase.registerExpiredBatchWastes(clinicId, asOfDate)
+        List<InventoryMovementResponse> response = movementUseCase.registerExpiredBatchWastes(clinicId, currentUserResolver.getCurrentUserId(), asOfDate)
                 .stream()
                 .map(this::toResponse)
                 .toList();

@@ -3,6 +3,7 @@ import { AppShell } from "@app/AppShell";
 import { AuthScreen } from "@modules/auth/screens/AuthScreen";
 import { ClinicSetupScreen } from "@modules/clinics/screens/ClinicSetupScreen";
 import { ConfirmStaffScreen } from "@modules/auth/screens/ConfirmStaffScreen";
+import { PasswordResetScreen } from "@modules/auth/screens/PasswordResetScreen";
 import { AcceptSharingScreen } from "@modules/collaboration/screens/AcceptSharingScreen";
 import { ShareViewScreen } from "@modules/collaboration/screens/ShareViewScreen";
 import { authApi, sessionStore } from "@shared/api/api";
@@ -16,6 +17,7 @@ export default function App() {
   const [colorPalette, setColorPalette] = useState<string>(() => localStorage.getItem("medicloud.color-palette") ?? "default");
 
   const isConfirmStaff = window.location.pathname.startsWith("/confirm-staff");
+  const isPasswordReset = window.location.pathname.startsWith("/reset-password");
   const isAcceptSharing = window.location.pathname.startsWith("/accept-sharing");
   const isShareView = window.location.pathname.startsWith("/share-view");
 
@@ -53,6 +55,10 @@ export default function App() {
 
   if (isConfirmStaff) {
     return <ConfirmStaffScreen onBackToLogin={() => window.location.assign("/")} />;
+  }
+
+  if (isPasswordReset) {
+    return <PasswordResetScreen onBackToLogin={() => window.location.assign("/")} />;
   }
 
   if (isAcceptSharing) {

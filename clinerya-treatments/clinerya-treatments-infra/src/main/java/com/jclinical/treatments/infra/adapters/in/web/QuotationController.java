@@ -1,5 +1,6 @@
 package com.jclinical.treatments.infra.adapters.in.web;
 
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
 import com.jclinical.treatments.domain.model.QuotationItemMaterial;
@@ -42,19 +43,20 @@ import java.util.UUID;
 public class QuotationController {
 
     private final ManageQuotationUseCase quotationUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<QuotationResponse> createQuotation(
             @PathVariable UUID patientId,
             @RequestBody CreateQuotationRequest request) {
+        // La autoria sale del usuario autenticado, no del body: antes era falsificable.
         CreateQuotationCommand command = new CreateQuotationCommand(
-                request.createdByUserId(),
                 request.quotationDate(),
                 request.notes(),
                 request.validUntil(),
                 toItemCommands(request.items())
         );
-        Quotation quotation = quotationUseCase.createQuotation(patientId, request.clinicId(), command);
+        Quotation quotation = quotationUseCase.createQuotation(patientId, request.clinicId(), currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(quotation));
     }
 
@@ -62,7 +64,7 @@ public class QuotationController {
     public ResponseEntity<List<QuotationResponse>> getQuotations(
             @PathVariable UUID patientId,
             @RequestParam UUID clinicId) {
-        List<QuotationResponse> responses = quotationUseCase.getQuotationsByPatient(patientId, clinicId).stream()
+        List<QuotationResponse> responses = quotationUseCase.getQuotationsByPatient(patientId, clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -73,7 +75,7 @@ public class QuotationController {
             @PathVariable UUID patientId,
             @PathVariable UUID quotationId,
             @RequestParam UUID clinicId) {
-        return quotationUseCase.getQuotation(quotationId, patientId, clinicId)
+        return quotationUseCase.getQuotation(quotationId, patientId, clinicId, currentUserResolver.getCurrentUserId())
                 .map(quotation -> ResponseEntity.ok(toResponse(quotation)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -88,7 +90,7 @@ public class QuotationController {
                 request.validUntil(),
                 request.quotationDate()
         );
-        Quotation quotation = quotationUseCase.updateQuotationHeader(quotationId, patientId, request.clinicId(), command);
+        Quotation quotation = quotationUseCase.updateQuotationHeader(quotationId, patientId, request.clinicId(), currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.ok(toResponse(quotation));
     }
 
@@ -98,7 +100,7 @@ public class QuotationController {
             @PathVariable UUID quotationId,
             @RequestBody ReplaceQuotationItemsRequest request) {
         ReplaceItemsCommand command = new ReplaceItemsCommand(toItemCommands(request.items()));
-        Quotation quotation = quotationUseCase.replaceQuotationItems(quotationId, patientId, request.clinicId(), command);
+        Quotation quotation = quotationUseCase.replaceQuotationItems(quotationId, patientId, request.clinicId(), currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.ok(toResponse(quotation));
     }
 
@@ -107,7 +109,7 @@ public class QuotationController {
             @PathVariable UUID patientId,
             @PathVariable UUID quotationId,
             @RequestBody TransitionQuotationStatusRequest request) {
-        Quotation quotation = quotationUseCase.transitionStatus(quotationId, patientId, request.clinicId(), request.targetStatus());
+        Quotation quotation = quotationUseCase.transitionStatus(quotationId, patientId, request.clinicId(), currentUserResolver.getCurrentUserId(), request.targetStatus());
         return ResponseEntity.ok(toResponse(quotation));
     }
 
@@ -117,7 +119,7 @@ public class QuotationController {
             @PathVariable UUID quotationId,
             @PathVariable UUID itemId,
             @RequestBody UpdateItemProgressRequest request) {
-        Quotation quotation = quotationUseCase.updateItemProgress(quotationId, itemId, patientId, request.clinicId(), request.progressStatus());
+        Quotation quotation = quotationUseCase.updateItemProgress(quotationId, itemId, patientId, request.clinicId(), currentUserResolver.getCurrentUserId(), request.progressStatus());
         return ResponseEntity.ok(toResponse(quotation));
     }
 
@@ -126,7 +128,7 @@ public class QuotationController {
             @PathVariable UUID patientId,
             @PathVariable UUID quotationId,
             @RequestParam UUID clinicId) {
-        quotationUseCase.deleteQuotation(quotationId, patientId, clinicId);
+        quotationUseCase.deleteQuotation(quotationId, patientId, clinicId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 

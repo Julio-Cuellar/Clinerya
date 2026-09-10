@@ -21,31 +21,31 @@ public class TransactionalCashSessionUseCase implements ManageCashSessionUseCase
 
     @Override
     @Transactional
-    public CashSession openSession(UUID clinicId, OpenSessionCommand command) {
-        return cashSessionService.openSession(clinicId, command);
+    public CashSession openSession(UUID clinicId, UUID actingUserId, OpenSessionCommand command) {
+        return cashSessionService.openSession(clinicId, actingUserId, command);
     }
 
     @Override
     @Transactional
-    public CashSession closeSession(UUID clinicId, CloseSessionCommand command) {
-        return cashSessionService.closeSession(clinicId, command);
+    public CashSession closeSession(UUID clinicId, UUID actingUserId, CloseSessionCommand command) {
+        return cashSessionService.closeSession(clinicId, actingUserId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<CashSession> getCurrentSession(UUID clinicId) {
-        return cashSessionService.getCurrentSession(clinicId);
+    public Optional<CashSession> getCurrentSession(UUID clinicId, UUID actingUserId) {
+        return cashSessionService.getCurrentSession(clinicId, actingUserId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CashSession getSession(UUID sessionId, UUID clinicId) {
-        return cashSessionService.getSession(sessionId, clinicId);
+    public CashSession getSession(UUID sessionId, UUID clinicId, UUID actingUserId) {
+        return cashSessionService.getSession(sessionId, clinicId, actingUserId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CashSession> listSessions(UUID clinicId) {
-        return cashSessionService.listSessions(clinicId);
+    public List<CashSession> listSessions(UUID clinicId, UUID actingUserId) {
+        return cashSessionService.listSessions(clinicId, actingUserId);
     }
 }

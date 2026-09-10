@@ -20,7 +20,7 @@ public class TreatmentsInventoryMaterialAdapter implements InventoryMaterialPort
 
     @Override
     public Optional<MaterialSnapshot> findActiveMaterial(UUID materialId, UUID clinicId) {
-        return materialUseCase.getMaterial(materialId, clinicId)
+        return materialUseCase.getMaterialForSystem(materialId, clinicId)
                 .filter(com.jclinical.inventory.domain.model.Material::isActive)
                 .map(material -> new MaterialSnapshot(material.getId(), material.getName(), material.getUnitCost()));
     }

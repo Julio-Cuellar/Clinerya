@@ -6,6 +6,9 @@ import com.jclinical.agenda.domain.ports.in.ManageRoomBlocksUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.RoomValidatorPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,18 +19,28 @@ public class RoomBlockService implements ManageRoomBlocksUseCase {
     private final RoomBlockRepositoryPort roomBlockRepository;
     private final AppointmentRepositoryPort appointmentRepository;
     private final RoomValidatorPort roomValidator;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public RoomBlockService(
             RoomBlockRepositoryPort roomBlockRepository,
             AppointmentRepositoryPort appointmentRepository,
-            RoomValidatorPort roomValidator) {
+            RoomValidatorPort roomValidator,
+            StaffPermissionCheckerPort permissionChecker) {
         this.roomBlockRepository = roomBlockRepository;
         this.appointmentRepository = appointmentRepository;
         this.roomValidator = roomValidator;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de agenda.");
+        }
     }
 
     @Override
-    public RoomBlock createBlock(UUID clinicId, CreateRoomBlockCommand command) {
+    public RoomBlock createBlock(UUID clinicId, UUID actingUserId, CreateRoomBlockCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_ROOMS);
         validateTimeRange(command.startsAt(), command.endsAt());
         RoomBlockType type = command.type() != null ? command.type() : RoomBlockType.OTHER;
 
@@ -63,13 +76,15 @@ public class RoomBlockService implements ManageRoomBlocksUseCase {
     }
 
     @Override
-    public List<RoomBlock> listByClinicRange(UUID clinicId, LocalDateTime from, LocalDateTime to) {
+    public List<RoomBlock> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_ROOMS);
         validateTimeRange(from, to);
         return roomBlockRepository.findByClinicIdAndRange(clinicId, from, to);
     }
 
     @Override
-    public void deactivateBlock(UUID clinicId, UUID blockId) {
+    public void deactivateBlock(UUID clinicId, UUID blockId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_ROOMS);
         RoomBlock block = roomBlockRepository.findByIdAndClinicId(blockId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El bloqueo no existe en esta clínica."));
         block.deactivate();

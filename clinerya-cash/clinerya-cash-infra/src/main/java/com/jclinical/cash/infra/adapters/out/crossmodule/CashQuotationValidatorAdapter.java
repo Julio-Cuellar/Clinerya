@@ -3,7 +3,7 @@ package com.jclinical.cash.infra.adapters.out.crossmodule;
 import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationStatus;
-import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase;
+import com.jclinical.treatments.domain.ports.in.QuotationLookupUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,11 +14,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CashQuotationValidatorAdapter implements CashQuotationValidatorPort {
 
-    private final ManageQuotationUseCase quotationUseCase;
+    private final QuotationLookupUseCase quotationUseCase;
 
     @Override
     public Optional<QuotationSnapshot> findQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        return quotationUseCase.getQuotation(quotationId, patientId, clinicId).map(this::toSnapshot);
+        return quotationUseCase.findQuotationForSystem(quotationId, patientId, clinicId).map(this::toSnapshot);
     }
 
     private QuotationSnapshot toSnapshot(Quotation quotation) {

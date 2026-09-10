@@ -11,6 +11,7 @@ import com.jclinical.agenda.infra.adapters.in.web.dto.CreateAppointmentSeriesReq
 import com.jclinical.agenda.infra.adapters.in.web.dto.DoctorResponse;
 import com.jclinical.agenda.infra.adapters.in.web.dto.RescheduleAppointmentRequest;
 import com.jclinical.agenda.infra.adapters.in.web.dto.TransitionAppointmentStatusRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ import java.util.UUID;
 public class AppointmentController {
 
     private final ManageAppointmentsUseCase appointmentsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("/appointments")
     public ResponseEntity<AppointmentResponse> createAppointment(
@@ -52,7 +54,7 @@ public class AppointmentController {
                 request.reason(),
                 request.notes()
         );
-        Appointment appointment = appointmentsUseCase.createAppointment(clinicId, command);
+        Appointment appointment = appointmentsUseCase.createAppointment(clinicId, currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(appointment));
     }
 
@@ -74,7 +76,7 @@ public class AppointmentController {
                 request.reason(),
                 request.notes()
         );
-        List<Appointment> series = appointmentsUseCase.createAppointmentSeries(clinicId, command);
+        List<Appointment> series = appointmentsUseCase.createAppointmentSeries(clinicId, currentUserResolver.getCurrentUserId(), command);
         List<AppointmentResponse> responses = series.stream().map(this::toResponse).toList();
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
@@ -84,7 +86,7 @@ public class AppointmentController {
             @PathVariable UUID clinicId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        List<AppointmentResponse> responses = appointmentsUseCase.listByClinicRange(clinicId, from, to).stream()
+        List<AppointmentResponse> responses = appointmentsUseCase.listByClinicRange(clinicId, currentUserResolver.getCurrentUserId(), from, to).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -94,7 +96,7 @@ public class AppointmentController {
     public ResponseEntity<AppointmentResponse> getAppointment(
             @PathVariable UUID clinicId,
             @PathVariable UUID appointmentId) {
-        Appointment appointment = appointmentsUseCase.getAppointment(appointmentId, clinicId);
+        Appointment appointment = appointmentsUseCase.getAppointment(appointmentId, clinicId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.ok(toResponse(appointment));
     }
 
@@ -102,7 +104,7 @@ public class AppointmentController {
     public ResponseEntity<List<AppointmentResponse>> listByQuotation(
             @PathVariable UUID clinicId,
             @PathVariable UUID quotationId) {
-        List<AppointmentResponse> responses = appointmentsUseCase.listByQuotation(quotationId, clinicId).stream()
+        List<AppointmentResponse> responses = appointmentsUseCase.listByQuotation(quotationId, clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -112,7 +114,7 @@ public class AppointmentController {
     public ResponseEntity<List<AppointmentResponse>> listByPatient(
             @PathVariable UUID clinicId,
             @PathVariable UUID patientId) {
-        List<AppointmentResponse> responses = appointmentsUseCase.listByPatient(patientId, clinicId).stream()
+        List<AppointmentResponse> responses = appointmentsUseCase.listByPatient(patientId, clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -124,7 +126,7 @@ public class AppointmentController {
             @PathVariable UUID appointmentId,
             @RequestBody RescheduleAppointmentRequest request) {
         Appointment appointment = appointmentsUseCase.rescheduleAppointment(
-                appointmentId, clinicId, request.scheduledStart(), request.scheduledEnd());
+                appointmentId, clinicId, currentUserResolver.getCurrentUserId(), request.scheduledStart(), request.scheduledEnd());
         return ResponseEntity.ok(toResponse(appointment));
     }
 
@@ -134,13 +136,13 @@ public class AppointmentController {
             @PathVariable UUID appointmentId,
             @RequestBody TransitionAppointmentStatusRequest request) {
         Appointment appointment = appointmentsUseCase.transitionStatus(
-                appointmentId, clinicId, request.status(), request.cancellationReason(), null);
+                appointmentId, clinicId, currentUserResolver.getCurrentUserId(), request.status(), request.cancellationReason());
         return ResponseEntity.ok(toResponse(appointment));
     }
 
     @GetMapping("/doctors")
     public ResponseEntity<List<DoctorResponse>> listDoctors(@PathVariable UUID clinicId) {
-        List<DoctorResponse> responses = appointmentsUseCase.listDoctors(clinicId).stream()
+        List<DoctorResponse> responses = appointmentsUseCase.listDoctors(clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(doctor -> new DoctorResponse(doctor.staffId(), doctor.fullName()))
                 .toList();
         return ResponseEntity.ok(responses);
@@ -148,7 +150,7 @@ public class AppointmentController {
 
     @GetMapping("/appointments/without-patient")
     public ResponseEntity<List<AppointmentResponse>> listWithoutPatient(@PathVariable UUID clinicId) {
-        List<AppointmentResponse> responses = appointmentsUseCase.listWithoutPatient(clinicId).stream()
+        List<AppointmentResponse> responses = appointmentsUseCase.listWithoutPatient(clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -158,7 +160,7 @@ public class AppointmentController {
     public ResponseEntity<Void> deleteAppointment(
             @PathVariable UUID clinicId,
             @PathVariable UUID appointmentId) {
-        appointmentsUseCase.deleteAppointment(appointmentId, clinicId);
+        appointmentsUseCase.deleteAppointment(appointmentId, clinicId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -167,7 +169,7 @@ public class AppointmentController {
             @PathVariable UUID clinicId,
             @PathVariable UUID appointmentId,
             @RequestBody AssignPatientRequest request) {
-        Appointment appointment = appointmentsUseCase.assignPatient(appointmentId, clinicId, request.patientId());
+        Appointment appointment = appointmentsUseCase.assignPatient(appointmentId, clinicId, currentUserResolver.getCurrentUserId(), request.patientId());
         return ResponseEntity.ok(toResponse(appointment));
     }
 

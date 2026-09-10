@@ -3,6 +3,7 @@ package com.jclinical.inventory.infra.adapters.in.web;
 import com.jclinical.inventory.domain.model.MaterialReservationDetail;
 import com.jclinical.inventory.domain.ports.in.ManageMaterialReservationUseCase;
 import com.jclinical.inventory.infra.adapters.in.web.dto.MaterialReservationResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,10 +20,11 @@ import java.util.UUID;
 public class MaterialReservationController {
 
     private final ManageMaterialReservationUseCase reservationUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<MaterialReservationResponse>> listActiveReservations(@PathVariable UUID clinicId) {
-        List<MaterialReservationResponse> response = reservationUseCase.listActiveReservations(clinicId).stream()
+        List<MaterialReservationResponse> response = reservationUseCase.listActiveReservations(clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(response);

@@ -9,11 +9,11 @@ import java.util.UUID;
 
 public interface ManageVisitsUseCase {
 
-    Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command);
+    Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, UUID actingUserId, RegisterVisitCommand command);
 
-    List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId);
+    List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId);
 
-    Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId);
+    Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId, UUID actingUserId);
 
     record RegisterVisitCommand(
             LocalDate visitDate,

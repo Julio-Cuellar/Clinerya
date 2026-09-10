@@ -6,6 +6,7 @@ import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort;
 import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort.QuotationItemSnapshot;
 import com.jclinical.cash.domain.ports.out.CashQuotationValidatorPort.QuotationSnapshot;
 import com.jclinical.cash.domain.ports.out.TicketRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,11 +33,14 @@ class PendingAppointmentChargeServiceTest {
     @Mock
     private TicketRepositoryPort ticketRepository;
 
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+    private final UUID actingUserId = UUID.randomUUID();
+
     private PendingAppointmentChargeService service;
 
     @BeforeEach
     void setUp() {
-        service = new PendingAppointmentChargeService(appointmentPort, quotationValidator, ticketRepository);
+        service = new PendingAppointmentChargeService(appointmentPort, quotationValidator, ticketRepository, permissionChecker);
     }
 
     @Test
@@ -57,7 +61,7 @@ class PendingAppointmentChargeServiceTest {
         when(ticketRepository.sumActiveAmountByQuotation(quotationId, clinicId))
                 .thenReturn(new BigDecimal("1000.00"));
 
-        assertTrue(service.listPendingCharges(clinicId).isEmpty());
+        assertTrue(service.listPendingCharges(clinicId, actingUserId).isEmpty());
     }
 
     @Test
@@ -82,7 +86,7 @@ class PendingAppointmentChargeServiceTest {
         when(ticketRepository.sumActiveAmountByQuotation(quotationId, clinicId))
                 .thenReturn(new BigDecimal("500.00"));
 
-        var result = service.listPendingCharges(clinicId);
+        var result = service.listPendingCharges(clinicId, actingUserId);
 
         assertEquals(1, result.size());
         assertEquals(second.appointmentId(), result.get(0).appointmentId());
@@ -97,7 +101,7 @@ class PendingAppointmentChargeServiceTest {
                         UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, null,
                         "Consulta general", LocalDateTime.now())));
 
-        assertTrue(service.listPendingCharges(clinicId).isEmpty());
+        assertTrue(service.listPendingCharges(clinicId, actingUserId).isEmpty());
     }
 
     private CompletedAppointmentSnapshot appointment(

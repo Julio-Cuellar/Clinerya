@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class AccountingReportController {
 
     private final GenerateAccountingReportsUseCase reportsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping("/income-statement")
     public ResponseEntity<IncomeStatementResponse> incomeStatement(
@@ -36,7 +38,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(IncomeStatementResponse.from(
-                reportsUseCase.generateIncomeStatement(clinicId, from, to, compare)));
+                reportsUseCase.generateIncomeStatement(clinicId, currentUserResolver.getCurrentUserId(), from, to, compare)));
     }
 
     @GetMapping("/trial-balance")
@@ -49,7 +51,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(TrialBalanceResponse.from(
-                reportsUseCase.generateTrialBalance(clinicId, from, to)));
+                reportsUseCase.generateTrialBalance(clinicId, currentUserResolver.getCurrentUserId(), from, to)));
     }
 
     @GetMapping("/waste")
@@ -62,6 +64,6 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(WasteReportResponse.from(
-                reportsUseCase.generateWasteReport(clinicId, from, to)));
+                reportsUseCase.generateWasteReport(clinicId, currentUserResolver.getCurrentUserId(), from, to)));
     }
 }

@@ -1,5 +1,6 @@
 package com.jclinical.treatments.infra.adapters.in.web;
 
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import com.jclinical.treatments.domain.model.Visit;
 import com.jclinical.treatments.domain.model.VisitLineItem;
 import com.jclinical.treatments.domain.model.VisitMaterialUsage;
@@ -32,6 +33,7 @@ import java.util.UUID;
 public class GeneralVisitController {
 
     private final ManageVisitsUseCase visitsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<VisitResponse> registerGeneralVisit(
@@ -43,7 +45,7 @@ public class GeneralVisitController {
                 request.notes(),
                 toLineItemCommands(request.items())
         );
-        Visit visit = visitsUseCase.registerVisit(patientId, null, request.clinicId(), command);
+        Visit visit = visitsUseCase.registerVisit(patientId, null, request.clinicId(), currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(visit));
     }
 

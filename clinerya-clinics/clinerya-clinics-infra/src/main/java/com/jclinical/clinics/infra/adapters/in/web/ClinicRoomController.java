@@ -7,6 +7,7 @@ import com.jclinical.clinics.infra.adapters.in.web.dto.ClinicRoomStaffAssignment
 import com.jclinical.clinics.infra.adapters.in.web.dto.CreateClinicRoomRequest;
 import com.jclinical.clinics.infra.adapters.in.web.dto.UpdateClinicRoomRequest;
 import com.jclinical.clinics.infra.adapters.out.ClinicRoomMapper;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ public class ClinicRoomController {
 
     private final ManageClinicRoomsUseCase manageClinicRoomsUseCase;
     private final ClinicRoomMapper roomMapper;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<ClinicRoomResponse> createRoom(
@@ -29,6 +31,7 @@ public class ClinicRoomController {
             @RequestBody CreateClinicRoomRequest request) {
         ClinicRoom room = manageClinicRoomsUseCase.createRoom(
                 clinicId,
+                currentUserResolver.getCurrentUserId(),
                 request.name(),
                 request.code(),
                 request.colorHex(),
@@ -45,6 +48,7 @@ public class ClinicRoomController {
         ClinicRoom room = manageClinicRoomsUseCase.updateRoom(
                 clinicId,
                 roomId,
+                currentUserResolver.getCurrentUserId(),
                 request.name(),
                 request.code(),
                 request.colorHex(),
@@ -58,8 +62,8 @@ public class ClinicRoomController {
             @PathVariable UUID clinicId,
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {
         List<ClinicRoom> rooms = activeOnly
-                ? manageClinicRoomsUseCase.getActiveRoomsByClinic(clinicId)
-                : manageClinicRoomsUseCase.getRoomsByClinic(clinicId);
+                ? manageClinicRoomsUseCase.getActiveRoomsByClinic(clinicId, currentUserResolver.getCurrentUserId())
+                : manageClinicRoomsUseCase.getRoomsByClinic(clinicId, currentUserResolver.getCurrentUserId());
         List<ClinicRoomResponse> response = rooms.stream()
                 .map(roomMapper::toResponse)
                 .toList();
@@ -70,7 +74,7 @@ public class ClinicRoomController {
     public ResponseEntity<Void> deactivateRoom(
             @PathVariable UUID clinicId,
             @PathVariable UUID roomId) {
-        manageClinicRoomsUseCase.deactivateRoom(clinicId, roomId);
+        manageClinicRoomsUseCase.deactivateRoom(clinicId, roomId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -78,7 +82,7 @@ public class ClinicRoomController {
     public ResponseEntity<Void> activateRoom(
             @PathVariable UUID clinicId,
             @PathVariable UUID roomId) {
-        manageClinicRoomsUseCase.activateRoom(clinicId, roomId);
+        manageClinicRoomsUseCase.activateRoom(clinicId, roomId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -86,7 +90,7 @@ public class ClinicRoomController {
     public ResponseEntity<List<ClinicRoomStaffAssignmentResponse>> getAssignedStaff(
             @PathVariable UUID clinicId,
             @PathVariable UUID roomId) {
-        return ResponseEntity.ok(manageClinicRoomsUseCase.getStaffAssignments(clinicId, roomId).stream()
+        return ResponseEntity.ok(manageClinicRoomsUseCase.getStaffAssignments(clinicId, roomId, currentUserResolver.getCurrentUserId()).stream()
                 .map(assignment -> new ClinicRoomStaffAssignmentResponse(
                         assignment.getId(),
                         assignment.getClinicId(),
@@ -104,7 +108,7 @@ public class ClinicRoomController {
             @PathVariable UUID clinicId,
             @PathVariable UUID roomId,
             @PathVariable UUID staffId) {
-        var assignment = manageClinicRoomsUseCase.assignStaff(clinicId, roomId, staffId);
+        var assignment = manageClinicRoomsUseCase.assignStaff(clinicId, roomId, staffId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.ok(new ClinicRoomStaffAssignmentResponse(
                 assignment.getId(),
                 assignment.getClinicId(),
@@ -121,7 +125,7 @@ public class ClinicRoomController {
             @PathVariable UUID clinicId,
             @PathVariable UUID roomId,
             @PathVariable UUID staffId) {
-        manageClinicRoomsUseCase.unassignStaff(clinicId, roomId, staffId);
+        manageClinicRoomsUseCase.unassignStaff(clinicId, roomId, staffId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 }

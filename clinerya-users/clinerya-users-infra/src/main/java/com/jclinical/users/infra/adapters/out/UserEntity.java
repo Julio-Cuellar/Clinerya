@@ -68,4 +68,13 @@ public class UserEntity {
 
     @Column(name = "verification_token_expires_at")
     private LocalDateTime verificationTokenExpiresAt;
+
+    @Column(name = "password_reset_token_hash")
+    private String passwordResetTokenHash;
+
+    @Column(name = "password_reset_token_expires_at")
+    private LocalDateTime passwordResetTokenExpiresAt;
+
+    @Column(name = "platform_admin", nullable = false)
+    private boolean platformAdmin;
 }

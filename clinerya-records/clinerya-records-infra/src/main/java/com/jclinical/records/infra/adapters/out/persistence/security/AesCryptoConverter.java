@@ -32,7 +32,7 @@ public class AesCryptoConverter implements AttributeConverter<String, String> {
     private final SecretKeySpec secretKeySpec;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AesCryptoConverter(@Value("${medicloud.security.encryption-key:DefaultSecretEncryptionKey32Chars!}") String secretKey) {
+    public AesCryptoConverter(@Value("${medicloud.security.encryption-key}") String secretKey) {
         try {
             byte[] keyBytes = new byte[32];
             String finalKey = secretKey;

@@ -1,6 +1,6 @@
 package com.jclinical.staff.infra.adapters.out;
 
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;

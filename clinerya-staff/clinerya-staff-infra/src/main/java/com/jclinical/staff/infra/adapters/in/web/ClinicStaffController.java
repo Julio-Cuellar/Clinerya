@@ -1,11 +1,12 @@
 package com.jclinical.staff.infra.adapters.in.web;
 
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase.StaffSummary;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase.StaffInvitationSummary;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class ClinicStaffController {
 
     private final ManageClinicStaffUseCase manageClinicStaffUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<StaffSummary>> getStaff(
@@ -50,7 +52,8 @@ public class ClinicStaffController {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Rol de personal no válido: " + request.role());
         }
-        StaffSummary summary = manageClinicStaffUseCase.addStaff(clinicId, request.email(), staffRole);
+        StaffSummary summary = manageClinicStaffUseCase.addStaff(
+                clinicId, currentUserResolver.getCurrentUserId(), request.email(), staffRole);
         return ResponseEntity.status(HttpStatus.CREATED).body(summary);
     }
 
@@ -67,7 +70,8 @@ public class ClinicStaffController {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Rol de personal no válido: " + request.role());
         }
-        StaffInvitationSummary summary = manageClinicStaffUseCase.inviteStaff(clinicId, request.email(), staffRole);
+        StaffInvitationSummary summary = manageClinicStaffUseCase.inviteStaff(
+                clinicId, currentUserResolver.getCurrentUserId(), request.email(), staffRole);
         return ResponseEntity.status(HttpStatus.CREATED).body(summary);
     }
 
@@ -91,7 +95,8 @@ public class ClinicStaffController {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Rol de personal no válido: " + request.role());
         }
-        StaffSummary summary = manageClinicStaffUseCase.updateStaff(clinicId, staffId, staffRole);
+        StaffSummary summary = manageClinicStaffUseCase.updateStaff(
+                clinicId, currentUserResolver.getCurrentUserId(), staffId, staffRole);
         return ResponseEntity.ok(summary);
     }
 
@@ -112,14 +117,15 @@ public class ClinicStaffController {
                 : request.permissions().stream()
                 .map(this::toPermissionChange)
                 .toList();
-        return ResponseEntity.ok(manageClinicStaffUseCase.updatePermissions(clinicId, staffId, changes));
+        return ResponseEntity.ok(manageClinicStaffUseCase.updatePermissions(
+                clinicId, currentUserResolver.getCurrentUserId(), staffId, changes));
     }
 
     @DeleteMapping("/{staffId}")
     public ResponseEntity<Void> removeStaff(
             @PathVariable UUID clinicId,
             @PathVariable UUID staffId) {
-        manageClinicStaffUseCase.removeStaff(clinicId, staffId);
+        manageClinicStaffUseCase.removeStaff(clinicId, currentUserResolver.getCurrentUserId(), staffId);
         return ResponseEntity.noContent().build();
     }
 

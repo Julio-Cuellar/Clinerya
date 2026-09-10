@@ -3,6 +3,9 @@ package com.jclinical.inventory.domain.service;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.ports.in.ManageMaterialUseCase;
 import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,13 +16,22 @@ import java.util.UUID;
 public class MaterialService implements ManageMaterialUseCase {
 
     private final MaterialRepositoryPort materialRepository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public MaterialService(MaterialRepositoryPort materialRepository) {
+    public MaterialService(MaterialRepositoryPort materialRepository, StaffPermissionCheckerPort permissionChecker) {
         this.materialRepository = materialRepository;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
+        }
     }
 
     @Override
-    public Material createMaterial(UUID clinicId, CreateMaterialCommand command) {
+    public Material createMaterial(UUID clinicId, UUID actingUserId, CreateMaterialCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
         validate(command.name(), command.unitOfMeasure(), command.quantityPerPresentation(), command.unitCost());
         validateMinimumStock(command.minimumStock());
         validateSalePrice(command.saleEnabled(), command.salePrice());
@@ -50,7 +62,8 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public Material updateMaterial(UUID materialId, UUID clinicId, UpdateMaterialCommand command) {
+    public Material updateMaterial(UUID materialId, UUID clinicId, UUID actingUserId, UpdateMaterialCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
         validate(command.name(), command.unitOfMeasure(), command.quantityPerPresentation(), command.unitCost());
         validateMinimumStock(command.minimumStock());
         validateSalePrice(command.saleEnabled(), command.salePrice());
@@ -78,7 +91,8 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public void deactivateMaterial(UUID materialId, UUID clinicId) {
+    public void deactivateMaterial(UUID materialId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
         Material material = materialRepository.findByIdAndClinicId(materialId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El material no existe en esta clínica."));
         material.setActive(false);
@@ -87,13 +101,20 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public Optional<Material> getMaterial(UUID materialId, UUID clinicId) {
+    public Optional<Material> getMaterial(UUID materialId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
         return materialRepository.findByIdAndClinicId(materialId, clinicId);
     }
 
     @Override
-    public List<Material> getMaterialsByClinic(UUID clinicId, boolean includeInactive) {
+    public List<Material> getMaterialsByClinic(UUID clinicId, UUID actingUserId, boolean includeInactive) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
         return materialRepository.findByClinicId(clinicId, includeInactive);
+    }
+
+    @Override
+    public Optional<Material> getMaterialForSystem(UUID materialId, UUID clinicId) {
+        return materialRepository.findByIdAndClinicId(materialId, clinicId);
     }
 
     private void validate(String name, String unitOfMeasure, BigDecimal quantityPerPresentation, BigDecimal unitCost) {

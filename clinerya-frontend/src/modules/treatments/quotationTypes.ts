@@ -71,7 +71,6 @@ export interface QuotationResponse {
 
 export interface CreateQuotationRequest {
   clinicId: string;
-  createdByUserId: string;
   quotationDate?: string;
   notes?: string;
   validUntil?: string;

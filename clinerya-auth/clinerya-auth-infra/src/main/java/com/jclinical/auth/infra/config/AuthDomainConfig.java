@@ -24,8 +24,8 @@ public class AuthDomainConfig {
     }
 
     @Bean
-    public LogoutUseCase logoutUseCase(TokenRepositoryPort tokenRepository) {
-        return new LogoutService(tokenRepository);
+    public LogoutUseCase logoutUseCase(TokenRepositoryPort tokenRepository, TokenProviderPort tokenProvider) {
+        return new LogoutService(tokenRepository, tokenProvider);
     }
 
     @Bean
@@ -34,7 +34,7 @@ public class AuthDomainConfig {
     }
 
     @Bean
-    public RefreshTokenUseCase refreshTokenUseCase(TokenProviderPort tokenProvider) {
-        return new RefreshTokenService(tokenProvider);
+    public RefreshTokenUseCase refreshTokenUseCase(TokenProviderPort tokenProvider, TokenRepositoryPort tokenRepository) {
+        return new RefreshTokenService(tokenProvider, tokenRepository);
     }
 }

@@ -24,6 +24,7 @@ import com.jclinical.agenda.infra.adapters.out.persistence.WaitingListMapper;
 import com.jclinical.agenda.infra.adapters.in.web.dto.RoomBlockResponse;
 import com.jclinical.agenda.infra.adapters.in.web.dto.WaitingListResponse;
 import com.jclinical.core.events.DomainEventPublisherPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,8 +33,8 @@ import org.springframework.context.annotation.Configuration;
 public class AgendaDomainConfig {
 
     @Bean
-    public ClinicScheduleService clinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository) {
-        return new ClinicScheduleService(scheduleRepository);
+    public ClinicScheduleService clinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository, StaffPermissionCheckerPort permissionChecker) {
+        return new ClinicScheduleService(scheduleRepository, permissionChecker);
     }
 
     @Bean
@@ -46,10 +47,11 @@ public class AgendaDomainConfig {
             MaterialReservationSchedulingService materialReservationSchedulingService,
             DomainEventPublisherPort eventPublisher,
             com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort roomBlockRepository,
-            com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator) {
+            com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator,
+            StaffPermissionCheckerPort permissionChecker) {
         return new AppointmentService(
                 appointmentRepository, clinicScheduleService, patientValidator, staffValidator, quotationValidator,
-                materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator);
+                materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator, permissionChecker);
     }
 
     @Bean
@@ -57,9 +59,10 @@ public class AgendaDomainConfig {
     public com.jclinical.agenda.domain.ports.in.ManageRoomBlocksUseCase manageRoomBlocksUseCase(
             com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort roomBlockRepository,
             AppointmentRepositoryPort appointmentRepository,
-            com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator) {
+            com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator,
+            StaffPermissionCheckerPort permissionChecker) {
         return new com.jclinical.agenda.domain.service.RoomBlockService(
-                roomBlockRepository, appointmentRepository, roomValidator);
+                roomBlockRepository, appointmentRepository, roomValidator, permissionChecker);
     }
 
     @Bean
@@ -75,8 +78,9 @@ public class AgendaDomainConfig {
     @ConditionalOnMissingBean(com.jclinical.agenda.domain.ports.in.ManageWaitingListUseCase.class)
     public com.jclinical.agenda.domain.ports.in.ManageWaitingListUseCase manageWaitingListUseCase(
             com.jclinical.agenda.domain.ports.out.WaitingListRepositoryPort waitingListRepository,
-            PatientValidatorPort patientValidator) {
-        return new com.jclinical.agenda.domain.service.WaitingListService(waitingListRepository, patientValidator);
+            PatientValidatorPort patientValidator,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new com.jclinical.agenda.domain.service.WaitingListService(waitingListRepository, patientValidator, permissionChecker);
     }
 
     @Bean

@@ -99,7 +99,7 @@ public class ExternalCalendarPollingScheduler {
             // Eventos cancelados: si existen activos en JClinical, los cancelamos
             existingOpt.ifPresent(existing -> {
                 if (existing.getStatus() != AppointmentStatus.CANCELLED && existing.getStatus() != AppointmentStatus.NO_SHOW) {
-                    appointmentsUseCase.transitionStatus(existing.getId(), fresh.getClinicId(), AppointmentStatus.CANCELLED);
+                    appointmentsUseCase.transitionStatusForSystem(existing.getId(), fresh.getClinicId(), AppointmentStatus.CANCELLED, null, null);
                     log.info("Cita en JClinical cancelada por cancelación de evento en Google: {}", existing.getId());
                 }
             });
@@ -114,7 +114,7 @@ public class ExternalCalendarPollingScheduler {
             Appointment existing = existingOpt.get();
             // Si ya existe y cambió el horario en Google, reagendamos localmente
             if (!existing.getScheduledStart().equals(snap.start()) || !existing.getScheduledEnd().equals(snap.end())) {
-                appointmentsUseCase.rescheduleAppointment(existing.getId(), fresh.getClinicId(), snap.start(), snap.end(), true);
+                appointmentsUseCase.rescheduleAppointmentForSystem(existing.getId(), fresh.getClinicId(), snap.start(), snap.end(), true);
                 log.info("Cita en JClinical reagendada por cambio de horario en Google: {}", existing.getId());
             }
             return;
@@ -134,7 +134,7 @@ public class ExternalCalendarPollingScheduler {
                 snap.description() != null ? snap.description() : "Importado automáticamente de Google Calendar",
                 true
         );
-        Appointment created = appointmentsUseCase.createAppointment(fresh.getClinicId(), command);
+        Appointment created = appointmentsUseCase.createAppointmentForSystem(fresh.getClinicId(), command);
         appointmentsUseCase.attachExternalCalendarEvent(created.getId(), fresh.getClinicId(), snap.googleEventId());
         log.info("Cita libre autocreada desde evento de Google Calendar: {}", created.getId());
     }

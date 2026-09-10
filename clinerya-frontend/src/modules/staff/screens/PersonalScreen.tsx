@@ -678,6 +678,8 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
         <EditStaffModal
           clinicId={clinicId}
           staff={editingStaff}
+          canManageStaff={canManageStaff}
+          canManageStaffPermissions={canManageStaffPermissions}
           onClose={() => setEditingStaff(null)}
           onSaved={() => {
             setEditingStaff(null);
@@ -895,11 +897,15 @@ function StaffActivityPanel({
 function EditStaffModal({
   clinicId,
   staff,
+  canManageStaff,
+  canManageStaffPermissions,
   onClose,
   onSaved
 }: {
   clinicId: string;
   staff: ClinicStaffResponse;
+  canManageStaff: boolean;
+  canManageStaffPermissions: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -908,6 +914,8 @@ function EditStaffModal({
   const [permissionSummary, setPermissionSummary] = useState<StaffPermissionSummary | null>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const isSuperAdmin = staff.role === "ADMIN" || permissionSummary?.role === "ADMIN";
+  const roleEditable = canManageStaff && !isSuperAdmin;
+  const permissionsEditable = canManageStaffPermissions && !isSuperAdmin;
 
   useEffect(() => {
     setPermissionsLoading(true);
@@ -926,8 +934,10 @@ function EditStaffModal({
     const role = isSuperAdmin ? "ADMIN" : String(form.get("role") ?? "DOCTOR");
 
     try {
-      await staffApi.update(clinicId, staff.staffId, { role });
-      if (permissionSummary && !isSuperAdmin) {
+      if (roleEditable) {
+        await staffApi.update(clinicId, staff.staffId, { role });
+      }
+      if (permissionSummary && permissionsEditable) {
         const permissions: StaffPermissionChange[] = permissionSummary.permissions.map((item) => ({
           permission: item.permission,
           state: item.overrideState
@@ -961,7 +971,7 @@ function EditStaffModal({
 
           <label className="field field-full">
             <span>Nuevo Rol</span>
-            <select name="role" defaultValue={staff.role} disabled={Boolean(isSuperAdmin)}>
+            <select name="role" defaultValue={staff.role} disabled={!roleEditable}>
               <option value="DOCTOR">Doctor / Especialista</option>
               <option value="RECEPTIONIST">Recepcionista</option>
               <option value="ASSISTANT">Asistente médico</option>
@@ -970,6 +980,9 @@ function EditStaffModal({
               <option value="ACCOUNTANT">Contador</option>
               <option value="CLEANING">Personal de limpieza</option>
             </select>
+            {!canManageStaff && !isSuperAdmin && (
+              <small className="description">No tienes permiso para cambiar el rol de este miembro del personal.</small>
+            )}
           </label>
 
           <div className="staff-permissions-panel">
@@ -984,6 +997,9 @@ function EditStaffModal({
                 <IconShieldLock size={16} aria-hidden="true" />
                 <span>El Administrador es el superadministrador y sus permisos no se pueden modificar.</span>
               </div>
+            )}
+            {!isSuperAdmin && !canManageStaffPermissions && (
+              <p className="description">No tienes permiso para modificar los accesos individuales de este miembro del personal.</p>
             )}
             {permissionsLoading && <p className="description">Cargando accesos...</p>}
             {!permissionsLoading && permissionSummary && (
@@ -1001,7 +1017,7 @@ function EditStaffModal({
                       </div>
                       <select
                         value={item.overrideState}
-                        disabled={Boolean(isSuperAdmin)}
+                        disabled={!permissionsEditable}
                         onChange={(event) => {
                           const state = event.target.value as StaffPermissionOverrideState;
                           setPermissionSummary((current) => current ? {
@@ -1025,7 +1041,7 @@ function EditStaffModal({
 
           {error && <p className="alert error">{error}</p>}
           <div className="form-actions" style={{ marginTop: "20px" }}>
-            <button className="btn primary" disabled={loading || Boolean(isSuperAdmin)} type="submit">
+            <button className="btn primary" disabled={loading || (!roleEditable && !permissionsEditable)} type="submit">
               {loading ? "Guardando..." : "Guardar cambios"}
             </button>
           </div>

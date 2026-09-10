@@ -8,6 +8,9 @@ import com.jclinical.inventory.domain.ports.in.ManageMaterialReservationUseCase;
 import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.MaterialReservationRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.MaterialReservationQueryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,14 +24,17 @@ public class MaterialReservationService implements ManageMaterialReservationUseC
     private final MaterialRepositoryPort materialRepository;
     private final MaterialReservationRepositoryPort reservationRepository;
     private final MaterialReservationQueryPort reservationQuery;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public MaterialReservationService(
             MaterialRepositoryPort materialRepository,
             MaterialReservationRepositoryPort reservationRepository,
-            MaterialReservationQueryPort reservationQuery) {
+            MaterialReservationQueryPort reservationQuery,
+            StaffPermissionCheckerPort permissionChecker) {
         this.materialRepository = materialRepository;
         this.reservationRepository = reservationRepository;
         this.reservationQuery = reservationQuery;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
@@ -101,7 +107,10 @@ public class MaterialReservationService implements ManageMaterialReservationUseC
     }
 
     @Override
-    public List<MaterialReservationDetail> listActiveReservations(UUID clinicId) {
+    public List<MaterialReservationDetail> listActiveReservations(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_INVENTORY)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
+        }
         return reservationQuery.findActiveByClinicId(clinicId);
     }
 

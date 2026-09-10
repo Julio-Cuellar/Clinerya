@@ -6,7 +6,7 @@ import com.jclinical.records.domain.model.MedicalHistoryTemplate;
 import com.jclinical.records.domain.ports.in.ManageHistoryTemplateUseCase;
 import com.jclinical.records.domain.ports.in.ManageHistoryTemplateUseCase.CreateTemplateCommand;
 import com.jclinical.records.domain.ports.in.ManageHistoryTemplateUseCase.UpdateTemplateCommand;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.records.infra.adapters.in.web.dto.CreateHistoryTemplateRequest;
 import com.jclinical.records.infra.adapters.in.web.dto.HistoryTemplateResponse;
 import com.jclinical.records.infra.adapters.in.web.dto.UpdateHistoryTemplateRequest;

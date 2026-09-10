@@ -5,11 +5,11 @@ import com.jclinical.staff.domain.model.StaffCompensation;
 import com.jclinical.staff.domain.model.StaffInvitationCompensation;
 import com.jclinical.staff.domain.model.StaffPayFrequency;
 import com.jclinical.staff.domain.model.StaffPaymentMethod;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageStaffCompensationUseCase.CompensationInput;
 import com.jclinical.staff.domain.ports.out.StaffCompensationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffInvitationCompensationRepositoryPort;
-import com.jclinical.staff.domain.ports.out.StaffPermissionCheckerPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

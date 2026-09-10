@@ -1,4 +1,4 @@
-package com.jclinical.staff.domain.model;
+package com.jclinical.core.security;
 
 public enum StaffPermission {
     VIEW_DASHBOARD,

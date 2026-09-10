@@ -40,6 +40,12 @@
             <artifactId>clinerya-staff-domain</artifactId>
         </dependency>
 
+        <!-- Dependencia del modulo de usuarios (CurrentUserResolver, para el actor autenticado) -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
+
         <!-- Dependencia del módulo de dominio de tratamientos (para validar cotizaciones aceptadas) -->
         <dependency>
             <groupId>com.jclinical</groupId>

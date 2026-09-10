@@ -23,6 +23,7 @@ import com.jclinical.cash.infra.adapters.out.persistence.CashSessionMapper;
 import com.jclinical.cash.infra.adapters.out.persistence.PaymentLineEntity;
 import com.jclinical.cash.infra.adapters.out.persistence.TicketEntity;
 import com.jclinical.cash.infra.adapters.out.persistence.TicketMapper;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,8 +39,9 @@ public class CashDomainConfig {
             CashSessionRepositoryPort cashSessionRepository,
             TicketRepositoryPort ticketRepository,
             CashStaffValidatorPort staffValidator,
-            CashExpenseRepositoryPort expenseRepository) {
-        return new CashSessionService(cashSessionRepository, ticketRepository, staffValidator, expenseRepository);
+            CashExpenseRepositoryPort expenseRepository,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new CashSessionService(cashSessionRepository, ticketRepository, staffValidator, expenseRepository, permissionChecker);
     }
 
     @Bean
@@ -50,7 +52,8 @@ public class CashDomainConfig {
             CashQuotationValidatorPort quotationValidator,
             CashStaffValidatorPort staffValidator,
             CashBankAccountValidatorPort bankAccountValidator,
-            com.jclinical.core.events.DomainEventPublisherPort eventPublisher) {
+            com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         return new TicketService(
                 ticketRepository,
                 cashSessionRepository,
@@ -58,15 +61,17 @@ public class CashDomainConfig {
                 quotationValidator,
                 staffValidator,
                 bankAccountValidator,
-                eventPublisher);
+                eventPublisher,
+                permissionChecker);
     }
 
     @Bean
     public PendingAppointmentChargeService pendingAppointmentChargeService(
             CashAppointmentPort appointmentPort,
             CashQuotationValidatorPort quotationValidator,
-            TicketRepositoryPort ticketRepository) {
-        return new PendingAppointmentChargeService(appointmentPort, quotationValidator, ticketRepository);
+            TicketRepositoryPort ticketRepository,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new PendingAppointmentChargeService(appointmentPort, quotationValidator, ticketRepository, permissionChecker);
     }
 
     @Bean
@@ -74,8 +79,9 @@ public class CashDomainConfig {
             CashExpenseRepositoryPort expenseRepository,
             CashSessionRepositoryPort cashSessionRepository,
             CashStaffValidatorPort staffValidator,
-            com.jclinical.core.events.DomainEventPublisherPort eventPublisher) {
-        return new CashExpenseService(expenseRepository, cashSessionRepository, staffValidator, eventPublisher);
+            com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new CashExpenseService(expenseRepository, cashSessionRepository, staffValidator, eventPublisher, permissionChecker);
     }
 
     @Bean

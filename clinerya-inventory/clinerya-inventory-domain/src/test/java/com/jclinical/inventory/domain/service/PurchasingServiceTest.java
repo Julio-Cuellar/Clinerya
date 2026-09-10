@@ -20,6 +20,7 @@ import com.jclinical.inventory.domain.ports.out.PurchaseOrderRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.PurchaseReceiptRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.SupplierRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.SupplierMaterialRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -41,6 +42,8 @@ class PurchasingServiceTest {
         UUID clinicId = UUID.randomUUID();
         UUID supplierId = UUID.randomUUID();
         UUID materialId = UUID.randomUUID();
+        UUID actingUserId = UUID.randomUUID();
+        StaffPermissionCheckerPort permissionChecker = (clinic, user, permission) -> true;
 
         InMemorySupplierRepository suppliers = new InMemorySupplierRepository();
         suppliers.save(Supplier.builder()
@@ -69,7 +72,8 @@ class PurchasingServiceTest {
                 materials,
                 movements,
                 batches,
-                (routingKey, payload) -> { }
+                (routingKey, payload) -> { },
+                permissionChecker
         );
         InMemoryPurchaseOrderRepository orders = new InMemoryPurchaseOrderRepository();
         InMemoryPurchaseReceiptRepository receipts = new InMemoryPurchaseReceiptRepository();
@@ -81,10 +85,11 @@ class PurchasingServiceTest {
                 receipts,
                 materials,
                 movementService,
-                (routingKey, payload) -> { }
+                (routingKey, payload) -> { },
+                permissionChecker
         );
 
-        PurchaseOrder order = service.createPurchaseOrder(clinicId, new CreatePurchaseOrderCommand(
+        PurchaseOrder order = service.createPurchaseOrder(clinicId, actingUserId, new CreatePurchaseOrderCommand(
                 supplierId,
                 LocalDate.now(),
                 LocalDate.now().plusDays(2),
@@ -96,9 +101,9 @@ class PurchasingServiceTest {
                         new BigDecimal("9.0000")
                 ))
         ));
-        service.markPurchaseOrderOrdered(clinicId, order.getId());
+        service.markPurchaseOrderOrdered(clinicId, order.getId(), actingUserId);
 
-        PurchaseReceipt receipt = service.receivePurchaseOrder(clinicId, order.getId(), new ReceivePurchaseOrderCommand(
+        PurchaseReceipt receipt = service.receivePurchaseOrder(clinicId, order.getId(), actingUserId, new ReceivePurchaseOrderCommand(
                 null,
                 "Entrega parcial",
                 List.of(new ReceivePurchaseOrderLineCommand(

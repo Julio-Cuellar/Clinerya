@@ -12,6 +12,9 @@ import com.jclinical.core.events.MermaCaducidadEvent;
 import com.jclinical.core.events.PaymentRegisteredEvent;
 import com.jclinical.core.events.PurchaseOrderCreatedEvent;
 import com.jclinical.core.events.PayrollPaymentRegisteredEvent;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -47,9 +50,17 @@ public class JournalEntryService implements ManageJournalUseCase {
     private static final String RETENCIONES_NOMINA_NOMBRE = "Retenciones y deducciones por pagar";
 
     private final JournalEntryRepositoryPort repository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public JournalEntryService(JournalEntryRepositoryPort repository) {
+    public JournalEntryService(JournalEntryRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
         this.repository = repository;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de contabilidad.");
+        }
     }
 
     @Override
@@ -203,19 +214,22 @@ public class JournalEntryService implements ManageJournalUseCase {
     }
 
     @Override
-    public List<JournalEntry> listByClinic(UUID clinicId) {
+    public List<JournalEntry> listByClinic(UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_JOURNAL_ENTRIES);
         return repository.findByClinicId(clinicId);
     }
 
     @Override
     public JournalQueryResult queryByClinic(
             UUID clinicId,
+            UUID actingUserId,
             LocalDate from,
             LocalDate to,
             String search,
             String sourceEventType,
             int page,
             int size) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_JOURNAL_ENTRIES);
         if (from != null && to != null && from.isAfter(to)) {
             throw new IllegalArgumentException("La fecha inicial no puede ser posterior a la fecha final.");
         }
@@ -231,7 +245,8 @@ public class JournalEntryService implements ManageJournalUseCase {
     }
 
     @Override
-    public JournalEntry createManualEntry(UUID clinicId, JournalEntry entry) {
+    public JournalEntry createManualEntry(UUID clinicId, UUID actingUserId, JournalEntry entry) {
+        authorize(actingUserId, clinicId, StaffPermission.CREATE_JOURNAL_ENTRIES);
         if (entry.getId() == null) {
             entry.setId(UUID.randomUUID());
         }

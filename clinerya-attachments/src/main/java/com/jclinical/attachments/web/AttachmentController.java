@@ -3,9 +3,11 @@ package com.jclinical.attachments.web;
 import com.jclinical.attachments.AttachmentEntity;
 import com.jclinical.attachments.AttachmentService;
 import com.jclinical.core.security.ClinicAccessDeniedException;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.users.infra.security.CurrentUserResolver;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -63,8 +65,28 @@ public class AttachmentController {
         byte[] bytes = attachmentService.readContent(attachment);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(attachment.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + attachment.getOriginalFilename() + "\"")
+                // 'attachment' en vez de 'inline': un PDF servido inline se abre en el
+                // visor del navegador desde nuestro propio origen, y un PDF puede traer
+                // JavaScript. Con 'attachment' el archivo se descarga en vez de ejecutarse.
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(attachment.getOriginalFilename()))
+                // El nombre lo eligio quien subio el archivo: sin nosniff el navegador
+                // podria adivinar el tipo por la extension e ignorar el Content-Type.
+                .header("X-Content-Type-Options", "nosniff")
                 .body(bytes);
+    }
+
+    /**
+     * Construye la cabecera segun RFC 6266. El nombre original lo eligio el usuario, asi
+     * que antes se inyectaba sin escapar dentro de las comillas: bastaba un {@code "} en
+     * el nombre para romper la cabecera.
+     */
+    private String contentDisposition(String originalFilename) {
+        String name = originalFilename == null || originalFilename.isBlank() ? "archivo" : originalFilename;
+        // Sin separadores de ruta, comillas ni caracteres de control.
+        String sanitized = name.replaceAll("[\\p{Cntrl}\"\\\\/]", "_");
+        String ascii = sanitized.replaceAll("[^\\x20-\\x7E]", "_");
+        String utf8 = URLEncoder.encode(sanitized, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + ascii + "\"; filename*=UTF-8''" + utf8;
     }
 
     @DeleteMapping("/{attachmentId}")

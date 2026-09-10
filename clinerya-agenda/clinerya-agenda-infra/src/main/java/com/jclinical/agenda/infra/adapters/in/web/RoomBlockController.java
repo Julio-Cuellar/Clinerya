@@ -6,6 +6,7 @@ import com.jclinical.agenda.domain.ports.in.ManageRoomBlocksUseCase.CreateRoomBl
 import com.jclinical.agenda.infra.adapters.in.web.dto.CreateRoomBlockRequest;
 import com.jclinical.agenda.infra.adapters.in.web.dto.RoomBlockResponse;
 import com.jclinical.agenda.infra.adapters.out.persistence.RoomBlockMapper;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -30,18 +31,20 @@ public class RoomBlockController {
 
     private final ManageRoomBlocksUseCase roomBlocksUseCase;
     private final RoomBlockMapper mapper;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<RoomBlockResponse> create(
             @PathVariable UUID clinicId,
             @RequestBody CreateRoomBlockRequest request) {
-        RoomBlock block = roomBlocksUseCase.createBlock(clinicId, new CreateRoomBlockCommand(
+        UUID actingUserId = currentUserResolver.getCurrentUserId();
+        RoomBlock block = roomBlocksUseCase.createBlock(clinicId, actingUserId, new CreateRoomBlockCommand(
                 request.roomId(),
                 request.startsAt(),
                 request.endsAt(),
                 request.type(),
                 request.reason(),
-                null
+                actingUserId
         ));
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(block));
     }
@@ -51,7 +54,7 @@ public class RoomBlockController {
             @PathVariable UUID clinicId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        return ResponseEntity.ok(roomBlocksUseCase.listByClinicRange(clinicId, from, to).stream()
+        return ResponseEntity.ok(roomBlocksUseCase.listByClinicRange(clinicId, currentUserResolver.getCurrentUserId(), from, to).stream()
                 .map(mapper::toResponse)
                 .toList());
     }
@@ -60,7 +63,7 @@ public class RoomBlockController {
     public ResponseEntity<Void> deactivate(
             @PathVariable UUID clinicId,
             @PathVariable UUID blockId) {
-        roomBlocksUseCase.deactivateBlock(clinicId, blockId);
+        roomBlocksUseCase.deactivateBlock(clinicId, blockId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 }

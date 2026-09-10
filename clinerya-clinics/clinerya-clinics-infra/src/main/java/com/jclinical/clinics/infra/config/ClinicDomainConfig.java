@@ -20,6 +20,7 @@ import com.jclinical.clinics.infra.adapters.out.ClinicRoomMapper;
 import com.jclinical.clinics.infra.adapters.out.ClinicRoomStaffAssignmentEntity;
 import com.jclinical.clinics.infra.adapters.out.ClinicRoomStaffAssignmentMapper;
 import com.jclinical.clinics.infra.adapters.in.web.dto.ClinicRoomResponse;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,11 +56,13 @@ public class ClinicDomainConfig {
     public com.jclinical.clinics.domain.ports.in.ManageClinicRoomsUseCase manageClinicRoomsUseCase(
             com.jclinical.clinics.domain.ports.out.ClinicRoomRepositoryPort clinicRoomRepository,
             com.jclinical.clinics.domain.ports.out.ClinicRoomStaffAssignmentRepositoryPort assignmentRepository,
-            ClinicStaffRepositoryPort clinicStaffRepository) {
+            ClinicStaffRepositoryPort clinicStaffRepository,
+            StaffPermissionCheckerPort permissionChecker) {
         return new com.jclinical.clinics.domain.service.ClinicRoomService(
                 clinicRoomRepository,
                 assignmentRepository,
-                clinicStaffRepository);
+                clinicStaffRepository,
+                permissionChecker);
     }
 
     @Bean

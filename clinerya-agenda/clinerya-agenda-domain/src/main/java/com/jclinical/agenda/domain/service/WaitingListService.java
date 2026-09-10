@@ -4,6 +4,9 @@ import com.jclinical.agenda.domain.model.WaitingListEntry;
 import com.jclinical.agenda.domain.ports.in.ManageWaitingListUseCase;
 import com.jclinical.agenda.domain.ports.out.PatientValidatorPort;
 import com.jclinical.agenda.domain.ports.out.WaitingListRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,15 +17,28 @@ public class WaitingListService implements ManageWaitingListUseCase {
 
     private final WaitingListRepositoryPort waitingListRepository;
     private final PatientValidatorPort patientValidator;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public WaitingListService(WaitingListRepositoryPort waitingListRepository, PatientValidatorPort patientValidator) {
+    public WaitingListService(
+            WaitingListRepositoryPort waitingListRepository,
+            PatientValidatorPort patientValidator,
+            StaffPermissionCheckerPort permissionChecker) {
         this.waitingListRepository = waitingListRepository;
         this.patientValidator = patientValidator;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId) {
+        if (actingUserId == null
+                || !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_WAITING_LIST)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de agenda.");
+        }
     }
 
     @Override
     public WaitingListEntry addToWaitingList(
             UUID clinicId,
+            UUID actingUserId,
             UUID patientId,
             UUID doctorStaffId,
             UUID roomId,
@@ -30,6 +46,7 @@ public class WaitingListService implements ManageWaitingListUseCase {
             LocalDate preferredDateTo,
             String preferredTimeRange,
             String notes) {
+        authorize(actingUserId, clinicId);
         if (!patientValidator.existsByIdAndClinicId(patientId, clinicId)) {
             throw new IllegalArgumentException("El paciente no existe en esta clínica.");
         }
@@ -53,7 +70,8 @@ public class WaitingListService implements ManageWaitingListUseCase {
     }
 
     @Override
-    public WaitingListEntry updateStatus(UUID clinicId, UUID entryId, WaitingListEntry.Status status) {
+    public WaitingListEntry updateStatus(UUID clinicId, UUID entryId, UUID actingUserId, WaitingListEntry.Status status) {
+        authorize(actingUserId, clinicId);
         WaitingListEntry entry = waitingListRepository.findByIdAndClinicId(entryId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La entrada en lista de espera no existe."));
         entry.setStatus(status);
@@ -62,14 +80,16 @@ public class WaitingListService implements ManageWaitingListUseCase {
     }
 
     @Override
-    public List<WaitingListEntry> listWaitingList(UUID clinicId, boolean waitingOnly) {
+    public List<WaitingListEntry> listWaitingList(UUID clinicId, UUID actingUserId, boolean waitingOnly) {
+        authorize(actingUserId, clinicId);
         return waitingOnly
                 ? waitingListRepository.findByClinicIdAndStatus(clinicId, WaitingListEntry.Status.WAITING)
                 : waitingListRepository.findByClinicId(clinicId);
     }
 
     @Override
-    public void removeFromWaitingList(UUID clinicId, UUID entryId) {
+    public void removeFromWaitingList(UUID clinicId, UUID entryId, UUID actingUserId) {
+        authorize(actingUserId, clinicId);
         WaitingListEntry entry = waitingListRepository.findByIdAndClinicId(entryId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La entrada en lista de espera no existe."));
         waitingListRepository.delete(entry);

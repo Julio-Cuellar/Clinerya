@@ -9,9 +9,9 @@ import java.util.UUID;
 
 public interface ManageClinicScheduleUseCase {
 
-    List<ClinicSchedule> getSchedule(UUID clinicId);
+    List<ClinicSchedule> getSchedule(UUID clinicId, UUID actingUserId);
 
-    List<ClinicSchedule> updateSchedule(UUID clinicId, List<DayScheduleCommand> days);
+    List<ClinicSchedule> updateSchedule(UUID clinicId, UUID actingUserId, List<DayScheduleCommand> days);
 
     record DayScheduleCommand(
             DayOfWeek dayOfWeek,

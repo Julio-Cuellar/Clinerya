@@ -24,7 +24,7 @@ public class PayrollAccountingAdapter implements PayrollAccountingPort {
     public PaymentResult registerPayrollPayment(UUID clinicId, UUID payrollPeriodId, UUID bankAccountId,
                                                 BigDecimal grossAmount, BigDecimal netAmount,
                                                 BigDecimal deductionAmount, LocalDate paymentDate) {
-        BankAccount account = openingBalancesUseCase.listBankAccounts(clinicId).stream()
+        BankAccount account = openingBalancesUseCase.listBankAccountsForSystem(clinicId).stream()
                 .filter(candidate -> bankAccountId.equals(candidate.getId()))
                 .filter(BankAccount::isActive)
                 .filter(candidate -> candidate.getAccountType() == BankAccountType.DEBIT)

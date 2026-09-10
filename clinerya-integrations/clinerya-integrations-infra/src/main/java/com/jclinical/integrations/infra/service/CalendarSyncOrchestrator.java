@@ -38,7 +38,7 @@ public class CalendarSyncOrchestrator {
 
     public void onAppointmentScheduled(UUID clinicId, UUID appointmentId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end) {
         findFreshCredentials(clinicId, doctorStaffId).ifPresent(credentials -> {
-            Appointment appointment = appointmentsUseCase.getAppointment(appointmentId, clinicId);
+            Appointment appointment = appointmentsUseCase.getAppointmentForSystem(appointmentId, clinicId);
             CalendarEventDraft draft = buildDraft(appointment, start, end);
             String externalEventId = calendarEventPort.createEvent(credentials, draft);
             if (externalEventId != null) {
@@ -48,7 +48,7 @@ public class CalendarSyncOrchestrator {
     }
 
     public void onAppointmentRescheduled(UUID clinicId, UUID appointmentId, LocalDateTime newStart, LocalDateTime newEnd) {
-        Appointment appointment = appointmentsUseCase.getAppointment(appointmentId, clinicId);
+        Appointment appointment = appointmentsUseCase.getAppointmentForSystem(appointmentId, clinicId);
         if (appointment.getExternalCalendarEventId() == null) {
             return;
         }
@@ -71,7 +71,7 @@ public class CalendarSyncOrchestrator {
     }
 
     public void onAppointmentCancelled(UUID clinicId, UUID appointmentId) {
-        Appointment appointment = appointmentsUseCase.getAppointment(appointmentId, clinicId);
+        Appointment appointment = appointmentsUseCase.getAppointmentForSystem(appointmentId, clinicId);
         if (appointment.getExternalCalendarEventId() == null) {
             return;
         }

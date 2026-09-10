@@ -19,7 +19,7 @@ import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;

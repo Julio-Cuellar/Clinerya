@@ -4,13 +4,14 @@ import { Field } from "@shared/ui/Field";
 import { authApi, getFriendlyError, sessionStore } from "@shared/api/api";
 import type { UserProfile } from "@modules/auth/types";
 
-type AuthView = "login" | "register" | "verify";
+type AuthView = "login" | "register" | "verify" | "forgot";
 
 function authTitle(view: AuthView) {
   return {
     login: "Inicio de sesión",
     register: "Registro de usuario",
-    verify: "Verificación de correo"
+    verify: "Verificación de correo",
+    forgot: "Recuperar contraseña"
   }[view];
 }
 
@@ -18,7 +19,8 @@ function authSubtitle(view: AuthView) {
   return {
     login: "Accede con una cuenta verificada y activa.",
     register: "Crea el usuario dueño de la clínica.",
-    verify: "Confirma el código recibido por correo."
+    verify: "Confirma el código recibido por correo.",
+    forgot: "Te enviaremos un enlace seguro para crear una nueva contraseña."
   }[view];
 }
 
@@ -26,7 +28,8 @@ function authButton(view: AuthView) {
   return {
     login: "Iniciar sesión",
     register: "Registrar",
-    verify: "Verificar correo"
+    verify: "Verificar correo",
+    forgot: "Enviar enlace"
   }[view];
 }
 
@@ -79,7 +82,9 @@ export function AuthScreen({
         setNotice(`Te enviamos un código de verificación a ${email}.`);
       }
       if (view === "verify") {
-        await authApi.verifyEmail(value("token"));
+        // El backend acota el codigo al correo, asi que hay que mandarlo. Normalmente
+        // viene del registro recien hecho; si se recargo la pagina, del campo visible.
+        await authApi.verifyEmail(pendingCredentials?.email ?? value("email"), value("token"));
         if (pendingCredentials) {
           const data = await authApi.login(pendingCredentials);
           sessionStore.setTokens(data);
@@ -90,6 +95,10 @@ export function AuthScreen({
           setNotice("Correo verificado correctamente. Ya puedes iniciar sesión.");
           setView("login");
         }
+      }
+      if (view === "forgot") {
+        await authApi.requestPasswordReset(value("email"));
+        setNotice("Si existe una cuenta con ese correo, te enviaremos un enlace de recuperación.");
       }
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -127,7 +136,7 @@ export function AuthScreen({
 
         <form className="auth-form" onSubmit={submit}>
           {view === "register" && <Field name="fullName" label="Nombre completo" autoComplete="name" required />}
-          {(view === "login" || view === "register") && (
+          {(view === "login" || view === "register" || view === "forgot") && (
             <Field name="email" label="Correo electrónico" type="email" autoComplete="email" required />
           )}
           {view === "register" && <Field name="clinicName" label="Nombre de la clínica" required />}
@@ -139,6 +148,9 @@ export function AuthScreen({
               autoComplete={view === "login" ? "current-password" : "new-password"}
               required
             />
+          )}
+          {view === "verify" && !pendingCredentials && (
+            <Field name="email" label="Correo electrónico" type="email" required />
           )}
           {view === "verify" && <Field name="token" label="Código de verificación" required />}
 
@@ -164,6 +176,17 @@ export function AuthScreen({
             ¿No tienes cuenta?{" "}
             <button type="button" className="link-btn" onClick={() => goTo("register")}>
               Regístrate
+            </button>
+            {" · "}
+            <button type="button" className="link-btn" onClick={() => goTo("forgot")}>
+              ¿Olvidaste tu contraseña?
+            </button>
+          </p>
+        )}
+        {view === "forgot" && (
+          <p className="auth-switch">
+            <button type="button" className="link-btn" onClick={() => goTo("login")}>
+              Volver a iniciar sesión
             </button>
           </p>
         )}

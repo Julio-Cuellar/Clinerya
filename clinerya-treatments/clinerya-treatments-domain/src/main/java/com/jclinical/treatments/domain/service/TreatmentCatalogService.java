@@ -6,6 +6,9 @@ import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.TreatmentCatalogRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,14 +20,26 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
 
     private final TreatmentCatalogRepositoryPort catalogRepository;
     private final InventoryMaterialPort inventoryMaterialPort;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public TreatmentCatalogService(TreatmentCatalogRepositoryPort catalogRepository, InventoryMaterialPort inventoryMaterialPort) {
+    public TreatmentCatalogService(
+            TreatmentCatalogRepositoryPort catalogRepository,
+            InventoryMaterialPort inventoryMaterialPort,
+            StaffPermissionCheckerPort permissionChecker) {
         this.catalogRepository = catalogRepository;
         this.inventoryMaterialPort = inventoryMaterialPort;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
+        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException("No tienes permisos para esta operación del catálogo de tratamientos.");
+        }
     }
 
     @Override
-    public TreatmentCatalogItem createCatalogItem(UUID clinicId, CreateCatalogItemCommand command) {
+    public TreatmentCatalogItem createCatalogItem(UUID clinicId, UUID actingUserId, CreateCatalogItemCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_TREATMENT_CATALOG);
         validate(command.name(), command.defaultPrice());
 
         TreatmentCatalogItem item = TreatmentCatalogItem.builder()
@@ -45,7 +60,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public TreatmentCatalogItem updateCatalogItem(UUID itemId, UUID clinicId, UpdateCatalogItemCommand command) {
+    public TreatmentCatalogItem updateCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId, UpdateCatalogItemCommand command) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_TREATMENT_CATALOG);
         validate(command.name(), command.defaultPrice());
 
         TreatmentCatalogItem item = catalogRepository.findByIdAndClinicId(itemId, clinicId)
@@ -64,7 +80,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public void deactivateCatalogItem(UUID itemId, UUID clinicId) {
+    public void deactivateCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.MANAGE_TREATMENT_CATALOG);
         TreatmentCatalogItem item = catalogRepository.findByIdAndClinicId(itemId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El servicio no existe en esta clínica."));
         item.setActive(false);
@@ -73,12 +90,14 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public Optional<TreatmentCatalogItem> getCatalogItem(UUID itemId, UUID clinicId) {
+    public Optional<TreatmentCatalogItem> getCatalogItem(UUID itemId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_TREATMENTS);
         return catalogRepository.findByIdAndClinicId(itemId, clinicId);
     }
 
     @Override
-    public List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID clinicId, boolean includeInactive) {
+    public List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID clinicId, UUID actingUserId, boolean includeInactive) {
+        authorize(actingUserId, clinicId, StaffPermission.VIEW_TREATMENTS);
         return catalogRepository.findByClinicId(clinicId, includeInactive);
     }
 

@@ -9,6 +9,7 @@ import com.jclinical.core.events.CashExpenseVoidedEvent;
 import com.jclinical.core.events.PaymentRegisteredEvent;
 import com.jclinical.core.events.PayrollPaymentRegisteredEvent;
 import com.jclinical.core.events.PurchaseOrderCreatedEvent;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -27,7 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JournalEntryServiceTest {
 
     private final InMemoryJournalRepository repository = new InMemoryJournalRepository();
-    private final JournalEntryService service = new JournalEntryService(repository);
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+    private final JournalEntryService service = new JournalEntryService(repository, permissionChecker);
+    private final UUID actingUserId = UUID.randomUUID();
 
     @Test
     void recordsMixedPaymentWithBankLineAndAdvanceWhenQuotationIsNotFullyPaid() {
@@ -173,7 +176,7 @@ class JournalEntryServiceTest {
                 ))
                 .build();
 
-        JournalEntry saved = service.createManualEntry(clinicId, manual);
+        JournalEntry saved = service.createManualEntry(clinicId, actingUserId, manual);
 
         assertEquals(clinicId, saved.getClinicId());
         assertEquals("Manual", saved.getSourceEventType());

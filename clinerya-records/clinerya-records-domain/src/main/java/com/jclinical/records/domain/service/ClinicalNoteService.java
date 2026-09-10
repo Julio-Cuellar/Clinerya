@@ -13,9 +13,9 @@ import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
 import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
 
 import java.nio.charset.StandardCharsets;

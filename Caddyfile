@@ -1,0 +1,35 @@
+# Caddy solicita y renueva automaticamente los certificados TLS de Let's Encrypt.
+# El DNS de dentalterapy.com.mx y www.dentalterapy.com.mx debe apuntar a este servidor.
+dentalterapy.com.mx {
+    redir https://www.dentalterapy.com.mx{uri} permanent
+}
+
+www.dentalterapy.com.mx {
+    encode zstd gzip
+
+    # --- Cabeceras de seguridad -------------------------------------------------
+    # Caddy es quien termina TLS, asi que HSTS se declara aqui (nginx solo la repite
+    # por si algun dia se expone directo).
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+
+        # CSP en Report-Only a proposito: primero medir que rompe en uso real.
+        # Cuando el reporte salga limpio, renombrar a Content-Security-Policy.
+        #   style-src 'unsafe-inline'  -> React usa style={{...}} en 36 componentes.
+        #   fonts.googleapis / gstatic -> la fuente Inter que carga index.html.
+        #   img-src data: blob:        -> firma del paciente (toDataURL) y export a PDF.
+        Content-Security-Policy-Report-Only "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'"
+
+        # No anunciar el servidor.
+        -Server
+    }
+
+    @api path /api/*
+    reverse_proxy @api backend:8082
+
+    reverse_proxy frontend:80
+}
