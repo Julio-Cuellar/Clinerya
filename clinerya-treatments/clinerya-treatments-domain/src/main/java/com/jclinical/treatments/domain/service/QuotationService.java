@@ -10,6 +10,9 @@ import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
 import com.jclinical.treatments.domain.ports.out.QuotationRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,18 +26,22 @@ public class QuotationService implements ManageQuotationUseCase {
     private final QuotationRepositoryPort quotationRepository;
     private final PatientValidatorPort patientValidator;
     private final InventoryMaterialPort inventoryMaterialPort;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public QuotationService(
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
-            InventoryMaterialPort inventoryMaterialPort) {
+            InventoryMaterialPort inventoryMaterialPort,
+            StaffPermissionCheckerPort permissionChecker) {
         this.quotationRepository = quotationRepository;
         this.patientValidator = patientValidator;
         this.inventoryMaterialPort = inventoryMaterialPort;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public Quotation createQuotation(UUID patientId, UUID clinicId, CreateQuotationCommand command) {
+    public Quotation createQuotation(UUID actingUserId, UUID patientId, UUID clinicId, CreateQuotationCommand command) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
 
         Quotation quotation = Quotation.builder()
@@ -55,7 +62,8 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command) {
+    public Quotation updateQuotationHeader(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.updateHeader(command.notes(), command.validUntil(), command.quotationDate());
@@ -63,7 +71,8 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command) {
+    public Quotation replaceQuotationItems(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.replaceItems(toItems(command.items(), clinicId));
@@ -71,7 +80,8 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus) {
+    public Quotation transitionStatus(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
 
@@ -87,7 +97,8 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus) {
+    public Quotation updateItemProgress(UUID actingUserId, UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.updateItemProgress(itemId, targetStatus);
@@ -101,19 +112,36 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId) {
+    public List<Quotation> getQuotationsByPatient(UUID actingUserId, UUID patientId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_TREATMENTS,
+                "No tienes permiso para consultar los tratamientos de esta clinica.");
         validatePatient(patientId, clinicId);
         return quotationRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(patientId, clinicId);
     }
 
     @Override
-    public void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
+    public void deleteQuotation(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId) {
+        requireManageQuotations(clinicId, actingUserId);
         validatePatient(patientId, clinicId);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         if (quotation.getStatus() != QuotationStatus.DRAFT) {
             throw new IllegalStateException("Solo una cotización en borrador puede eliminarse.");
         }
         quotationRepository.deleteById(quotationId);
+    }
+
+    private void requireManageQuotations(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_QUOTATIONS,
+                "No tienes permiso para gestionar las cotizaciones de esta clinica.");
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private Quotation findOrThrow(UUID quotationId, UUID patientId, UUID clinicId) {

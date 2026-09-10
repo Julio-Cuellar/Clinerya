@@ -9,6 +9,7 @@ import com.jclinical.treatments.domain.ports.in.ManageVisitsUseCase.RegisterVisi
 import com.jclinical.treatments.domain.ports.in.ManageVisitsUseCase.RegisterVisitMaterialUsageCommand;
 import com.jclinical.treatments.infra.adapters.in.web.dto.CreateVisitRequest;
 import com.jclinical.treatments.infra.adapters.in.web.dto.VisitResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class VisitController {
 
     private final ManageVisitsUseCase visitsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<VisitResponse> registerVisit(
@@ -41,7 +43,8 @@ public class VisitController {
                 request.notes(),
                 toLineItemCommands(request.items())
         );
-        Visit visit = visitsUseCase.registerVisit(patientId, quotationId, request.clinicId(), command);
+        Visit visit = visitsUseCase.registerVisit(
+                currentUserResolver.getCurrentUserId(), patientId, quotationId, request.clinicId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(visit));
     }
 
@@ -50,7 +53,8 @@ public class VisitController {
             @PathVariable UUID patientId,
             @PathVariable UUID quotationId,
             @RequestParam UUID clinicId) {
-        List<VisitResponse> responses = visitsUseCase.getVisitsByQuotation(quotationId, patientId, clinicId).stream()
+        List<VisitResponse> responses = visitsUseCase
+                .getVisitsByQuotation(currentUserResolver.getCurrentUserId(), quotationId, patientId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -62,7 +66,8 @@ public class VisitController {
             @PathVariable UUID quotationId,
             @PathVariable UUID visitId,
             @RequestParam UUID clinicId) {
-        Visit visit = visitsUseCase.getVisitDetails(visitId, patientId, clinicId);
+        Visit visit = visitsUseCase.getVisitDetails(
+                currentUserResolver.getCurrentUserId(), visitId, patientId, clinicId);
         return ResponseEntity.ok(toResponse(visit));
     }
 

@@ -11,6 +11,7 @@ import com.jclinical.treatments.infra.adapters.in.web.dto.CatalogMaterialRespons
 import com.jclinical.treatments.infra.adapters.in.web.dto.CreateTreatmentCatalogItemRequest;
 import com.jclinical.treatments.infra.adapters.in.web.dto.TreatmentCatalogItemResponse;
 import com.jclinical.treatments.infra.adapters.in.web.dto.UpdateTreatmentCatalogItemRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,7 @@ import java.util.UUID;
 public class TreatmentCatalogController {
 
     private final ManageTreatmentCatalogUseCase catalogUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<TreatmentCatalogItemResponse> createItem(
@@ -46,7 +48,8 @@ public class TreatmentCatalogController {
                 request.estimatedDurationMinutes(),
                 toMaterialCommands(request.materials())
         );
-        TreatmentCatalogItem item = catalogUseCase.createCatalogItem(clinicId, command);
+        TreatmentCatalogItem item = catalogUseCase.createCatalogItem(
+                currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(item));
     }
 
@@ -54,7 +57,8 @@ public class TreatmentCatalogController {
     public ResponseEntity<List<TreatmentCatalogItemResponse>> getItems(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        List<TreatmentCatalogItemResponse> responses = catalogUseCase.getCatalogItemsByClinic(clinicId, includeInactive).stream()
+        List<TreatmentCatalogItemResponse> responses = catalogUseCase
+                .getCatalogItemsByClinic(currentUserResolver.getCurrentUserId(), clinicId, includeInactive).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -64,7 +68,7 @@ public class TreatmentCatalogController {
     public ResponseEntity<TreatmentCatalogItemResponse> getItem(
             @PathVariable UUID clinicId,
             @PathVariable UUID itemId) {
-        return catalogUseCase.getCatalogItem(itemId, clinicId)
+        return catalogUseCase.getCatalogItem(currentUserResolver.getCurrentUserId(), itemId, clinicId)
                 .map(item -> ResponseEntity.ok(toResponse(item)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -83,7 +87,8 @@ public class TreatmentCatalogController {
                 toMaterialCommands(request.materials()),
                 request.active()
         );
-        TreatmentCatalogItem item = catalogUseCase.updateCatalogItem(itemId, clinicId, command);
+        TreatmentCatalogItem item = catalogUseCase.updateCatalogItem(
+                currentUserResolver.getCurrentUserId(), itemId, clinicId, command);
         return ResponseEntity.ok(toResponse(item));
     }
 
@@ -91,7 +96,7 @@ public class TreatmentCatalogController {
     public ResponseEntity<Void> deactivateItem(
             @PathVariable UUID clinicId,
             @PathVariable UUID itemId) {
-        catalogUseCase.deactivateCatalogItem(itemId, clinicId);
+        catalogUseCase.deactivateCatalogItem(currentUserResolver.getCurrentUserId(), itemId, clinicId);
         return ResponseEntity.noContent().build();
     }
 

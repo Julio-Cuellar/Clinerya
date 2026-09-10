@@ -12,21 +12,22 @@ import java.util.UUID;
 
 public interface ManageQuotationUseCase {
 
-    Quotation createQuotation(UUID patientId, UUID clinicId, CreateQuotationCommand command);
+    Quotation createQuotation(UUID actingUserId, UUID patientId, UUID clinicId, CreateQuotationCommand command);
 
-    Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command);
+    Quotation updateQuotationHeader(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command);
 
-    Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command);
+    Quotation replaceQuotationItems(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command);
 
-    Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus);
+    Quotation transitionStatus(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus);
 
-    Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus);
+    Quotation updateItemProgress(UUID actingUserId, UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus);
 
+    /** Sin control de permiso: lo consumen validadores internos de agenda y caja. */
     Optional<Quotation> getQuotation(UUID quotationId, UUID patientId, UUID clinicId);
 
-    List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId);
+    List<Quotation> getQuotationsByPatient(UUID actingUserId, UUID patientId, UUID clinicId);
 
-    void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId);
+    void deleteQuotation(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId);
 
     record MaterialLineCommand(
         UUID materialId,

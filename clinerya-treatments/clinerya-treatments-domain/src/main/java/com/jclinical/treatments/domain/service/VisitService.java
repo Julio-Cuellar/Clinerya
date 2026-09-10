@@ -14,6 +14,9 @@ import com.jclinical.treatments.domain.ports.out.QuotationRepositoryPort;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,22 +33,27 @@ public class VisitService implements ManageVisitsUseCase {
     private final PatientValidatorPort patientValidator;
     private final InventoryMaterialPort inventoryMaterialPort;
     private final DomainEventPublisherPort eventPublisher;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public VisitService(
             VisitRepositoryPort visitRepository,
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
             InventoryMaterialPort inventoryMaterialPort,
-            DomainEventPublisherPort eventPublisher) {
+            DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         this.visitRepository = visitRepository;
         this.quotationRepository = quotationRepository;
         this.patientValidator = patientValidator;
         this.inventoryMaterialPort = inventoryMaterialPort;
         this.eventPublisher = eventPublisher;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public Visit registerVisit(UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command) {
+    public Visit registerVisit(UUID actingUserId, UUID patientId, UUID quotationId, UUID clinicId, RegisterVisitCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CREATE_VISITS,
+                "No tienes permiso para registrar sesiones clinicas en esta clinica.");
         validatePatient(patientId, clinicId);
 
         Quotation quotation = null;
@@ -163,16 +171,29 @@ public class VisitService implements ManageVisitsUseCase {
     }
 
     @Override
-    public List<Visit> getVisitsByQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
+    public List<Visit> getVisitsByQuotation(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_PATIENT_CARE,
+                "No tienes permiso para consultar la atencion clinica de esta clinica.");
         validatePatient(patientId, clinicId);
         return visitRepository.findByQuotationIdAndPatientIdAndClinicId(quotationId, patientId, clinicId);
     }
 
     @Override
-    public Visit getVisitDetails(UUID visitId, UUID patientId, UUID clinicId) {
+    public Visit getVisitDetails(UUID actingUserId, UUID visitId, UUID patientId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_PATIENT_CARE,
+                "No tienes permiso para consultar la atencion clinica de esta clinica.");
         validatePatient(patientId, clinicId);
         return visitRepository.findByIdAndPatientIdAndClinicId(visitId, patientId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La visita no existe."));
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private void validatePatient(UUID patientId, UUID clinicId) {

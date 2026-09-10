@@ -6,6 +6,9 @@ import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.TreatmentCatalogRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,14 +20,20 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
 
     private final TreatmentCatalogRepositoryPort catalogRepository;
     private final InventoryMaterialPort inventoryMaterialPort;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public TreatmentCatalogService(TreatmentCatalogRepositoryPort catalogRepository, InventoryMaterialPort inventoryMaterialPort) {
+    public TreatmentCatalogService(TreatmentCatalogRepositoryPort catalogRepository,
+                                   InventoryMaterialPort inventoryMaterialPort,
+                                   StaffPermissionCheckerPort permissionChecker) {
         this.catalogRepository = catalogRepository;
         this.inventoryMaterialPort = inventoryMaterialPort;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public TreatmentCatalogItem createCatalogItem(UUID clinicId, CreateCatalogItemCommand command) {
+    public TreatmentCatalogItem createCatalogItem(UUID actingUserId, UUID clinicId, CreateCatalogItemCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
+                "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
         validate(command.name(), command.defaultPrice());
 
         TreatmentCatalogItem item = TreatmentCatalogItem.builder()
@@ -45,7 +54,9 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public TreatmentCatalogItem updateCatalogItem(UUID itemId, UUID clinicId, UpdateCatalogItemCommand command) {
+    public TreatmentCatalogItem updateCatalogItem(UUID actingUserId, UUID itemId, UUID clinicId, UpdateCatalogItemCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
+                "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
         validate(command.name(), command.defaultPrice());
 
         TreatmentCatalogItem item = catalogRepository.findByIdAndClinicId(itemId, clinicId)
@@ -64,7 +75,9 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public void deactivateCatalogItem(UUID itemId, UUID clinicId) {
+    public void deactivateCatalogItem(UUID actingUserId, UUID itemId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
+                "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
         TreatmentCatalogItem item = catalogRepository.findByIdAndClinicId(itemId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El servicio no existe en esta clínica."));
         item.setActive(false);
@@ -73,13 +86,26 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
     }
 
     @Override
-    public Optional<TreatmentCatalogItem> getCatalogItem(UUID itemId, UUID clinicId) {
+    public Optional<TreatmentCatalogItem> getCatalogItem(UUID actingUserId, UUID itemId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_TREATMENTS,
+                "No tienes permiso para consultar el catalogo de tratamientos de esta clinica.");
         return catalogRepository.findByIdAndClinicId(itemId, clinicId);
     }
 
     @Override
-    public List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID clinicId, boolean includeInactive) {
+    public List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID actingUserId, UUID clinicId, boolean includeInactive) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_TREATMENTS,
+                "No tienes permiso para consultar el catalogo de tratamientos de esta clinica.");
         return catalogRepository.findByClinicId(clinicId, includeInactive);
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private List<TreatmentCatalogMaterial> toMaterials(List<CatalogMaterialCommand> commands, UUID clinicId) {
