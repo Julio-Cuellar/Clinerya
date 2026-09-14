@@ -51,7 +51,7 @@ public class MaterialController {
                 request.salePrice(),
                 request.tracksBatches()
         );
-        Material material = materialUseCase.createMaterial(clinicId, currentUserResolver.getCurrentUserId(), command);
+        Material material = materialUseCase.createMaterial(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(material));
     }
 
@@ -59,7 +59,8 @@ public class MaterialController {
     public ResponseEntity<List<MaterialResponse>> getMaterials(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        List<MaterialResponse> responses = materialUseCase.getMaterialsByClinic(clinicId, currentUserResolver.getCurrentUserId(), includeInactive).stream()
+        List<MaterialResponse> responses = materialUseCase
+                .getMaterialsByClinic(currentUserResolver.getCurrentUserId(), clinicId, includeInactive).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -69,7 +70,7 @@ public class MaterialController {
     public ResponseEntity<MaterialResponse> getMaterial(
             @PathVariable UUID clinicId,
             @PathVariable UUID materialId) {
-        return materialUseCase.getMaterial(materialId, clinicId, currentUserResolver.getCurrentUserId())
+        return materialUseCase.getMaterial(materialId, clinicId)
                 .map(material -> ResponseEntity.ok(toResponse(material)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -95,7 +96,8 @@ public class MaterialController {
                 request.tracksBatches(),
                 request.active()
         );
-        Material material = materialUseCase.updateMaterial(materialId, clinicId, currentUserResolver.getCurrentUserId(), command);
+        Material material = materialUseCase.updateMaterial(
+                currentUserResolver.getCurrentUserId(), materialId, clinicId, command);
         return ResponseEntity.ok(toResponse(material));
     }
 
@@ -103,7 +105,7 @@ public class MaterialController {
     public ResponseEntity<Void> deactivateMaterial(
             @PathVariable UUID clinicId,
             @PathVariable UUID materialId) {
-        materialUseCase.deactivateMaterial(materialId, clinicId, currentUserResolver.getCurrentUserId());
+        materialUseCase.deactivateMaterial(currentUserResolver.getCurrentUserId(), materialId, clinicId);
         return ResponseEntity.noContent().build();
     }
 

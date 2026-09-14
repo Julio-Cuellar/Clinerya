@@ -9,22 +9,16 @@ import java.util.UUID;
 
 public interface ManageMaterialUseCase {
 
-    Material createMaterial(UUID clinicId, UUID actingUserId, CreateMaterialCommand command);
+    Material createMaterial(UUID actingUserId, UUID clinicId, CreateMaterialCommand command);
 
-    Material updateMaterial(UUID materialId, UUID clinicId, UUID actingUserId, UpdateMaterialCommand command);
+    Material updateMaterial(UUID actingUserId, UUID materialId, UUID clinicId, UpdateMaterialCommand command);
 
-    void deactivateMaterial(UUID materialId, UUID clinicId, UUID actingUserId);
+    void deactivateMaterial(UUID actingUserId, UUID materialId, UUID clinicId);
 
-    Optional<Material> getMaterial(UUID materialId, UUID clinicId, UUID actingUserId);
+    /** Sin control de permiso: lo consumen flujos internos (cotizaciones, consumo en visita). */
+    Optional<Material> getMaterial(UUID materialId, UUID clinicId);
 
-    List<Material> getMaterialsByClinic(UUID clinicId, UUID actingUserId, boolean includeInactive);
-
-    /**
-     * Lectura interna para el modulo de tratamientos, que ya valido acceso al expediente
-     * del paciente antes de resolver el material del checklist. No exponer desde un
-     * controlador.
-     */
-    Optional<Material> getMaterialForSystem(UUID materialId, UUID clinicId);
+    List<Material> getMaterialsByClinic(UUID actingUserId, UUID clinicId, boolean includeInactive);
 
     record CreateMaterialCommand(
             String name,

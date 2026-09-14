@@ -39,12 +39,15 @@ public class PendingAppointmentChargeService implements ManagePendingAppointment
     }
 
     @Override
-    public List<PendingAppointmentCharge> listPendingCharges(UUID clinicId, UUID actingUserId) {
+    public List<PendingAppointmentCharge> listPendingCharges(UUID actingUserId, UUID clinicId) {
         if (clinicId == null) {
             throw new IllegalArgumentException("La clinica es obligatoria.");
         }
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_CASH)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_CASH)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para consultar la caja de esta clinica.");
         }
 
         Map<UUID, List<CompletedAppointmentSnapshot>> appointmentsByQuotation = new LinkedHashMap<>();

@@ -1,5 +1,8 @@
 package com.jclinical.integrations.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.integrations.domain.model.CalendarCredentials;
 import com.jclinical.integrations.domain.ports.in.ManageCalendarIntegrationUseCase;
 import com.jclinical.integrations.domain.ports.out.CalendarCredentialsRepositoryPort;
@@ -16,18 +19,22 @@ public class CalendarIntegrationService implements ManageCalendarIntegrationUseC
     private final CalendarCredentialsRepositoryPort credentialsRepository;
     private final GoogleOAuthPort oAuthPort;
     private final StateCodecPort stateCodec;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public CalendarIntegrationService(
             CalendarCredentialsRepositoryPort credentialsRepository,
             GoogleOAuthPort oAuthPort,
-            StateCodecPort stateCodec) {
+            StateCodecPort stateCodec,
+            StaffPermissionCheckerPort permissionChecker) {
         this.credentialsRepository = credentialsRepository;
         this.oAuthPort = oAuthPort;
         this.stateCodec = stateCodec;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
-    public String getAuthorizationUrl(UUID clinicId, UUID staffId, boolean importPastEvents) {
+    public String getAuthorizationUrl(UUID clinicId, UUID actingUserId, UUID staffId, boolean importPastEvents) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         String state = stateCodec.encode(clinicId, staffId, importPastEvents);
         return oAuthPort.buildAuthorizationUrl(state);
     }
@@ -68,7 +75,8 @@ public class CalendarIntegrationService implements ManageCalendarIntegrationUseC
 
 
     @Override
-    public void disconnect(UUID clinicId, UUID staffId) {
+    public void disconnect(UUID clinicId, UUID actingUserId, UUID staffId) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         credentialsRepository.findByClinicIdAndStaffId(clinicId, staffId).ifPresent(credentials -> {
             oAuthPort.revokeToken(credentials.getRefreshToken());
             credentialsRepository.deleteByClinicIdAndStaffId(clinicId, staffId);
@@ -76,14 +84,16 @@ public class CalendarIntegrationService implements ManageCalendarIntegrationUseC
     }
 
     @Override
-    public CalendarConnectionStatus getStatus(UUID clinicId, UUID staffId) {
+    public CalendarConnectionStatus getStatus(UUID clinicId, UUID actingUserId, UUID staffId) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         return credentialsRepository.findByClinicIdAndStaffId(clinicId, staffId)
                 .map(credentials -> new CalendarConnectionStatus(true, credentials.getGoogleAccountEmail(), credentials.isImportPastEvents()))
                 .orElse(new CalendarConnectionStatus(false, null, false));
     }
 
     @Override
-    public void updatePreferences(UUID clinicId, UUID staffId, boolean importPastEvents) {
+    public void updatePreferences(UUID clinicId, UUID actingUserId, UUID staffId, boolean importPastEvents) {
+        requireIntegrationsPermission(clinicId, actingUserId);
         credentialsRepository.findByClinicIdAndStaffId(clinicId, staffId).ifPresent(credentials -> {
             if (credentials.isImportPastEvents() != importPastEvents) {
                 credentials.setImportPastEvents(importPastEvents);
@@ -92,6 +102,15 @@ public class CalendarIntegrationService implements ManageCalendarIntegrationUseC
                 credentialsRepository.save(credentials);
             }
         });
+    }
+
+    private void requireIntegrationsPermission(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_INTEGRATIONS)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para gestionar las integraciones de esta clinica.");
+        }
     }
 
 }

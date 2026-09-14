@@ -58,7 +58,7 @@ class TreatmentCatalogServiceAuthorizationTest {
                 "Limpieza", "PREVENTIVE", "desc", BigDecimal.TEN, 30, List.of());
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.createCatalogItem(clinicId, actingUserId, command));
+                () -> service.createCatalogItem(actingUserId, clinicId, command));
 
         verify(catalogRepository, never()).save(any());
     }
@@ -66,13 +66,13 @@ class TreatmentCatalogServiceAuthorizationTest {
     @Test
     void deniesReadingCatalogWithoutViewPermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getCatalogItemsByClinic(clinicId, actingUserId, false));
+                () -> service.getCatalogItemsByClinic(actingUserId, clinicId, false));
     }
 
     @Test
     void deniesEveryOperationWhenActingUserIsNull() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getCatalogItemsByClinic(clinicId, null, false));
+                () -> service.getCatalogItemsByClinic(null, clinicId, false));
         verify(permissionChecker, never()).hasPermission(any(), any(), any());
     }
 
@@ -85,7 +85,7 @@ class TreatmentCatalogServiceAuthorizationTest {
         CreateCatalogItemCommand command = new CreateCatalogItemCommand(
                 "Limpieza", "PREVENTIVE", "desc", BigDecimal.TEN, 30, List.of());
 
-        service.createCatalogItem(clinicId, actingUserId, command);
+        service.createCatalogItem(actingUserId, clinicId, command);
 
         verify(catalogRepository).save(any());
     }

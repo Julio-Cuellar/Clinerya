@@ -46,21 +46,23 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId) {
-        if (actingUserId == null
-                || !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_FINANCIAL_REPORTS)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para ver reportes financieros.");
+    private void requireViewReports(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_FINANCIAL_REPORTS)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para consultar los reportes financieros de esta clinica.");
         }
     }
 
     @Override
     public IncomeStatementReport generateIncomeStatement(
-            UUID clinicId,
             UUID actingUserId,
+            UUID clinicId,
             LocalDate from,
             LocalDate to,
             boolean includeComparison) {
-        authorize(actingUserId, clinicId);
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         long periodDays = ChronoUnit.DAYS.between(from, to) + 1;
@@ -92,8 +94,8 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     }
 
     @Override
-    public TrialBalanceReport generateTrialBalance(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to) {
-        authorize(actingUserId, clinicId);
+    public TrialBalanceReport generateTrialBalance(UUID actingUserId, UUID clinicId, LocalDate from, LocalDate to) {
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         Map<String, TrialAccount> accounts = new LinkedHashMap<>();
@@ -127,8 +129,8 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     }
 
     @Override
-    public WasteReport generateWasteReport(UUID clinicId, UUID actingUserId, LocalDate from, LocalDate to) {
-        authorize(actingUserId, clinicId);
+    public WasteReport generateWasteReport(UUID actingUserId, UUID clinicId, LocalDate from, LocalDate to) {
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         List<WasteReport.Line> lines = new ArrayList<>();

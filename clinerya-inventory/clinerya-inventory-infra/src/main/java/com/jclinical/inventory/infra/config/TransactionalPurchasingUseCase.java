@@ -22,79 +22,79 @@ public class TransactionalPurchasingUseCase implements ManagePurchasingUseCase {
 
     @Override
     @Transactional
-    public Supplier createSupplier(UUID clinicId, UUID actingUserId, CreateSupplierCommand command) {
-        return service.createSupplier(clinicId, actingUserId, command);
+    public Supplier createSupplier(UUID actingUserId, UUID clinicId, CreateSupplierCommand command) {
+        return service.createSupplier(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional
-    public Supplier updateSupplier(UUID clinicId, UUID supplierId, UUID actingUserId, UpdateSupplierCommand command) {
-        return service.updateSupplier(clinicId, supplierId, actingUserId, command);
+    public Supplier updateSupplier(UUID actingUserId, UUID clinicId, UUID supplierId, UpdateSupplierCommand command) {
+        return service.updateSupplier(actingUserId, clinicId, supplierId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Supplier> listSuppliers(UUID clinicId, UUID actingUserId) {
-        return service.listSuppliers(clinicId, actingUserId);
+    public List<Supplier> listSuppliers(UUID actingUserId, UUID clinicId) {
+        return service.listSuppliers(actingUserId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<SupplierMaterial> listSupplierMaterials(UUID clinicId, UUID supplierId, UUID actingUserId) {
-        return service.listSupplierMaterials(clinicId, supplierId, actingUserId);
+    public List<SupplierMaterial> listSupplierMaterials(UUID actingUserId, UUID clinicId, UUID supplierId) {
+        return service.listSupplierMaterials(actingUserId, clinicId, supplierId);
     }
 
     @Override
     @Transactional
-    public SupplierMaterial addSupplierMaterial(UUID clinicId, UUID supplierId, UUID actingUserId, AddSupplierMaterialCommand command) {
-        return service.addSupplierMaterial(clinicId, supplierId, actingUserId, command);
+    public SupplierMaterial addSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, AddSupplierMaterialCommand command) {
+        return service.addSupplierMaterial(actingUserId, clinicId, supplierId, command);
     }
 
     @Override
     @Transactional
-    public void removeSupplierMaterial(UUID clinicId, UUID supplierId, UUID materialId, UUID actingUserId) {
-        service.removeSupplierMaterial(clinicId, supplierId, materialId, actingUserId);
+    public void removeSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, UUID materialId) {
+        service.removeSupplierMaterial(actingUserId, clinicId, supplierId, materialId);
     }
 
     @Override
     @Transactional
-    public PurchaseOrder createPurchaseOrder(UUID clinicId, UUID actingUserId, CreatePurchaseOrderCommand command) {
-        return service.createPurchaseOrder(clinicId, actingUserId, command);
+    public PurchaseOrder createPurchaseOrder(UUID actingUserId, UUID clinicId, CreatePurchaseOrderCommand command) {
+        return service.createPurchaseOrder(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PurchaseOrder getPurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId) {
-        return service.getPurchaseOrder(clinicId, orderId, actingUserId);
+    public PurchaseOrder getPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId) {
+        return service.getPurchaseOrder(actingUserId, clinicId, orderId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PurchaseOrder> listPurchaseOrders(UUID clinicId, UUID actingUserId) {
-        return service.listPurchaseOrders(clinicId, actingUserId);
+    public List<PurchaseOrder> listPurchaseOrders(UUID actingUserId, UUID clinicId) {
+        return service.listPurchaseOrders(actingUserId, clinicId);
     }
 
     @Override
     @Transactional
-    public PurchaseOrder markPurchaseOrderOrdered(UUID clinicId, UUID orderId, UUID actingUserId) {
-        return service.markPurchaseOrderOrdered(clinicId, orderId, actingUserId);
+    public PurchaseOrder markPurchaseOrderOrdered(UUID actingUserId, UUID clinicId, UUID orderId) {
+        return service.markPurchaseOrderOrdered(actingUserId, clinicId, orderId);
     }
 
     @Override
     @Transactional
-    public PurchaseOrder cancelPurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId) {
-        return service.cancelPurchaseOrder(clinicId, orderId, actingUserId);
+    public PurchaseOrder cancelPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId) {
+        return service.cancelPurchaseOrder(actingUserId, clinicId, orderId);
     }
 
     @Override
     @Transactional
-    public PurchaseReceipt receivePurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId, ReceivePurchaseOrderCommand command) {
-        return service.receivePurchaseOrder(clinicId, orderId, actingUserId, command);
+    public PurchaseReceipt receivePurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId, ReceivePurchaseOrderCommand command) {
+        return service.receivePurchaseOrder(actingUserId, clinicId, orderId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PurchaseReceipt> listReceipts(UUID clinicId, UUID orderId, UUID actingUserId) {
-        return service.listReceipts(clinicId, orderId, actingUserId);
+    public List<PurchaseReceipt> listReceipts(UUID actingUserId, UUID clinicId, UUID orderId) {
+        return service.listReceipts(actingUserId, clinicId, orderId);
     }
 }

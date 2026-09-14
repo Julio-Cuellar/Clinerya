@@ -24,7 +24,8 @@ public class MaterialReservationController {
 
     @GetMapping
     public ResponseEntity<List<MaterialReservationResponse>> listActiveReservations(@PathVariable UUID clinicId) {
-        List<MaterialReservationResponse> response = reservationUseCase.listActiveReservations(clinicId, currentUserResolver.getCurrentUserId()).stream()
+        List<MaterialReservationResponse> response = reservationUseCase
+                .listActiveReservations(currentUserResolver.getCurrentUserId(), clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(response);

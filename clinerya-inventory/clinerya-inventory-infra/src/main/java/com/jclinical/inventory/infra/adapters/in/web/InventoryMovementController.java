@@ -35,6 +35,7 @@ public class InventoryMovementController {
             @PathVariable UUID clinicId,
             @PathVariable UUID materialId,
             @RequestBody RegisterInventoryMovementRequest request) {
+        UUID actingUserId = currentUserResolver.getCurrentUserId();
         RegisterMovementCommand command = new RegisterMovementCommand(
                 request.type(),
                 request.quantity(),
@@ -45,11 +46,10 @@ public class InventoryMovementController {
                 request.expirationDate(),
                 request.batchId()
         );
-        UUID actingUserId = currentUserResolver.getCurrentUserId();
         InventoryMovement movement = switch (request.type()) {
-            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(clinicId, materialId, actingUserId, command);
-            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(clinicId, materialId, actingUserId, command);
-            case SALE_EXIT -> movementUseCase.registerSaleExit(clinicId, materialId, actingUserId, command);
+            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(actingUserId, clinicId, materialId, command);
+            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(actingUserId, clinicId, materialId, command);
+            case SALE_EXIT -> movementUseCase.registerSaleExit(actingUserId, clinicId, materialId, command);
             case USAGE_EXIT -> throw new IllegalArgumentException("USAGE_EXIT solo puede registrarse desde una visita clínica.");
         };
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(movement));
@@ -61,7 +61,8 @@ public class InventoryMovementController {
             @PathVariable UUID materialId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
-        List<InventoryMovementResponse> responses = movementUseCase.listMovementsByMaterial(clinicId, materialId, currentUserResolver.getCurrentUserId(), page, size).stream()
+        List<InventoryMovementResponse> responses = movementUseCase
+                .listMovementsByMaterial(currentUserResolver.getCurrentUserId(), clinicId, materialId, page, size).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -71,7 +72,8 @@ public class InventoryMovementController {
     public ResponseEntity<List<BatchResponse>> getBatches(
             @PathVariable UUID clinicId,
             @PathVariable UUID materialId) {
-        List<BatchResponse> responses = movementUseCase.listBatchesByMaterial(clinicId, materialId, currentUserResolver.getCurrentUserId()).stream()
+        List<BatchResponse> responses = movementUseCase
+                .listBatchesByMaterial(currentUserResolver.getCurrentUserId(), clinicId, materialId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);

@@ -4,6 +4,7 @@ import com.jclinical.accounting.domain.ports.in.GenerateAccountingReportsUseCase
 import com.jclinical.accounting.infra.adapters.in.web.dto.IncomeStatementResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.TrialBalanceResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.WasteReportResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import com.jclinical.users.infra.security.CurrentUserResolver;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(IncomeStatementResponse.from(
-                reportsUseCase.generateIncomeStatement(clinicId, currentUserResolver.getCurrentUserId(), from, to, compare)));
+                reportsUseCase.generateIncomeStatement(currentUserResolver.getCurrentUserId(), clinicId, from, to, compare)));
     }
 
     @GetMapping("/trial-balance")
@@ -51,7 +51,7 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(TrialBalanceResponse.from(
-                reportsUseCase.generateTrialBalance(clinicId, currentUserResolver.getCurrentUserId(), from, to)));
+                reportsUseCase.generateTrialBalance(currentUserResolver.getCurrentUserId(), clinicId, from, to)));
     }
 
     @GetMapping("/waste")
@@ -64,6 +64,6 @@ public class AccountingReportController {
                     "La fecha inicial no puede ser posterior a la fecha final.");
         }
         return ResponseEntity.ok(WasteReportResponse.from(
-                reportsUseCase.generateWasteReport(clinicId, currentUserResolver.getCurrentUserId(), from, to)));
+                reportsUseCase.generateWasteReport(currentUserResolver.getCurrentUserId(), clinicId, from, to)));
     }
 }

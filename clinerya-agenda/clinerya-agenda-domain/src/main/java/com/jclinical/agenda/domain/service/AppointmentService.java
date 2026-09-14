@@ -76,20 +76,24 @@ public class AppointmentService implements ManageAppointmentsUseCase {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de agenda.");
+    /**
+     * Aplica el permiso solo cuando hay un usuario actuando (llamada desde el adaptador web).
+     * {@code actingUserId == null} identifica una ruta interna de confianza (sincronizacion de
+     * calendario externo, seeders) y omite el control.
+     */
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            return;
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
         }
     }
 
     @Override
-    public Appointment createAppointment(UUID clinicId, UUID actingUserId, CreateAppointmentCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.CREATE_APPOINTMENTS);
-        return createAppointmentForSystem(clinicId, command);
-    }
-
-    @Override
-    public Appointment createAppointmentForSystem(UUID clinicId, CreateAppointmentCommand command) {
+    public Appointment createAppointment(UUID actingUserId, UUID clinicId, CreateAppointmentCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CREATE_APPOINTMENTS,
+                "No tienes permiso para crear citas en esta clinica.");
         List<UUID> quotationItemIds = normalizeQuotationItemIds(command.quotationItemIds(), command.quotationItemId());
         if (command.patientId() != null) {
             if (!patientValidator.existsByIdAndClinicId(command.patientId(), clinicId)) {
@@ -159,8 +163,9 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public List<Appointment> createAppointmentSeries(UUID clinicId, UUID actingUserId, CreateAppointmentSeriesCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.CREATE_APPOINTMENTS);
+    public List<Appointment> createAppointmentSeries(UUID actingUserId, UUID clinicId, CreateAppointmentSeriesCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CREATE_APPOINTMENTS,
+                "No tienes permiso para crear citas en esta clinica.");
         if (command.repeatCount() <= 0 || command.repeatCount() > 52) {
             throw new IllegalArgumentException("El número de repeticiones debe ser entre 1 y 52.");
         }
@@ -184,7 +189,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
                     command.notes(),
                     false
             );
-            Appointment app = createAppointmentForSystem(clinicId, singleCommand);
+            Appointment app = createAppointment(clinicId, singleCommand);
             app.setSeriesId(seriesId);
             appointmentRepository.save(app);
             createdList.add(app);
@@ -213,14 +218,10 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId, LocalDateTime newStart, LocalDateTime newEnd) {
-        authorize(actingUserId, clinicId, StaffPermission.EDIT_APPOINTMENTS);
-        return rescheduleAppointmentForSystem(appointmentId, clinicId, newStart, newEnd, false);
-    }
-
-    @Override
-    public Appointment rescheduleAppointmentForSystem(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport) {
-        Appointment appointment = getAppointmentForSystem(appointmentId, clinicId);
+    public Appointment rescheduleAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport) {
+        requirePermission(clinicId, actingUserId, StaffPermission.EDIT_APPOINTMENTS,
+                "No tienes permiso para reprogramar citas en esta clinica.");
+        Appointment appointment = getAppointment(appointmentId, clinicId);
         validateTimeRange(newStart, newEnd);
         validateFutureStart(newStart, externalImport);
         if (!externalImport) {
@@ -244,16 +245,13 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public Appointment transitionStatus(UUID appointmentId, UUID clinicId, UUID actingUserId, AppointmentStatus targetStatus, String cancellationReason) {
-        authorize(actingUserId, clinicId,
-                targetStatus == AppointmentStatus.CANCELLED ? StaffPermission.CANCEL_APPOINTMENTS : StaffPermission.EDIT_APPOINTMENTS);
-        UUID cancelledByUserId = targetStatus == AppointmentStatus.CANCELLED ? actingUserId : null;
-        return transitionStatusForSystem(appointmentId, clinicId, targetStatus, cancellationReason, cancelledByUserId);
-    }
-
-    @Override
-    public Appointment transitionStatusForSystem(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId) {
-        Appointment appointment = getAppointmentForSystem(appointmentId, clinicId);
+    public Appointment transitionStatus(UUID actingUserId, UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId) {
+        StaffPermission required = targetStatus == AppointmentStatus.CANCELLED
+                ? StaffPermission.CANCEL_APPOINTMENTS
+                : StaffPermission.EDIT_APPOINTMENTS;
+        requirePermission(clinicId, actingUserId, required,
+                "No tienes permiso para cambiar el estado de las citas de esta clinica.");
+        Appointment appointment = getAppointment(appointmentId, clinicId);
         boolean hadMaterialsReserved = appointment.isMaterialsReserved();
 
         if (targetStatus == AppointmentStatus.CANCELLED) {
@@ -289,15 +287,16 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
     @Override
     public Appointment attachExternalCalendarEvent(UUID appointmentId, UUID clinicId, String externalCalendarEventId) {
-        Appointment appointment = getAppointmentForSystem(appointmentId, clinicId);
+        Appointment appointment = getAppointment(appointmentId, clinicId);
         appointment.setExternalCalendarEventId(externalCalendarEventId);
         return appointmentRepository.save(appointment);
     }
 
     @Override
-    public void deleteAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.CANCEL_APPOINTMENTS);
-        Appointment appointment = getAppointmentForSystem(appointmentId, clinicId);
+    public void deleteAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.CANCEL_APPOINTMENTS,
+                "No tienes permiso para eliminar citas en esta clinica.");
+        Appointment appointment = getAppointment(appointmentId, clinicId);
         appointmentRepository.delete(appointment);
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_DELETED, new AppointmentDeletedEvent(
@@ -306,20 +305,14 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public Appointment getAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
-        return getAppointmentForSystem(appointmentId, clinicId);
-    }
-
-    @Override
-    public Appointment getAppointmentForSystem(UUID appointmentId, UUID clinicId) {
+    public Appointment getAppointment(UUID appointmentId, UUID clinicId) {
         return appointmentRepository.findByIdAndClinicId(appointmentId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La cita no existe en esta clínica."));
     }
 
     @Override
-    public List<Appointment> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
+    public List<Appointment> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to) {
+        requireViewAgenda(clinicId, actingUserId);
         if (from == null || to == null || !from.isBefore(to)) {
             throw new IllegalArgumentException("El rango de fechas es inválido.");
         }
@@ -327,15 +320,20 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public List<Appointment> listByQuotation(UUID quotationId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
+    public List<Appointment> listByQuotation(UUID actingUserId, UUID quotationId, UUID clinicId) {
+        requireViewAgenda(clinicId, actingUserId);
         return appointmentRepository.findByQuotationIdAndClinicId(quotationId, clinicId);
     }
 
     @Override
-    public List<Appointment> listByPatient(UUID patientId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
+    public List<Appointment> listByPatient(UUID actingUserId, UUID patientId, UUID clinicId) {
+        requireViewAgenda(clinicId, actingUserId);
         return appointmentRepository.findByPatientIdAndClinicId(patientId, clinicId);
+    }
+
+    private void requireViewAgenda(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_AGENDA,
+                "No tienes permiso para consultar la agenda de esta clinica.");
     }
 
     @Override
@@ -344,9 +342,10 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public Appointment assignPatient(UUID appointmentId, UUID clinicId, UUID actingUserId, UUID patientId) {
-        authorize(actingUserId, clinicId, StaffPermission.EDIT_APPOINTMENTS);
-        Appointment appointment = getAppointmentForSystem(appointmentId, clinicId);
+    public Appointment assignPatient(UUID actingUserId, UUID appointmentId, UUID clinicId, UUID patientId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.EDIT_APPOINTMENTS,
+                "No tienes permiso para editar citas en esta clinica.");
+        Appointment appointment = getAppointment(appointmentId, clinicId);
         if (patientId != null) {
             if (!patientValidator.existsByIdAndClinicId(patientId, clinicId)) {
                 throw new IllegalArgumentException("El paciente no existe en esta clínica.");
@@ -364,15 +363,15 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     }
 
     @Override
-    public List<Appointment> listWithoutPatient(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
+    public List<Appointment> listWithoutPatient(UUID actingUserId, UUID clinicId) {
+        requireViewAgenda(clinicId, actingUserId);
         return appointmentRepository.findByClinicIdAndPatientIdIsNull(clinicId);
     }
 
 
     @Override
-    public List<DoctorSnapshot> listDoctors(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
+    public List<DoctorSnapshot> listDoctors(UUID actingUserId, UUID clinicId) {
+        requireViewAgenda(clinicId, actingUserId);
         return staffValidator.listActiveDoctors(clinicId);
     }
 

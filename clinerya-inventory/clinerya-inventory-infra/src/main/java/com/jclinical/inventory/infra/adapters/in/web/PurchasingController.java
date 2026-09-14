@@ -22,6 +22,7 @@ import com.jclinical.inventory.infra.adapters.in.web.dto.SupplierRequest;
 import com.jclinical.inventory.infra.adapters.in.web.dto.SupplierResponse;
 import com.jclinical.inventory.infra.adapters.in.web.dto.SupplierMaterialRequest;
 import com.jclinical.inventory.infra.adapters.in.web.dto.SupplierMaterialResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +35,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.jclinical.users.infra.security.CurrentUserResolver;
 
 import java.util.List;
 import java.util.UUID;
@@ -48,14 +48,14 @@ public class PurchasingController {
 
     @GetMapping("/suppliers")
     public ResponseEntity<List<SupplierResponse>> listSuppliers(@PathVariable UUID clinicId) {
-        return ResponseEntity.ok(purchasingUseCase.listSuppliers(clinicId, currentUserResolver.getCurrentUserId()).stream().map(this::toResponse).toList());
+        return ResponseEntity.ok(purchasingUseCase.listSuppliers(currentUserResolver.getCurrentUserId(), clinicId).stream().map(this::toResponse).toList());
     }
 
     @PostMapping("/suppliers")
     public ResponseEntity<SupplierResponse> createSupplier(
             @PathVariable UUID clinicId,
             @RequestBody SupplierRequest request) {
-        Supplier supplier = purchasingUseCase.createSupplier(clinicId, currentUserResolver.getCurrentUserId(), new CreateSupplierCommand(
+        Supplier supplier = purchasingUseCase.createSupplier(currentUserResolver.getCurrentUserId(), clinicId, new CreateSupplierCommand(
                 request.name(),
                 request.contactName(),
                 request.phone(),
@@ -71,7 +71,7 @@ public class PurchasingController {
             @PathVariable UUID clinicId,
             @PathVariable UUID supplierId,
             @RequestBody SupplierRequest request) {
-        Supplier supplier = purchasingUseCase.updateSupplier(clinicId, supplierId, currentUserResolver.getCurrentUserId(), new UpdateSupplierCommand(
+        Supplier supplier = purchasingUseCase.updateSupplier(currentUserResolver.getCurrentUserId(), clinicId, supplierId, new UpdateSupplierCommand(
                 request.name(),
                 request.contactName(),
                 request.phone(),
@@ -87,7 +87,7 @@ public class PurchasingController {
     public ResponseEntity<List<SupplierMaterialResponse>> listSupplierMaterials(
             @PathVariable UUID clinicId,
             @PathVariable UUID supplierId) {
-        return ResponseEntity.ok(purchasingUseCase.listSupplierMaterials(clinicId, supplierId, currentUserResolver.getCurrentUserId()).stream()
+        return ResponseEntity.ok(purchasingUseCase.listSupplierMaterials(currentUserResolver.getCurrentUserId(), clinicId, supplierId).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -98,9 +98,9 @@ public class PurchasingController {
             @PathVariable UUID supplierId,
             @RequestBody SupplierMaterialRequest request) {
         SupplierMaterial supplierMaterial = purchasingUseCase.addSupplierMaterial(
+                currentUserResolver.getCurrentUserId(),
                 clinicId,
                 supplierId,
-                currentUserResolver.getCurrentUserId(),
                 new AddSupplierMaterialCommand(request.materialId(), request.supplierUnitCost())
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(supplierMaterial));
@@ -111,13 +111,13 @@ public class PurchasingController {
             @PathVariable UUID clinicId,
             @PathVariable UUID supplierId,
             @PathVariable UUID materialId) {
-        purchasingUseCase.removeSupplierMaterial(clinicId, supplierId, materialId, currentUserResolver.getCurrentUserId());
+        purchasingUseCase.removeSupplierMaterial(currentUserResolver.getCurrentUserId(), clinicId, supplierId, materialId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/purchase-orders")
     public ResponseEntity<List<PurchaseOrderResponse>> listPurchaseOrders(@PathVariable UUID clinicId) {
-        return ResponseEntity.ok(purchasingUseCase.listPurchaseOrders(clinicId, currentUserResolver.getCurrentUserId()).stream()
+        return ResponseEntity.ok(purchasingUseCase.listPurchaseOrders(currentUserResolver.getCurrentUserId(), clinicId).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -126,7 +126,7 @@ public class PurchasingController {
     public ResponseEntity<PurchaseOrderResponse> getPurchaseOrder(
             @PathVariable UUID clinicId,
             @PathVariable UUID orderId) {
-        return ResponseEntity.ok(toResponse(purchasingUseCase.getPurchaseOrder(clinicId, orderId, currentUserResolver.getCurrentUserId())));
+        return ResponseEntity.ok(toResponse(purchasingUseCase.getPurchaseOrder(currentUserResolver.getCurrentUserId(), clinicId, orderId)));
     }
 
     @PostMapping("/purchase-orders")
@@ -136,7 +136,7 @@ public class PurchasingController {
         List<CreatePurchaseOrderLineCommand> lines = request.lines() == null ? List.of() : request.lines().stream()
                 .map(line -> new CreatePurchaseOrderLineCommand(line.materialId(), line.quantity(), line.unitCost()))
                 .toList();
-        PurchaseOrder order = purchasingUseCase.createPurchaseOrder(clinicId, currentUserResolver.getCurrentUserId(), new CreatePurchaseOrderCommand(
+        PurchaseOrder order = purchasingUseCase.createPurchaseOrder(currentUserResolver.getCurrentUserId(), clinicId, new CreatePurchaseOrderCommand(
                 request.supplierId(),
                 request.orderDate(),
                 request.expectedDate(),
@@ -151,21 +151,21 @@ public class PurchasingController {
     public ResponseEntity<PurchaseOrderResponse> markOrdered(
             @PathVariable UUID clinicId,
             @PathVariable UUID orderId) {
-        return ResponseEntity.ok(toResponse(purchasingUseCase.markPurchaseOrderOrdered(clinicId, orderId, currentUserResolver.getCurrentUserId())));
+        return ResponseEntity.ok(toResponse(purchasingUseCase.markPurchaseOrderOrdered(currentUserResolver.getCurrentUserId(), clinicId, orderId)));
     }
 
     @PatchMapping("/purchase-orders/{orderId}/cancel")
     public ResponseEntity<PurchaseOrderResponse> cancel(
             @PathVariable UUID clinicId,
             @PathVariable UUID orderId) {
-        return ResponseEntity.ok(toResponse(purchasingUseCase.cancelPurchaseOrder(clinicId, orderId, currentUserResolver.getCurrentUserId())));
+        return ResponseEntity.ok(toResponse(purchasingUseCase.cancelPurchaseOrder(currentUserResolver.getCurrentUserId(), clinicId, orderId)));
     }
 
     @GetMapping("/purchase-orders/{orderId}/receipts")
     public ResponseEntity<List<PurchaseReceiptResponse>> listReceipts(
             @PathVariable UUID clinicId,
             @PathVariable UUID orderId) {
-        return ResponseEntity.ok(purchasingUseCase.listReceipts(clinicId, orderId, currentUserResolver.getCurrentUserId()).stream()
+        return ResponseEntity.ok(purchasingUseCase.listReceipts(currentUserResolver.getCurrentUserId(), clinicId, orderId).stream()
                 .map(this::toResponse)
                 .toList());
     }
@@ -184,7 +184,7 @@ public class PurchasingController {
                         line.expirationDate()
                 ))
                 .toList();
-        PurchaseReceipt receipt = purchasingUseCase.receivePurchaseOrder(clinicId, orderId, currentUserResolver.getCurrentUserId(), new ReceivePurchaseOrderCommand(
+        PurchaseReceipt receipt = purchasingUseCase.receivePurchaseOrder(currentUserResolver.getCurrentUserId(), clinicId, orderId, new ReceivePurchaseOrderCommand(
                 request.receivedAt(),
                 request.notes(),
                 lines

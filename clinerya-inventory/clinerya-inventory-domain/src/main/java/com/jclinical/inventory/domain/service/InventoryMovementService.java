@@ -44,14 +44,9 @@ public class InventoryMovementService {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
-        }
-    }
-
-    public InventoryMovement registerPurchaseEntry(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
+    public InventoryMovement registerPurchaseEntry(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS,
+                "No tienes permiso para registrar movimientos de inventario en esta clinica.");
         if (command.type() != MovementType.PURCHASE_ENTRY) {
             throw new IllegalArgumentException("El tipo de movimiento debe ser PURCHASE_ENTRY.");
         }
@@ -102,12 +97,13 @@ public class InventoryMovementService {
         );
     }
 
-    public InventoryMovement registerAdjustment(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
-        return doRegisterAdjustment(clinicId, materialId, command);
+    public InventoryMovement registerAdjustment(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS,
+                "No tienes permiso para registrar movimientos de inventario en esta clinica.");
+        return applyAdjustment(clinicId, materialId, command);
     }
 
-    private InventoryMovement doRegisterAdjustment(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+    private InventoryMovement applyAdjustment(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
         if (command.type() == null || !command.type().isAdjustment()) {
             throw new IllegalArgumentException("El ajuste debe ser ADJUSTMENT_IN o ADJUSTMENT_OUT.");
         }
@@ -146,8 +142,9 @@ public class InventoryMovementService {
         return movement;
     }
 
-    public InventoryMovement registerSaleExit(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS);
+    public InventoryMovement registerSaleExit(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_INVENTORY_MOVEMENTS,
+                "No tienes permiso para registrar movimientos de inventario en esta clinica.");
         if (command.type() != MovementType.SALE_EXIT) {
             throw new IllegalArgumentException("El tipo de movimiento debe ser SALE_EXIT.");
         }
@@ -197,8 +194,8 @@ public class InventoryMovementService {
                 ));
     }
 
-    public List<InventoryMovement> listMovementsByMaterial(UUID clinicId, UUID materialId, UUID actingUserId, int page, int size) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<InventoryMovement> listMovementsByMaterial(UUID actingUserId, UUID clinicId, UUID materialId, int page, int size) {
+        requireInventoryRead(clinicId, actingUserId);
         if (page < 0) {
             throw new IllegalArgumentException("La página no puede ser negativa.");
         }
@@ -209,8 +206,8 @@ public class InventoryMovementService {
         return movementRepository.findByMaterialIdAndClinicId(materialId, clinicId, page, size);
     }
 
-    public List<InventoryMovement> listMovementsByClinic(UUID clinicId, UUID actingUserId, int page, int size) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<InventoryMovement> listMovementsByClinic(UUID actingUserId, UUID clinicId, int page, int size) {
+        requireInventoryRead(clinicId, actingUserId);
         if (page < 0) {
             throw new IllegalArgumentException("La página no puede ser negativa.");
         }
@@ -220,18 +217,19 @@ public class InventoryMovementService {
         return movementRepository.findByClinicId(clinicId, page, size);
     }
 
-    public List<InventoryBatch> listBatchesByMaterial(UUID clinicId, UUID materialId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<InventoryBatch> listBatchesByMaterial(UUID actingUserId, UUID clinicId, UUID materialId) {
+        requireInventoryRead(clinicId, actingUserId);
         ensureMaterialExists(materialId, clinicId);
         return batchRepository.findByMaterialIdAndClinicId(materialId, clinicId);
     }
 
-    public List<InventoryMovement> registerExpiredBatchWastes(UUID clinicId, UUID actingUserId, LocalDate asOfDate) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_INVENTORY_LOTS);
+    public List<InventoryMovement> registerExpiredBatchWastes(UUID actingUserId, UUID clinicId, LocalDate asOfDate) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_INVENTORY_LOTS,
+                "No tienes permiso para regularizar lotes de inventario en esta clinica.");
         LocalDate cutoffDate = asOfDate != null ? asOfDate : LocalDate.now();
         return batchRepository.findExpiredWithRemainingForUpdate(clinicId, cutoffDate).stream()
                 .filter(batch -> batch.getRemainingQuantity() != null && batch.getRemainingQuantity().signum() > 0)
-                .map(batch -> doRegisterAdjustment(
+                .map(batch -> applyAdjustment(
                         clinicId,
                         batch.getMaterialId(),
                         new RegisterMovementCommand(
@@ -413,6 +411,20 @@ public class InventoryMovementService {
     private void ensureMaterialExists(UUID materialId, UUID clinicId) {
         materialRepository.findByIdAndClinicId(materialId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El material no existe en esta clínica."));
+    }
+
+    private void requireInventoryRead(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_INVENTORY,
+                "No tienes permiso para consultar el inventario de esta clinica.");
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private void validateQuantity(BigDecimal quantity) {

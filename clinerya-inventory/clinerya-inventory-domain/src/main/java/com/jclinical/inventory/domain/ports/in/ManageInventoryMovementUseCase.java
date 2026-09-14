@@ -12,26 +12,22 @@ import java.util.UUID;
 
 public interface ManageInventoryMovementUseCase {
 
-    InventoryMovement registerPurchaseEntry(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command);
+    InventoryMovement registerPurchaseEntry(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command);
 
-    InventoryMovement registerAdjustment(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command);
+    InventoryMovement registerAdjustment(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command);
 
-    InventoryMovement registerSaleExit(UUID clinicId, UUID materialId, UUID actingUserId, RegisterMovementCommand command);
+    InventoryMovement registerSaleExit(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command);
 
-    /**
-     * Solo se registra desde una visita clinica (consumo de insumos), nunca desde un
-     * controlador HTTP directo: el acceso ya lo autorizo el modulo de tratamientos contra
-     * el expediente del paciente.
-     */
+    /** Sin control de permiso: paso interno del consumo de materiales en una visita clinica. */
     InventoryMovement registerUsageExit(UUID clinicId, UUID materialId, RegisterUsageExitCommand command);
 
-    List<InventoryMovement> listMovementsByMaterial(UUID clinicId, UUID materialId, UUID actingUserId, int page, int size);
+    List<InventoryMovement> listMovementsByMaterial(UUID actingUserId, UUID clinicId, UUID materialId, int page, int size);
 
-    List<InventoryMovement> listMovementsByClinic(UUID clinicId, UUID actingUserId, int page, int size);
+    List<InventoryMovement> listMovementsByClinic(UUID actingUserId, UUID clinicId, int page, int size);
 
-    List<InventoryBatch> listBatchesByMaterial(UUID clinicId, UUID materialId, UUID actingUserId);
+    List<InventoryBatch> listBatchesByMaterial(UUID actingUserId, UUID clinicId, UUID materialId);
 
-    List<InventoryMovement> registerExpiredBatchWastes(UUID clinicId, UUID actingUserId, LocalDate asOfDate);
+    List<InventoryMovement> registerExpiredBatchWastes(UUID actingUserId, UUID clinicId, LocalDate asOfDate);
 
     record RegisterMovementCommand(
             MovementType type,

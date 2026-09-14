@@ -75,7 +75,7 @@ class AppointmentPermissionAuthorizationTest {
                 LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusMinutes(30), "Consulta", null);
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.createAppointment(clinicId, actingUserId, command));
+                () -> service.createAppointment(actingUserId, clinicId, command));
 
         verify(appointmentRepository, never()).save(any());
     }
@@ -89,7 +89,7 @@ class AppointmentPermissionAuthorizationTest {
                 .thenReturn(false);
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.transitionStatus(appointmentId, clinicId, actingUserId, AppointmentStatus.CANCELLED, "motivo"));
+                () -> service.transitionStatus(actingUserId, appointmentId, clinicId, AppointmentStatus.CANCELLED, "motivo", null));
 
         verify(appointmentRepository, never()).findByIdAndClinicId(any(), any());
     }
@@ -97,13 +97,14 @@ class AppointmentPermissionAuthorizationTest {
     @Test
     void deniesReadingAgendaWithoutViewPermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.listByClinicRange(clinicId, actingUserId, LocalDateTime.now(), LocalDateTime.now().plusDays(1)));
+                () -> service.listByClinicRange(actingUserId, clinicId, LocalDateTime.now(), LocalDateTime.now().plusDays(1)));
     }
 
     @Test
-    void deniesEveryOperationWhenActingUserIsNull() {
-        assertThrows(ClinicAccessDeniedException.class,
-                () -> service.listDoctors(clinicId, null));
+    void nullActingUserIdIsTreatedAsATrustedInternalCallerAndSkipsThePermissionCheck() {
+        // Los controladores siempre resuelven un actingUserId real desde el token; null solo
+        // lo manda una llamada interna (background/evento), que no pasa por autorizacion.
+        service.listDoctors(null, clinicId);
         verify(permissionChecker, never()).hasPermission(any(), any(), any());
     }
 }

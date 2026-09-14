@@ -8,19 +8,13 @@ import java.util.UUID;
 
 public interface ManageMaterialReservationUseCase {
 
-    /**
-     * Se dispara al agendar una cita con tratamiento ligado, desde un listener de eventos:
-     * no hay usuario en la peticion. No exponer desde un controlador.
-     */
+    /** Sin control de permiso: reaccion a eventos de agenda, sin usuario en contexto. */
     void reserveForAppointment(UUID clinicId, UUID appointmentId, List<ReservationLineCommand> lines);
 
-    /**
-     * Se dispara al cancelar/completar una cita, desde un listener de eventos: no hay
-     * usuario en la peticion. No exponer desde un controlador.
-     */
+    /** Sin control de permiso: reaccion a eventos de agenda, sin usuario en contexto. */
     void releaseForAppointment(UUID clinicId, UUID appointmentId);
 
-    List<MaterialReservationDetail> listActiveReservations(UUID clinicId, UUID actingUserId);
+    List<MaterialReservationDetail> listActiveReservations(UUID actingUserId, UUID clinicId);
 
     record ReservationLineCommand(UUID materialId, String materialName, BigDecimal quantity) {}
 }

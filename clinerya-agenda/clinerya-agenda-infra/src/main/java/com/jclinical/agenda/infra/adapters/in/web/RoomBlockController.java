@@ -37,14 +37,14 @@ public class RoomBlockController {
     public ResponseEntity<RoomBlockResponse> create(
             @PathVariable UUID clinicId,
             @RequestBody CreateRoomBlockRequest request) {
-        UUID actingUserId = currentUserResolver.getCurrentUserId();
-        RoomBlock block = roomBlocksUseCase.createBlock(clinicId, actingUserId, new CreateRoomBlockCommand(
+        RoomBlock block = roomBlocksUseCase.createBlock(
+                currentUserResolver.getCurrentUserId(), clinicId, new CreateRoomBlockCommand(
                 request.roomId(),
                 request.startsAt(),
                 request.endsAt(),
                 request.type(),
                 request.reason(),
-                actingUserId
+                null
         ));
         return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toResponse(block));
     }
@@ -54,7 +54,8 @@ public class RoomBlockController {
             @PathVariable UUID clinicId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        return ResponseEntity.ok(roomBlocksUseCase.listByClinicRange(clinicId, currentUserResolver.getCurrentUserId(), from, to).stream()
+        return ResponseEntity.ok(roomBlocksUseCase
+                .listByClinicRange(currentUserResolver.getCurrentUserId(), clinicId, from, to).stream()
                 .map(mapper::toResponse)
                 .toList());
     }
@@ -63,7 +64,7 @@ public class RoomBlockController {
     public ResponseEntity<Void> deactivate(
             @PathVariable UUID clinicId,
             @PathVariable UUID blockId) {
-        roomBlocksUseCase.deactivateBlock(clinicId, blockId, currentUserResolver.getCurrentUserId());
+        roomBlocksUseCase.deactivateBlock(currentUserResolver.getCurrentUserId(), clinicId, blockId);
         return ResponseEntity.noContent().build();
     }
 }

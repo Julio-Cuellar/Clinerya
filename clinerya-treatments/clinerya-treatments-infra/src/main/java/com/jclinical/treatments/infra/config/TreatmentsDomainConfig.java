@@ -1,7 +1,5 @@
 package com.jclinical.treatments.infra.config;
 
-import com.jclinical.core.security.PatientAccessAuthorizationPort;
-import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.treatments.domain.model.ItemProgressStatus;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
@@ -20,6 +18,8 @@ import com.jclinical.treatments.domain.ports.out.VisitRepositoryPort;
 import com.jclinical.treatments.domain.service.QuotationService;
 import com.jclinical.treatments.domain.service.TreatmentCatalogService;
 import com.jclinical.treatments.domain.service.VisitService;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationEntity;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationItemEntity;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationItemMapper;
@@ -309,7 +309,8 @@ public class TreatmentsDomainConfig {
             InventoryMaterialPort inventoryMaterialPort,
             com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
             PatientAccessAuthorizationPort accessAuthorizationPort) {
-        return new VisitService(visitRepository, quotationRepository, patientValidator, inventoryMaterialPort, eventPublisher, accessAuthorizationPort);
+        return new VisitService(visitRepository, quotationRepository, patientValidator, inventoryMaterialPort,
+                eventPublisher, accessAuthorizationPort);
     }
 
     @Bean

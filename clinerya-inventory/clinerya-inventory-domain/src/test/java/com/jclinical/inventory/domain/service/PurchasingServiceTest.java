@@ -37,13 +37,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PurchasingServiceTest {
 
+    private static final StaffPermissionCheckerPort ALLOW_ALL = (clinicId, userId, permission) -> true;
+
     @Test
     void partialReceiptUpdatesStockWeightedCostBatchAndKardex() {
         UUID clinicId = UUID.randomUUID();
+        UUID actingUserId = UUID.randomUUID();
         UUID supplierId = UUID.randomUUID();
         UUID materialId = UUID.randomUUID();
-        UUID actingUserId = UUID.randomUUID();
-        StaffPermissionCheckerPort permissionChecker = (clinic, user, permission) -> true;
 
         InMemorySupplierRepository suppliers = new InMemorySupplierRepository();
         suppliers.save(Supplier.builder()
@@ -73,7 +74,7 @@ class PurchasingServiceTest {
                 movements,
                 batches,
                 (routingKey, payload) -> { },
-                permissionChecker
+                ALLOW_ALL
         );
         InMemoryPurchaseOrderRepository orders = new InMemoryPurchaseOrderRepository();
         InMemoryPurchaseReceiptRepository receipts = new InMemoryPurchaseReceiptRepository();
@@ -86,10 +87,10 @@ class PurchasingServiceTest {
                 materials,
                 movementService,
                 (routingKey, payload) -> { },
-                permissionChecker
+                ALLOW_ALL
         );
 
-        PurchaseOrder order = service.createPurchaseOrder(clinicId, actingUserId, new CreatePurchaseOrderCommand(
+        PurchaseOrder order = service.createPurchaseOrder(actingUserId, clinicId, new CreatePurchaseOrderCommand(
                 supplierId,
                 LocalDate.now(),
                 LocalDate.now().plusDays(2),
@@ -101,9 +102,9 @@ class PurchasingServiceTest {
                         new BigDecimal("9.0000")
                 ))
         ));
-        service.markPurchaseOrderOrdered(clinicId, order.getId(), actingUserId);
+        service.markPurchaseOrderOrdered(actingUserId, clinicId, order.getId());
 
-        PurchaseReceipt receipt = service.receivePurchaseOrder(clinicId, order.getId(), actingUserId, new ReceivePurchaseOrderCommand(
+        PurchaseReceipt receipt = service.receivePurchaseOrder(actingUserId, clinicId, order.getId(), new ReceivePurchaseOrderCommand(
                 null,
                 "Entrega parcial",
                 List.of(new ReceivePurchaseOrderLineCommand(

@@ -8,13 +8,13 @@ import java.util.UUID;
 
 public interface ManageCashExpensesUseCase {
 
-    CashExpense registerExpense(UUID clinicId, UUID actingUserId, RegisterExpenseCommand command);
+    CashExpense registerExpense(UUID actingUserId, UUID clinicId, RegisterExpenseCommand command);
 
-    CashExpense getExpense(UUID expenseId, UUID clinicId, UUID actingUserId);
+    CashExpense getExpense(UUID actingUserId, UUID expenseId, UUID clinicId);
 
-    List<CashExpense> listBySession(UUID cashSessionId, UUID clinicId, UUID actingUserId);
+    List<CashExpense> listBySession(UUID actingUserId, UUID cashSessionId, UUID clinicId);
 
-    CashExpense voidExpense(UUID expenseId, UUID clinicId, UUID actingUserId, VoidExpenseCommand command);
+    CashExpense voidExpense(UUID actingUserId, UUID expenseId, UUID clinicId, VoidExpenseCommand command);
 
     record RegisterExpenseCommand(String concept, BigDecimal amount, UUID createdByStaffId) {}
 

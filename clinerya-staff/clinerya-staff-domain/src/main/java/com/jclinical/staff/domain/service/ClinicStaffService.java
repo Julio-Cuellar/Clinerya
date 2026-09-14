@@ -1,6 +1,5 @@
 package com.jclinical.staff.domain.service;
 
-import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
@@ -78,8 +77,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffSummary addStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role) {
-        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
+    public StaffSummary addStaff(UUID clinicId, String email, StaffRole role) {
         if (email == null || email.trim().isEmpty()) {
             throw new IllegalArgumentException("El correo electrónico es obligatorio.");
         }
@@ -129,8 +127,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffInvitationSummary inviteStaff(UUID clinicId, UUID actingUserId, String email, StaffRole role) {
-        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
+    public StaffInvitationSummary inviteStaff(UUID clinicId, String email, StaffRole role) {
         if (email == null || email.trim().isEmpty()) {
             throw new IllegalArgumentException("El correo electrónico es obligatorio.");
         }
@@ -180,8 +177,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public StaffSummary updateStaff(UUID clinicId, UUID actingUserId, UUID staffId, StaffRole role) {
-        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
+    public StaffSummary updateStaff(UUID clinicId, UUID staffId, StaffRole role) {
         ClinicStaff staff = clinicStaffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Miembro del personal no encontrado"));
         if (!staff.getClinicId().equals(clinicId)) {
@@ -235,8 +231,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public PermissionSummary updatePermissions(UUID clinicId, UUID actingUserId, UUID staffId, List<PermissionChange> changes) {
-        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_PERMISSIONS);
+    public PermissionSummary updatePermissions(UUID clinicId, UUID staffId, List<PermissionChange> changes) {
         ClinicStaff staff = findActiveStaff(clinicId, staffId);
         if (staff.getRole() == StaffRole.ADMIN) {
             throw new IllegalStateException("Los permisos del superadministrador no se pueden modificar.");
@@ -269,8 +264,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
-    public void removeStaff(UUID clinicId, UUID actingUserId, UUID staffId) {
-        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF);
+    public void removeStaff(UUID clinicId, UUID staffId) {
         ClinicStaff staff = clinicStaffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Miembro del personal no encontrado"));
         if (!staff.getClinicId().equals(clinicId)) {
@@ -279,17 +273,6 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         staff.setActive(false);
         staff.setUpdatedAt(LocalDateTime.now());
         clinicStaffRepository.save(staff);
-    }
-
-    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission) {
-        ClinicStaff actingStaff = clinicStaffRepository.findByClinicIdAndUserId(clinicId, actingUserId)
-                .filter(ClinicStaff::isActive)
-                .orElseThrow(() -> new ClinicAccessDeniedException("No perteneces al personal de esta clínica."));
-        boolean granted = getPermissions(clinicId, actingStaff.getId()).permissions().stream()
-                .anyMatch(item -> item.permission() == permission && item.enabled());
-        if (!granted) {
-            throw new ClinicAccessDeniedException("No tienes permiso para gestionar al personal de esta clínica.");
-        }
     }
 
     private ClinicStaff findActiveStaff(UUID clinicId, UUID staffId) {

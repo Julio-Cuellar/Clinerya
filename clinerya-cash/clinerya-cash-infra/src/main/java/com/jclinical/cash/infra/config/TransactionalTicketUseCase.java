@@ -21,49 +21,49 @@ public class TransactionalTicketUseCase implements ManageTicketsUseCase {
 
     @Override
     @Transactional
-    public Ticket registerTicket(UUID clinicId, UUID actingUserId, RegisterTicketCommand command) {
-        return ticketService.registerTicket(clinicId, actingUserId, command);
+    public Ticket registerTicket(UUID actingUserId, UUID clinicId, RegisterTicketCommand command) {
+        return ticketService.registerTicket(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Ticket getTicket(UUID ticketId, UUID clinicId, UUID actingUserId) {
-        return ticketService.getTicket(ticketId, clinicId, actingUserId);
+    public Ticket getTicket(UUID actingUserId, UUID ticketId, UUID clinicId) {
+        return ticketService.getTicket(actingUserId, ticketId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Ticket> listBySession(UUID cashSessionId, UUID clinicId, UUID actingUserId) {
-        return ticketService.listBySession(cashSessionId, clinicId, actingUserId);
+    public List<Ticket> listBySession(UUID actingUserId, UUID cashSessionId, UUID clinicId) {
+        return ticketService.listBySession(actingUserId, cashSessionId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Ticket> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
-        return ticketService.listByClinicRange(clinicId, actingUserId, from, to);
+    public List<Ticket> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to) {
+        return ticketService.listByClinicRange(actingUserId, clinicId, from, to);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Ticket> listByQuotation(UUID quotationId, UUID clinicId, UUID actingUserId) {
-        return ticketService.listByQuotation(quotationId, clinicId, actingUserId);
+    public List<Ticket> listByQuotation(UUID actingUserId, UUID quotationId, UUID clinicId) {
+        return ticketService.listByQuotation(actingUserId, quotationId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Ticket> listByPatient(UUID patientId, UUID clinicId, UUID actingUserId) {
-        return ticketService.listByPatient(patientId, clinicId, actingUserId);
+    public List<Ticket> listByPatient(UUID actingUserId, UUID patientId, UUID clinicId) {
+        return ticketService.listByPatient(actingUserId, patientId, clinicId);
     }
 
     @Override
     @Transactional
-    public Ticket voidTicket(UUID ticketId, UUID clinicId, UUID actingUserId, VoidTicketCommand command) {
-        return ticketService.voidTicket(ticketId, clinicId, actingUserId, command);
+    public Ticket voidTicket(UUID actingUserId, UUID ticketId, UUID clinicId, VoidTicketCommand command) {
+        return ticketService.voidTicket(actingUserId, ticketId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public QuotationBalance getQuotationBalance(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId) {
-        return ticketService.getQuotationBalance(quotationId, patientId, clinicId, actingUserId);
+    public QuotationBalance getQuotationBalance(UUID actingUserId, UUID quotationId, UUID patientId, UUID clinicId) {
+        return ticketService.getQuotationBalance(actingUserId, quotationId, patientId, clinicId);
     }
 }

@@ -225,6 +225,27 @@ class StaffOperationsServiceTest {
     }
 
     @Test
+    void recordActivityRequiresManageStaffActivityPermission() {
+        UUID staffId = staffRepository.seedActive(clinicId);
+        assertThrows(ClinicAccessDeniedException.class, () -> service.recordActivity(
+                clinicId, plainUserId, staffId, StaffActivityType.SALE, null, null, null, BigDecimal.TEN, null));
+
+        grants.add(plainUserId + ":" + StaffPermission.MANAGE_STAFF_ACTIVITY);
+        service.recordActivity(clinicId, plainUserId, staffId, StaffActivityType.SALE, null, null, null,
+                BigDecimal.TEN, LocalDateTime.now());
+        assertEquals(1, service.listActivities(clinicId, plainUserId, staffId, null, null, null).size());
+    }
+
+    @Test
+    void listAttendanceRequiresManageAttendancePermission() {
+        assertThrows(ClinicAccessDeniedException.class, () ->
+                service.listAttendance(clinicId, plainUserId, null, null, null));
+
+        grants.add(plainUserId + ":" + StaffPermission.MANAGE_ATTENDANCE);
+        assertEquals(0, service.listAttendance(clinicId, plainUserId, null, null, null).size());
+    }
+
+    @Test
     void listingPayrollStaysReadableWithoutPermission() {
         service.createPayrollPeriod(clinicId, payrollUserId, "Nomina", LocalDate.now(), LocalDate.now().plusDays(7));
 

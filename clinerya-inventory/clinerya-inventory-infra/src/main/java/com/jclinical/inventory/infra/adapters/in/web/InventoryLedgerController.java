@@ -33,10 +33,11 @@ public class InventoryLedgerController {
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size) {
-        Map<UUID, Material> materialsById = materialUseCase.getMaterialsByClinic(clinicId, currentUserResolver.getCurrentUserId(), true).stream()
+        UUID actingUserId = currentUserResolver.getCurrentUserId();
+        Map<UUID, Material> materialsById = materialUseCase.getMaterialsByClinic(actingUserId, clinicId, true).stream()
                 .collect(java.util.stream.Collectors.toMap(Material::getId, Function.identity()));
 
-        List<GeneralLedgerEntryResponse> responses = movementUseCase.listMovementsByClinic(clinicId, currentUserResolver.getCurrentUserId(), page, size).stream()
+        List<GeneralLedgerEntryResponse> responses = movementUseCase.listMovementsByClinic(actingUserId, clinicId, page, size).stream()
                 .map(movement -> toResponse(movement, materialsById.get(movement.getMaterialId())))
                 .toList();
         return ResponseEntity.ok(responses);

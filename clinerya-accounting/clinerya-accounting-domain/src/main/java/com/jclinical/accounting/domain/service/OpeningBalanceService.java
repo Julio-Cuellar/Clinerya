@@ -60,15 +60,29 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de contabilidad.");
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
         }
     }
 
+    private void requireManageBankAccounts(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_BANK_ACCOUNTS,
+                "No tienes permiso para gestionar las cuentas de esta clinica.");
+    }
+
+    private void requireViewAccounting(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_ACCOUNTING,
+                "No tienes permiso para consultar la contabilidad de esta clinica.");
+    }
+
     @Override
-    public OpeningBalanceSetup configureOpeningBalances(UUID clinicId, UUID actingUserId, ConfigureOpeningBalancesCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_ACCOUNTING);
+    public OpeningBalanceSetup configureOpeningBalances(UUID actingUserId, UUID clinicId, ConfigureOpeningBalancesCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_ACCOUNTING,
+                "No tienes permiso para configurar los saldos iniciales de esta clinica.");
         if (clinicId == null) {
             throw new IllegalArgumentException("La clinica es obligatoria.");
         }
@@ -147,8 +161,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public Optional<OpeningBalanceSetup> getOpeningBalances(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_ACCOUNTING);
+    public Optional<OpeningBalanceSetup> getOpeningBalances(UUID actingUserId, UUID clinicId) {
+        requireViewAccounting(clinicId, actingUserId);
         return setupRepository.findByClinicId(clinicId)
                 .map(setup -> {
                     setup.setBankAccounts(bankAccountRepository.findByClinicId(clinicId));
@@ -157,28 +171,15 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public List<BankAccount> listBankAccounts(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_ACCOUNTING);
+    public List<BankAccount> listBankAccounts(UUID clinicId) {
         return bankAccountRepository.findByClinicId(clinicId);
     }
 
     @Override
-    public List<BankAccount> listBankAccountsForSystem(UUID clinicId) {
-        return bankAccountRepository.findByClinicId(clinicId);
-    }
-
-    @Override
-    public List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, UUID actingUserId, LocalDate today, int withinDays) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_ACCOUNTING);
-        return computeCreditAccountAlerts(clinicId, today, withinDays);
-    }
-
-    @Override
-    public List<CreditAccountAlert> listCreditAccountAlertsForSystem(UUID clinicId, LocalDate today, int withinDays) {
-        return computeCreditAccountAlerts(clinicId, today, withinDays);
-    }
-
-    private List<CreditAccountAlert> computeCreditAccountAlerts(UUID clinicId, LocalDate today, int withinDays) {
+    public List<CreditAccountAlert> listCreditAccountAlerts(UUID actingUserId, UUID clinicId, LocalDate today, int withinDays) {
+        if (actingUserId != null) {
+            requireViewAccounting(clinicId, actingUserId);
+        }
         LocalDate currentDate = today != null ? today : LocalDate.now();
         int alertWindow = Math.max(0, Math.min(withinDays, 30));
         LocalDate lastAlertDate = currentDate.plusDays(alertWindow);
@@ -232,17 +233,10 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public BankAccount createBankAccount(UUID clinicId, UUID actingUserId, CreateBankAccountCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_BANK_ACCOUNTS);
-        return doCreateBankAccount(clinicId, command);
-    }
-
-    @Override
-    public BankAccount createBankAccountForSystem(UUID clinicId, CreateBankAccountCommand command) {
-        return doCreateBankAccount(clinicId, command);
-    }
-
-    private BankAccount doCreateBankAccount(UUID clinicId, CreateBankAccountCommand command) {
+    public BankAccount createBankAccount(UUID actingUserId, UUID clinicId, CreateBankAccountCommand command) {
+        if (actingUserId != null) {
+            requireManageBankAccounts(clinicId, actingUserId);
+        }
         validateClinicAndCommand(clinicId, command);
 
         LocalDate entryDate = command.openingDate() != null ? command.openingDate() : LocalDate.now();
@@ -290,8 +284,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public BankAccount updateBankAccount(UUID clinicId, UUID bankAccountId, UUID actingUserId, UpdateBankAccountCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_BANK_ACCOUNTS);
+    public BankAccount updateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command) {
+        requireManageBankAccounts(clinicId, actingUserId);
         if (command == null) {
             throw new IllegalArgumentException("Los datos de la cuenta bancaria son obligatorios.");
         }
@@ -340,8 +334,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public BankAccount deactivateBankAccount(UUID clinicId, UUID bankAccountId, UUID actingUserId, DeactivateBankAccountCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_BANK_ACCOUNTS);
+    public BankAccount deactivateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command) {
+        requireManageBankAccounts(clinicId, actingUserId);
         if (bankAccountId == null) {
             throw new IllegalArgumentException("La cuenta bancaria es obligatoria.");
         }
@@ -371,8 +365,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public JournalEntry correctBankAccountBalance(UUID clinicId, UUID bankAccountId, UUID actingUserId, CorrectBankAccountBalanceCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_BANK_ACCOUNTS);
+    public JournalEntry correctBankAccountBalance(UUID actingUserId, UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command) {
+        requireManageBankAccounts(clinicId, actingUserId);
         if (command == null) {
             throw new IllegalArgumentException("La correccion es obligatoria.");
         }
@@ -400,8 +394,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public List<BankAccountMovement> listBankAccountMovements(UUID clinicId, UUID bankAccountId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_ACCOUNTING);
+    public List<BankAccountMovement> listBankAccountMovements(UUID actingUserId, UUID clinicId, UUID bankAccountId) {
+        requireViewAccounting(clinicId, actingUserId);
         BankAccount account = getBankAccount(clinicId, bankAccountId);
         BigDecimal[] runningBalance = {BigDecimal.ZERO};
         return journalEntryRepository.findByClinicIdAndBankAccountId(clinicId, bankAccountId).stream()
@@ -426,8 +420,8 @@ public class OpeningBalanceService implements ManageOpeningBalancesUseCase {
     }
 
     @Override
-    public JournalEntry transferFunds(UUID clinicId, UUID actingUserId, TransferFundsCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_BANK_ACCOUNTS);
+    public JournalEntry transferFunds(UUID actingUserId, UUID clinicId, TransferFundsCommand command) {
+        requireManageBankAccounts(clinicId, actingUserId);
         if (clinicId == null || command == null) {
             throw new IllegalArgumentException("La clinica y los datos de la transferencia son obligatorios.");
         }

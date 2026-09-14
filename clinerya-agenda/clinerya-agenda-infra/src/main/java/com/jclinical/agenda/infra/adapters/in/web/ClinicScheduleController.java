@@ -28,7 +28,8 @@ public class ClinicScheduleController {
 
     @GetMapping
     public ResponseEntity<List<DayScheduleResponse>> getSchedule(@PathVariable UUID clinicId) {
-        List<DayScheduleResponse> responses = clinicScheduleUseCase.getSchedule(clinicId, currentUserResolver.getCurrentUserId()).stream()
+        List<DayScheduleResponse> responses = clinicScheduleUseCase
+                .getSchedule(currentUserResolver.getCurrentUserId(), clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -41,7 +42,8 @@ public class ClinicScheduleController {
         List<DayScheduleCommand> commands = requests.stream()
                 .map(request -> new DayScheduleCommand(request.dayOfWeek(), request.open(), request.startTime(), request.endTime()))
                 .toList();
-        List<DayScheduleResponse> responses = clinicScheduleUseCase.updateSchedule(clinicId, currentUserResolver.getCurrentUserId(), commands).stream()
+        List<DayScheduleResponse> responses = clinicScheduleUseCase
+                .updateSchedule(currentUserResolver.getCurrentUserId(), clinicId, commands).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);

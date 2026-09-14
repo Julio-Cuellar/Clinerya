@@ -72,16 +72,19 @@ public class StaffOperationsController {
             @PathVariable UUID clinicId,
             @RequestParam(required = false) UUID staffId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ResponseEntity.ok(operationsUseCase.listAttendance(clinicId, staffId, from, to));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.listAttendance(clinicId, currentUserId(principal), staffId, from, to));
     }
 
     @PostMapping("/activities")
     public ResponseEntity<ActivitySummary> recordActivity(
             @PathVariable UUID clinicId,
-            @RequestBody ActivityRequest request) {
+            @RequestBody ActivityRequest request,
+            Principal principal) {
         ActivitySummary summary = operationsUseCase.recordActivity(
                 clinicId,
+                currentUserId(principal),
                 request.staffId(),
                 parseActivityType(request.type()),
                 request.referenceType(),
@@ -98,8 +101,10 @@ public class StaffOperationsController {
             @RequestParam(required = false) UUID staffId,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        return ResponseEntity.ok(operationsUseCase.listActivities(clinicId, staffId, parseActivityType(type), from, to));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            Principal principal) {
+        return ResponseEntity.ok(operationsUseCase.listActivities(
+                clinicId, currentUserId(principal), staffId, parseActivityType(type), from, to));
     }
 
     @PostMapping("/payroll/periods")

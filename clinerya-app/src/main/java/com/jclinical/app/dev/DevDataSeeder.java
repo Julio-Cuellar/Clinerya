@@ -85,7 +85,7 @@ public class DevDataSeeder implements ApplicationRunner {
         UserPreRegistration preRegistration = preRegistrationRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("No se encontró el pre-registro recién creado para " + email));
 
-        verifyUserEmailUseCase.verifyEmail(preRegistration.getEmail(), preRegistration.getVerificationToken());
+        verifyUserEmailUseCase.verifyEmail(email, preRegistration.getVerificationToken());
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("No se encontró el usuario recién verificado " + email));
@@ -102,7 +102,7 @@ public class DevDataSeeder implements ApplicationRunner {
         UUID clinicId = clinics.get(0).getId();
         
         // 1. Siembra de Inventario
-        List<Material> materials = seedInventory(clinicId, user.getId());
+        List<Material> materials = seedInventory(user.getId(), clinicId);
         Material guantes = materials.get(0);
         Material lidocaina = materials.get(1);
 
@@ -110,7 +110,7 @@ public class DevDataSeeder implements ApplicationRunner {
         Patient juan = seedPatient(clinicId);
 
         // 3. Siembra de Catálogo de Tratamientos
-        List<TreatmentCatalogItem> catalogItems = seedCatalog(clinicId, user.getId(), guantes, lidocaina);
+        List<TreatmentCatalogItem> catalogItems = seedCatalog(user.getId(), clinicId, guantes, lidocaina);
         TreatmentCatalogItem limpieza = catalogItems.get(0);
         TreatmentCatalogItem endodoncia = catalogItems.get(1);
 
@@ -118,39 +118,39 @@ public class DevDataSeeder implements ApplicationRunner {
         seedQuotation(clinicId, user.getId(), juan.getId(), limpieza, endodoncia, guantes, lidocaina);
     }
 
-    private List<Material> seedInventory(UUID clinicId, UUID actingUserId) {
-        Material guantes = materialUseCase.createMaterial(clinicId, actingUserId, new CreateMaterialCommand(
+    private List<Material> seedInventory(UUID actingUserId, UUID clinicId) {
+        Material guantes = materialUseCase.createMaterial(actingUserId, clinicId, new CreateMaterialCommand(
                 "Guantes de latex talla M", "Desechables", "DESC-001", "Medline",
                 "Guantes de exploracion no esteriles", "par", "Caja",
                 BigDecimal.valueOf(100), BigDecimal.valueOf(0.85),
                 BigDecimal.valueOf(200), false, null, false
         ));
-        registerMovement(clinicId, guantes.getId(), MovementType.PURCHASE_ENTRY,
-                null, BigDecimal.valueOf(5), null, null, "Compra inicial proveedor Medline", actingUserId);
+        registerMovement(actingUserId, clinicId, guantes.getId(), MovementType.PURCHASE_ENTRY,
+                null, BigDecimal.valueOf(5), null, null, "Compra inicial proveedor Medline");
 
-        Material lidocaina = materialUseCase.createMaterial(clinicId, actingUserId, new CreateMaterialCommand(
+        Material lidocaina = materialUseCase.createMaterial(actingUserId, clinicId, new CreateMaterialCommand(
                 "Lidocaina 2% con epinefrina", "Anestesicos", "ANES-010", "Septodont",
                 "Cartuchos de anestesia local", "cartucho", null,
                 null, BigDecimal.valueOf(6.50),
                 BigDecimal.valueOf(20), false, null, true
         ));
-        registerMovement(clinicId, lidocaina.getId(), MovementType.PURCHASE_ENTRY,
-                BigDecimal.valueOf(50), null, "L2026A", LocalDate.of(2027, 6, 30), "Compra inicial Septodont", actingUserId);
-        registerMovement(clinicId, lidocaina.getId(), MovementType.PURCHASE_ENTRY,
-                BigDecimal.valueOf(20), null, "L2026B", LocalDate.of(2026, 9, 15), "Segundo lote, caduca antes", actingUserId);
-        registerMovement(clinicId, lidocaina.getId(), MovementType.ADJUSTMENT_OUT,
-                BigDecimal.valueOf(5), null, null, null, "Merma por cartucho danado en refrigerador", actingUserId);
+        registerMovement(actingUserId, clinicId, lidocaina.getId(), MovementType.PURCHASE_ENTRY,
+                BigDecimal.valueOf(50), null, "L2026A", LocalDate.of(2027, 6, 30), "Compra inicial Septodont");
+        registerMovement(actingUserId, clinicId, lidocaina.getId(), MovementType.PURCHASE_ENTRY,
+                BigDecimal.valueOf(20), null, "L2026B", LocalDate.of(2026, 9, 15), "Segundo lote, caduca antes");
+        registerMovement(actingUserId, clinicId, lidocaina.getId(), MovementType.ADJUSTMENT_OUT,
+                BigDecimal.valueOf(5), null, null, null, "Merma por cartucho danado en refrigerador");
 
-        Material cepillo = materialUseCase.createMaterial(clinicId, actingUserId, new CreateMaterialCommand(
+        Material cepillo = materialUseCase.createMaterial(actingUserId, clinicId, new CreateMaterialCommand(
                 "Cepillo dental adulto", "Higiene", "HIG-005", "Oral-B",
                 "Cepillo suave para venta en recepcion", "pieza", null,
                 null, BigDecimal.valueOf(18.00),
                 BigDecimal.valueOf(10), true, BigDecimal.valueOf(45.00), false
         ));
-        registerMovement(clinicId, cepillo.getId(), MovementType.PURCHASE_ENTRY,
-                BigDecimal.valueOf(30), null, null, null, "Compra inicial para venta en recepcion", actingUserId);
-        registerMovement(clinicId, cepillo.getId(), MovementType.SALE_EXIT,
-                BigDecimal.valueOf(3), null, null, null, "Venta mostrador a paciente", actingUserId);
+        registerMovement(actingUserId, clinicId, cepillo.getId(), MovementType.PURCHASE_ENTRY,
+                BigDecimal.valueOf(30), null, null, null, "Compra inicial para venta en recepcion");
+        registerMovement(actingUserId, clinicId, cepillo.getId(), MovementType.SALE_EXIT,
+                BigDecimal.valueOf(3), null, null, null, "Venta mostrador a paciente");
 
         log.info(">>>> [DEV-SEED] Inventario de ejemplo creado: {} (500 pares), {} (65 cartuchos, 2 lotes), {} (27 piezas, venta habilitada).",
                 guantes.getName(), lidocaina.getName(), cepillo.getName());
@@ -179,8 +179,8 @@ public class DevDataSeeder implements ApplicationRunner {
         return patient;
     }
 
-    private List<TreatmentCatalogItem> seedCatalog(UUID clinicId, UUID actingUserId, Material guantes, Material lidocaina) {
-        TreatmentCatalogItem limpieza = catalogUseCase.createCatalogItem(clinicId, actingUserId, new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
+    private List<TreatmentCatalogItem> seedCatalog(UUID actingUserId, UUID clinicId, Material guantes, Material lidocaina) {
+        TreatmentCatalogItem limpieza = catalogUseCase.createCatalogItem(actingUserId, clinicId, new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                 "Limpieza dental profunda",
                 "PREVENTIVE",
                 "Limpieza general profunda con ultrasonido.",
@@ -189,7 +189,7 @@ public class DevDataSeeder implements ApplicationRunner {
                 List.of(new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(guantes.getId(), BigDecimal.valueOf(1.0)))
         ));
 
-        TreatmentCatalogItem endodoncia = catalogUseCase.createCatalogItem(clinicId, actingUserId, new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
+        TreatmentCatalogItem endodoncia = catalogUseCase.createCatalogItem(actingUserId, clinicId, new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                 "Endodoncia molar",
                 "RESTORATIVE",
                 "Tratamiento de conductos en pieza molar.",
@@ -273,6 +273,7 @@ public class DevDataSeeder implements ApplicationRunner {
     }
 
     private void registerMovement(
+            UUID actingUserId,
             UUID clinicId,
             UUID materialId,
             MovementType type,
@@ -280,15 +281,14 @@ public class DevDataSeeder implements ApplicationRunner {
             BigDecimal presentationQuantity,
             String lotNumber,
             LocalDate expirationDate,
-            String notes,
-            UUID actingUserId) {
+            String notes) {
         RegisterMovementCommand command = new RegisterMovementCommand(
                 type, quantity, presentationQuantity, null, notes, lotNumber, expirationDate, null
         );
         switch (type) {
-            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(clinicId, materialId, actingUserId, command);
-            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(clinicId, materialId, actingUserId, command);
-            case SALE_EXIT -> movementUseCase.registerSaleExit(clinicId, materialId, actingUserId, command);
+            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(actingUserId, clinicId, materialId, command);
+            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(actingUserId, clinicId, materialId, command);
+            case SALE_EXIT -> movementUseCase.registerSaleExit(actingUserId, clinicId, materialId, command);
             case USAGE_EXIT -> throw new IllegalStateException("USAGE_EXIT no se siembra automáticamente.");
         }
     }

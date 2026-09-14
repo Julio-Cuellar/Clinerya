@@ -23,6 +23,12 @@
             <artifactId>clinerya-inventory-domain</artifactId>
         </dependency>
 
+        <!-- Resolución del usuario autenticado para el control de acceso en los controladores -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.jclinical</groupId>
             <artifactId>clinerya-messaging</artifactId>

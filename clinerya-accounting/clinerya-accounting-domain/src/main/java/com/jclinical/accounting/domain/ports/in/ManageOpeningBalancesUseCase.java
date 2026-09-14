@@ -15,45 +15,36 @@ import java.util.UUID;
 
 public interface ManageOpeningBalancesUseCase {
 
-    OpeningBalanceSetup configureOpeningBalances(UUID clinicId, UUID actingUserId, ConfigureOpeningBalancesCommand command);
+    OpeningBalanceSetup configureOpeningBalances(UUID actingUserId, UUID clinicId, ConfigureOpeningBalancesCommand command);
 
-    Optional<OpeningBalanceSetup> getOpeningBalances(UUID clinicId, UUID actingUserId);
+    Optional<OpeningBalanceSetup> getOpeningBalances(UUID actingUserId, UUID clinicId);
 
-    List<BankAccount> listBankAccounts(UUID clinicId, UUID actingUserId);
+    /** Sin control de permiso: lo consumen validadores internos de caja, clinicas y nomina. */
+    List<BankAccount> listBankAccounts(UUID clinicId);
 
-    /**
-     * Lectura interna para el modulo de nomina, que ya autorizo al usuario con su propio
-     * permiso (MANAGE_PAYROLL) antes de resolver la cuenta operativa de pago. No exponer
-     * desde un controlador.
-     */
-    List<BankAccount> listBankAccountsForSystem(UUID clinicId);
+    /** Ruta interna (scheduler de notificaciones de tarjetas de credito): sin control de permiso. */
+    default List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, LocalDate today, int withinDays) {
+        return listCreditAccountAlerts(null, clinicId, today, withinDays);
+    }
 
-    List<CreditAccountAlert> listCreditAccountAlerts(UUID clinicId, UUID actingUserId, LocalDate today, int withinDays);
+    List<CreditAccountAlert> listCreditAccountAlerts(UUID actingUserId, UUID clinicId, LocalDate today, int withinDays);
 
-    /**
-     * Lectura interna para el job programado que notifica alertas de tarjetas: no hay
-     * usuario en la peticion, asi que no se autoriza contra permisos de staff. No exponer
-     * desde un controlador.
-     */
-    List<CreditAccountAlert> listCreditAccountAlertsForSystem(UUID clinicId, LocalDate today, int withinDays);
+    /** Ruta interna (aprovisionamiento de caja chica al crear la clinica): sin control de permiso. */
+    default BankAccount createBankAccount(UUID clinicId, CreateBankAccountCommand command) {
+        return createBankAccount(null, clinicId, command);
+    }
 
-    BankAccount createBankAccount(UUID clinicId, UUID actingUserId, CreateBankAccountCommand command);
+    BankAccount createBankAccount(UUID actingUserId, UUID clinicId, CreateBankAccountCommand command);
 
-    /**
-     * Aprovisionamiento automatico de la caja chica al crear una clinica o al arrancar la
-     * aplicacion: no hay usuario en la peticion. No exponer desde un controlador.
-     */
-    BankAccount createBankAccountForSystem(UUID clinicId, CreateBankAccountCommand command);
+    BankAccount updateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, UpdateBankAccountCommand command);
 
-    BankAccount updateBankAccount(UUID clinicId, UUID bankAccountId, UUID actingUserId, UpdateBankAccountCommand command);
+    BankAccount deactivateBankAccount(UUID actingUserId, UUID clinicId, UUID bankAccountId, DeactivateBankAccountCommand command);
 
-    BankAccount deactivateBankAccount(UUID clinicId, UUID bankAccountId, UUID actingUserId, DeactivateBankAccountCommand command);
+    JournalEntry correctBankAccountBalance(UUID actingUserId, UUID clinicId, UUID bankAccountId, CorrectBankAccountBalanceCommand command);
 
-    JournalEntry correctBankAccountBalance(UUID clinicId, UUID bankAccountId, UUID actingUserId, CorrectBankAccountBalanceCommand command);
+    List<BankAccountMovement> listBankAccountMovements(UUID actingUserId, UUID clinicId, UUID bankAccountId);
 
-    List<BankAccountMovement> listBankAccountMovements(UUID clinicId, UUID bankAccountId, UUID actingUserId);
-
-    JournalEntry transferFunds(UUID clinicId, UUID actingUserId, TransferFundsCommand command);
+    JournalEntry transferFunds(UUID actingUserId, UUID clinicId, TransferFundsCommand command);
 
     record ConfigureOpeningBalancesCommand(
             LocalDate entryDate,

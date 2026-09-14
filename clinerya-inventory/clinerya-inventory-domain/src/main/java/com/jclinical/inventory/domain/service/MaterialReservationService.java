@@ -107,9 +107,12 @@ public class MaterialReservationService implements ManageMaterialReservationUseC
     }
 
     @Override
-    public List<MaterialReservationDetail> listActiveReservations(UUID clinicId, UUID actingUserId) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_INVENTORY)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
+    public List<MaterialReservationDetail> listActiveReservations(UUID actingUserId, UUID clinicId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_INVENTORY)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para consultar el inventario de esta clinica.");
         }
         return reservationQuery.findActiveByClinicId(clinicId);
     }

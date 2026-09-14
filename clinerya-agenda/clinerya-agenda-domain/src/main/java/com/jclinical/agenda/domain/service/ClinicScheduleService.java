@@ -19,24 +19,25 @@ public class ClinicScheduleService implements ManageClinicScheduleUseCase {
     private final ClinicScheduleRepositoryPort scheduleRepository;
     private final StaffPermissionCheckerPort permissionChecker;
 
-    public ClinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository, StaffPermissionCheckerPort permissionChecker) {
+    public ClinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository,
+                                 StaffPermissionCheckerPort permissionChecker) {
         this.scheduleRepository = scheduleRepository;
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de agenda.");
-        }
+    @Override
+    public List<ClinicSchedule> getSchedule(UUID clinicId) {
+        return getSchedule(null, clinicId);
     }
 
     @Override
-    public List<ClinicSchedule> getSchedule(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_AGENDA);
-        return doGetSchedule(clinicId);
+    public List<ClinicSchedule> getSchedule(UUID actingUserId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_AGENDA,
+                "No tienes permiso para consultar el horario de esta clinica.");
+        return loadSchedule(clinicId);
     }
 
-    private List<ClinicSchedule> doGetSchedule(UUID clinicId) {
+    private List<ClinicSchedule> loadSchedule(UUID clinicId) {
         List<ClinicSchedule> persisted = scheduleRepository.findByClinicId(clinicId);
         Map<DayOfWeek, ClinicSchedule> byDay = persisted.stream()
                 .collect(java.util.stream.Collectors.toMap(ClinicSchedule::getDayOfWeek, s -> s));
@@ -48,8 +49,14 @@ public class ClinicScheduleService implements ManageClinicScheduleUseCase {
     }
 
     @Override
-    public List<ClinicSchedule> updateSchedule(UUID clinicId, UUID actingUserId, List<DayScheduleCommand> days) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_SCHEDULES);
+    public List<ClinicSchedule> updateSchedule(UUID clinicId, List<DayScheduleCommand> days) {
+        return updateSchedule(null, clinicId, days);
+    }
+
+    @Override
+    public List<ClinicSchedule> updateSchedule(UUID actingUserId, UUID clinicId, List<DayScheduleCommand> days) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_SCHEDULES,
+                "No tienes permiso para modificar el horario de esta clinica.");
         for (DayScheduleCommand day : days) {
             if (day.open() && (day.startTime() == null || day.endTime() == null || !day.startTime().isBefore(day.endTime()))) {
                 throw new IllegalArgumentException(
@@ -63,11 +70,20 @@ public class ClinicScheduleService implements ManageClinicScheduleUseCase {
             schedule.setEndTime(day.endTime());
             scheduleRepository.save(schedule);
         }
-        return doGetSchedule(clinicId);
+        return loadSchedule(clinicId);
     }
 
     public ClinicSchedule getEffectiveDay(UUID clinicId, DayOfWeek dayOfWeek) {
         return scheduleRepository.findByClinicIdAndDayOfWeek(clinicId, dayOfWeek)
                 .orElseGet(() -> ClinicSchedule.defaultFor(clinicId, dayOfWeek));
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            return;
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 }

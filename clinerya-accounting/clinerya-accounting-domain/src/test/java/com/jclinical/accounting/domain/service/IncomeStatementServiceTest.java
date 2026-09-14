@@ -20,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class IncomeStatementServiceTest {
 
     private final InMemoryJournalRepository repository = new InMemoryJournalRepository();
-    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
-    private final IncomeStatementService service = new IncomeStatementService(repository, permissionChecker);
-    private final UUID actingUserId = UUID.randomUUID();
+    private static final StaffPermissionCheckerPort ALLOW_ALL = (c, u, p) -> true;
+    private static final UUID ACTING_USER = UUID.randomUUID();
+    private final IncomeStatementService service = new IncomeStatementService(repository, ALLOW_ALL);
 
     @Test
     void calculatesCurrentPeriodComparisonAccountsAndTrend() {
@@ -47,8 +47,8 @@ class IncomeStatementServiceTest {
                 line("12100", "Inventario", "0", "160")));
 
         IncomeStatementReport report = service.generateIncomeStatement(
+                ACTING_USER,
                 clinicId,
-                actingUserId,
                 LocalDate.parse("2026-07-01"),
                 LocalDate.parse("2026-07-07"),
                 true);
@@ -85,8 +85,8 @@ class IncomeStatementServiceTest {
                 line("41000", "Ingresos", "0", "100")));
 
         IncomeStatementReport report = service.generateIncomeStatement(
+                ACTING_USER,
                 clinicId,
-                actingUserId,
                 LocalDate.parse("2026-07-01"),
                 LocalDate.parse("2026-07-01"),
                 false);

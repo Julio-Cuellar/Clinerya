@@ -1,100 +1,154 @@
 package com.jclinical.app.architecture;
 
-import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
-import com.tngtech.archunit.junit.AnalyzeClasses;
-import com.tngtech.archunit.junit.ArchTest;
-import com.tngtech.archunit.lang.ArchCondition;
-import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.lang.ConditionEvents;
-import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * P3: la interceptor de acceso a clinica solo comprobaba "eres staff activo de esta
- * clinica", nunca el permiso especifico de la operacion. La autorizacion real vive en el
- * dominio (StaffPermissionCheckerPort / PatientAccessAuthorizationPort), y ambos exigen
- * conocer al usuario que hace la peticion. Esta prueba falla si un controlador nuevo bajo
- * /api/v1/clinics/** o /api/v1/patients/** no tiene ninguna forma de resolver ese usuario
- * (ni CurrentUserResolver ni java.security.Principal), porque sin eso es estructuralmente
- * imposible que el controlador aplique el chequeo de permisos.
+ * Exige que todo controlador REST montado bajo {@code /api/v1/clinics/**} o
+ * {@code /api/v1/patients/**} resuelva al usuario autenticado que hace la
+ * llamada, ya sea inyectando {@code CurrentUserResolver} o recibiendo un
+ * {@link java.security.Principal} en alguno de sus métodos. Es la barrera que
+ * garantiza que la autorización por permisos (aplicada en la capa de dominio con
+ * {@code StaffPermissionCheckerPort}) reciba siempre un {@code actingUserId} real.
  *
- * No es una prueba de que el permiso correcto se aplique — eso lo cubren los tests de
- * autorizacion de cada servicio — sino una red minima contra "se me olvido conectar el
- * chequeo por completo", que es exactamente como se veian los hallazgos de este plan.
+ * <p>La resolución de acceso vive en el dominio; este test solo verifica que el
+ * adaptador web sepa <em>quién</em> llama.
  */
-@AnalyzeClasses(packages = "com.jclinical", importOptions = ImportOption.DoNotIncludeTests.class)
 class PermissionEnforcementArchTest {
 
-    private static final String CURRENT_USER_RESOLVER = "com.jclinical.users.infra.security.CurrentUserResolver";
+    private static final String CURRENT_USER_RESOLVER =
+            "com.jclinical.users.infra.security.CurrentUserResolver";
+
+    private static final List<String> GUARDED_PATH_PREFIXES = List.of(
+            "/api/v1/clinics/",
+            "/api/v1/patients/");
 
     /**
-     * Excepciones preexistentes, fuera del alcance de esta fase (P3 solo cubrio caja,
-     * contabilidad, tratamientos, inventario, agenda y clinicas). No es una lista abierta:
-     * un controlador nuevo no puede sumarse aqui, debe resolver al usuario autenticado.
+     * Controladores que ya existían cuando se introdujo esta regla y todavía no
+     * resuelven al usuario autenticado en el adaptador web. Es deuda conocida y
+     * acotada: <strong>solo se quita de esta lista</strong> (nunca se agrega). Al
+     * migrar un controlador —inyectando {@code CurrentUserResolver} o recibiendo
+     * un {@link java.security.Principal}, y aplicando la autorización por permiso
+     * en su servicio de dominio— se borra su entrada de aquí. Un controlador
+     * nuevo que aparezca en la lista de violaciones es un fallo real, no una
+     * excepción.
+     *
+     * <p>Vacía: todos los controladores bajo rutas protegidas resuelven al
+     * usuario autenticado.
      */
-    private static final Set<String> PRE_EXISTING_EXCEPTIONS = Set.of(
-            "com.jclinical.staff.infra.adapters.in.web.StaffCompensationController",
-            "com.jclinical.staff.infra.adapters.in.web.StaffOnboardingController",
-            "com.jclinical.staff.infra.adapters.in.web.StaffOperationsController",
-            "com.jclinical.integrations.infra.adapters.in.web.ExternalCalendarEventController",
-            "com.jclinical.integrations.infra.adapters.in.web.GoogleCalendarController",
-            "com.jclinical.notifications.infra.adapters.in.web.NotificationController"
-    );
+    private static final Set<String> PRE_EXISTING_EXCEPTIONS = Set.of();
 
-    private static final DescribedPredicate<JavaClass> CLINIC_OR_PATIENT_CONTROLLERS = DescribedPredicate.describe(
-            "sean controladores REST mapeados bajo /api/v1/clinics o /api/v1/patients "
-                    + "(sin contar excepciones preexistentes documentadas)",
-            javaClass -> javaClass.isAnnotatedWith(RestController.class)
-                    && mapsUnderClinicsOrPatients(javaClass)
-                    && !PRE_EXISTING_EXCEPTIONS.contains(javaClass.getFullName()));
+    private final JavaClasses controllers = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+            .importPackages("com.jclinical");
 
-    @ArchTest
-    static final ArchRule clinicAndPatientControllersMustResolveTheActingUser = classes()
-            .that(CLINIC_OR_PATIENT_CONTROLLERS)
-            .should(new ArchCondition<JavaClass>(
-                    "resolver al usuario autenticado (campo CurrentUserResolver o parametro java.security.Principal)") {
-                @Override
-                public void check(JavaClass javaClass, ConditionEvents events) {
-                    boolean resolvesActingUser = hasCurrentUserResolverField(javaClass) || hasPrincipalParameter(javaClass);
-                    if (!resolvesActingUser) {
-                        events.add(SimpleConditionEvent.violated(javaClass,
-                                javaClass.getFullName() + " esta bajo /api/v1/clinics o /api/v1/patients pero no "
-                                        + "tiene forma de conocer al usuario autenticado (ni CurrentUserResolver ni "
-                                        + "Principal), asi que no puede aplicar el chequeo de permisos del dominio. "
-                                        + "Inyecta CurrentUserResolver y pasa el actingUserId al caso de uso."));
-                    }
-                }
-            });
+    @Test
+    void everyClinicOrPatientScopedControllerResolvesTheAuthenticatedUser() {
+        List<String> violations = new ArrayList<>();
 
-    private static boolean mapsUnderClinicsOrPatients(JavaClass javaClass) {
-        if (!javaClass.isAnnotatedWith(RequestMapping.class)) {
-            return false;
+        for (JavaClass controller : controllers) {
+            if (!controller.isAnnotatedWith(RestController.class)) {
+                continue;
+            }
+            if (!isGuardedByPath(controller)) {
+                continue;
+            }
+            if (PRE_EXISTING_EXCEPTIONS.contains(controller.getName())
+                    || PRE_EXISTING_EXCEPTIONS.contains(controller.getSimpleName())) {
+                continue;
+            }
+            if (!resolvesAuthenticatedUser(controller)) {
+                violations.add(controller.getName()
+                        + " expone endpoints bajo una ruta protegida pero no inyecta "
+                        + "CurrentUserResolver ni recibe java.security.Principal en ningún método.");
+            }
         }
-        RequestMapping mapping = javaClass.getAnnotationOfType(RequestMapping.class);
-        for (String path : mapping.value()) {
-            if (path.startsWith("/api/v1/clinics") || path.startsWith("/api/v1/patients")) {
-                return true;
+
+        if (!violations.isEmpty()) {
+            fail("Controladores sin resolución del usuario autenticado:\n  - "
+                    + String.join("\n  - ", violations));
+        }
+    }
+
+    @Test
+    void preExistingExceptionsListHasNoStaleEntries() {
+        List<String> stale = new ArrayList<>();
+
+        for (String excepted : PRE_EXISTING_EXCEPTIONS) {
+            JavaClass controller = controllers.stream()
+                    .filter(candidate -> candidate.getName().equals(excepted))
+                    .findFirst()
+                    .orElse(null);
+            if (controller == null) {
+                stale.add(excepted + " ya no existe en el classpath; bórralo de la lista.");
+            } else if (!isGuardedByPath(controller)) {
+                stale.add(excepted + " ya no expone rutas protegidas; bórralo de la lista.");
+            } else if (resolvesAuthenticatedUser(controller)) {
+                stale.add(excepted + " ya resuelve al usuario autenticado; bórralo de la lista.");
+            }
+        }
+
+        if (!stale.isEmpty()) {
+            fail("PRE_EXISTING_EXCEPTIONS contiene entradas obsoletas:\n  - "
+                    + String.join("\n  - ", stale));
+        }
+    }
+
+    private static boolean isGuardedByPath(JavaClass controller) {
+        return mappedPaths(controller).stream()
+                .anyMatch(path -> GUARDED_PATH_PREFIXES.stream().anyMatch(path::startsWith));
+    }
+
+    private static List<String> mappedPaths(JavaClass controller) {
+        List<String> paths = new ArrayList<>();
+        controller.tryGetAnnotationOfType(RequestMapping.class)
+                .ifPresent(mapping -> {
+                    for (String value : mapping.path()) {
+                        paths.add(normalize(value));
+                    }
+                    for (String value : mapping.value()) {
+                        paths.add(normalize(value));
+                    }
+                });
+        return paths;
+    }
+
+    private static String normalize(String path) {
+        if (path == null || path.isBlank()) {
+            return "/";
+        }
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
+    private static boolean resolvesAuthenticatedUser(JavaClass controller) {
+        boolean injectsResolver = controller.getAllFields().stream()
+                .anyMatch(field -> field.getRawType().getName().equals(CURRENT_USER_RESOLVER))
+                || controller.getConstructors().stream()
+                        .flatMap(constructor -> constructor.getRawParameterTypes().stream())
+                        .anyMatch(type -> type.getName().equals(CURRENT_USER_RESOLVER));
+        if (injectsResolver) {
+            return true;
+        }
+        for (JavaMethod method : controller.getMethods()) {
+            for (JavaClass parameter : method.getRawParameterTypes()) {
+                if (parameter.isAssignableTo(Principal.class)) {
+                    return true;
+                }
             }
         }
         return false;
-    }
-
-    private static boolean hasCurrentUserResolverField(JavaClass javaClass) {
-        return javaClass.getFields().stream()
-                .anyMatch(field -> field.getRawType().getFullName().equals(CURRENT_USER_RESOLVER));
-    }
-
-    private static boolean hasPrincipalParameter(JavaClass javaClass) {
-        return javaClass.getMethods().stream()
-                .flatMap(method -> method.getRawParameterTypes().stream())
-                .anyMatch(paramType -> paramType.isAssignableTo(Principal.class));
     }
 }

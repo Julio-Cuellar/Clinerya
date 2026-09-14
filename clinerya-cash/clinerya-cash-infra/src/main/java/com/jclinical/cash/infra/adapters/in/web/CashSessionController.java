@@ -35,7 +35,7 @@ public class CashSessionController {
             @PathVariable UUID clinicId,
             @RequestBody OpenCashSessionRequest request) {
         OpenSessionCommand command = new OpenSessionCommand(request.openedByStaffId(), request.openingAmount());
-        CashSession session = cashSessionUseCase.openSession(clinicId, currentUserResolver.getCurrentUserId(), command);
+        CashSession session = cashSessionUseCase.openSession(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(session));
     }
 
@@ -44,20 +44,22 @@ public class CashSessionController {
             @PathVariable UUID clinicId,
             @RequestBody CloseCashSessionRequest request) {
         CloseSessionCommand command = new CloseSessionCommand(request.closedByStaffId(), request.countedCashAmount());
-        CashSession session = cashSessionUseCase.closeSession(clinicId, currentUserResolver.getCurrentUserId(), command);
+        CashSession session = cashSessionUseCase.closeSession(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.ok(toResponse(session));
     }
 
     @GetMapping("/current")
     public ResponseEntity<CashSessionResponse> getCurrentSession(@PathVariable UUID clinicId) {
-        Optional<CashSession> session = cashSessionUseCase.getCurrentSession(clinicId, currentUserResolver.getCurrentUserId());
+        Optional<CashSession> session = cashSessionUseCase.getCurrentSession(
+                currentUserResolver.getCurrentUserId(), clinicId);
         return session.map(value -> ResponseEntity.ok(toResponse(value)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("")
     public ResponseEntity<List<CashSessionResponse>> listSessions(@PathVariable UUID clinicId) {
-        List<CashSessionResponse> responses = cashSessionUseCase.listSessions(clinicId, currentUserResolver.getCurrentUserId()).stream()
+        List<CashSessionResponse> responses = cashSessionUseCase
+                .listSessions(currentUserResolver.getCurrentUserId(), clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -67,7 +69,7 @@ public class CashSessionController {
     public ResponseEntity<CashSessionResponse> getSession(
             @PathVariable UUID clinicId,
             @PathVariable UUID sessionId) {
-        CashSession session = cashSessionUseCase.getSession(sessionId, clinicId, currentUserResolver.getCurrentUserId());
+        CashSession session = cashSessionUseCase.getSession(currentUserResolver.getCurrentUserId(), sessionId, clinicId);
         return ResponseEntity.ok(toResponse(session));
     }
 

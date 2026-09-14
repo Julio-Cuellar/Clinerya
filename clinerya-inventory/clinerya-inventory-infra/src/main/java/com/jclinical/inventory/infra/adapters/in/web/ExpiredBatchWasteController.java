@@ -29,7 +29,8 @@ public class ExpiredBatchWasteController {
     public ResponseEntity<List<InventoryMovementResponse>> regularizeExpired(
             @PathVariable UUID clinicId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        List<InventoryMovementResponse> response = movementUseCase.registerExpiredBatchWastes(clinicId, currentUserResolver.getCurrentUserId(), asOfDate)
+        List<InventoryMovementResponse> response = movementUseCase
+                .registerExpiredBatchWastes(currentUserResolver.getCurrentUserId(), clinicId, asOfDate)
                 .stream()
                 .map(this::toResponse)
                 .toList();

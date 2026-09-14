@@ -79,7 +79,7 @@ class CashPermissionAuthorizationTest {
         OpenSessionCommand command = new OpenSessionCommand(UUID.randomUUID(), BigDecimal.TEN);
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> sessionService.openSession(clinicId, actingUserId, command));
+                () -> sessionService.openSession(actingUserId, clinicId, command));
 
         verify(cashSessionRepository, never()).save(any());
     }
@@ -92,7 +92,7 @@ class CashPermissionAuthorizationTest {
                 BigDecimal.ZERO, null, null);
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> ticketService.registerTicket(clinicId, actingUserId, command));
+                () -> ticketService.registerTicket(actingUserId, clinicId, command));
 
         verify(ticketRepository, never()).save(any());
     }
@@ -102,7 +102,7 @@ class CashPermissionAuthorizationTest {
         UUID ticketId = UUID.randomUUID();
 
         assertThrows(ClinicAccessDeniedException.class,
-                () -> ticketService.voidTicket(ticketId, clinicId, actingUserId,
+                () -> ticketService.voidTicket(actingUserId, ticketId, clinicId,
                         new com.jclinical.cash.domain.ports.in.ManageTicketsUseCase.VoidTicketCommand(
                                 UUID.randomUUID(), "Duplicado")));
 
@@ -112,7 +112,7 @@ class CashPermissionAuthorizationTest {
     @Test
     void deniesEveryOperationWhenActingUserIsNull() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> sessionService.listSessions(clinicId, null));
+                () -> sessionService.listSessions(null, clinicId));
         verify(permissionChecker, never()).hasPermission(any(), any(), any());
     }
 
@@ -126,7 +126,7 @@ class CashPermissionAuthorizationTest {
         org.mockito.Mockito.when(staffValidator.findActiveStaff(staffId, clinicId))
                 .thenReturn(java.util.Optional.of(staffSnapshot));
 
-        sessionService.openSession(clinicId, actingUserId, new OpenSessionCommand(staffId, BigDecimal.TEN));
+        sessionService.openSession(actingUserId, clinicId, new OpenSessionCommand(staffId, BigDecimal.TEN));
 
         verify(cashSessionRepository).save(any());
     }

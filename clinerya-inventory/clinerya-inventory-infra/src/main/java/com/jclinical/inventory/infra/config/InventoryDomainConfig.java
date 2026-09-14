@@ -17,6 +17,7 @@ import com.jclinical.inventory.domain.service.InventoryMovementService;
 import com.jclinical.inventory.domain.service.MaterialReservationService;
 import com.jclinical.inventory.domain.service.MaterialService;
 import com.jclinical.inventory.domain.service.PurchasingService;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryBatchEntity;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryBatchMapper;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryMovementEntity;
@@ -25,7 +26,6 @@ import com.jclinical.inventory.infra.adapters.out.persistence.MaterialEntity;
 import com.jclinical.inventory.infra.adapters.out.persistence.MaterialMapper;
 import com.jclinical.inventory.infra.adapters.out.persistence.MaterialReservationEntity;
 import com.jclinical.inventory.infra.adapters.out.persistence.MaterialReservationMapper;
-import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +34,8 @@ import org.springframework.context.annotation.Configuration;
 public class InventoryDomainConfig {
 
     @Bean
-    public MaterialService materialService(MaterialRepositoryPort materialRepository, StaffPermissionCheckerPort permissionChecker) {
+    public MaterialService materialService(MaterialRepositoryPort materialRepository,
+                                           StaffPermissionCheckerPort permissionChecker) {
         return new MaterialService(materialRepository, permissionChecker);
     }
 
@@ -45,7 +46,8 @@ public class InventoryDomainConfig {
             InventoryBatchRepositoryPort batchRepository,
             com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
             StaffPermissionCheckerPort permissionChecker) {
-        return new InventoryMovementService(materialRepository, movementRepository, batchRepository, eventPublisher, permissionChecker);
+        return new InventoryMovementService(
+                materialRepository, movementRepository, batchRepository, eventPublisher, permissionChecker);
     }
 
     @Bean
@@ -54,7 +56,8 @@ public class InventoryDomainConfig {
             MaterialReservationRepositoryPort reservationRepository,
             MaterialReservationQueryPort reservationQuery,
             StaffPermissionCheckerPort permissionChecker) {
-        return new MaterialReservationService(materialRepository, reservationRepository, reservationQuery, permissionChecker);
+        return new MaterialReservationService(
+                materialRepository, reservationRepository, reservationQuery, permissionChecker);
     }
 
     @Bean

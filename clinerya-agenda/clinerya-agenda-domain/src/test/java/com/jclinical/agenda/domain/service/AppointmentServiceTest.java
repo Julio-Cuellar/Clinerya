@@ -11,7 +11,6 @@ import com.jclinical.agenda.domain.ports.out.QuotationValidatorPort.QuotationIte
 import com.jclinical.agenda.domain.ports.out.StaffValidatorPort;
 import com.jclinical.agenda.domain.ports.out.StaffValidatorPort.DoctorSnapshot;
 import com.jclinical.core.events.DomainEventPublisherPort;
-import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,8 +47,6 @@ class AppointmentServiceTest {
     @Mock
     private DomainEventPublisherPort eventPublisher;
 
-    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
-
     private AppointmentService service;
 
     @BeforeEach
@@ -62,7 +59,7 @@ class AppointmentServiceTest {
                 quotationValidator,
                 reservationSchedulingService,
                 eventPublisher,
-                permissionChecker
+                (clinicId, userId, permission) -> true
         );
     }
 
@@ -95,7 +92,7 @@ class AppointmentServiceTest {
         when(appointmentRepository.save(any(Appointment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Appointment created = service.createAppointmentForSystem(clinicId, new CreateAppointmentCommand(
+        Appointment created = service.createAppointment(clinicId, new CreateAppointmentCommand(
                 patientId, doctorId, quotationId, itemId, start, end, "Endodoncia", null));
 
         assertEquals(quotationId, created.getQuotationId());

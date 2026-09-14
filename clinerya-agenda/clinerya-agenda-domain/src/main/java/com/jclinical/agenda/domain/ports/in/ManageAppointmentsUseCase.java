@@ -10,66 +10,59 @@ import java.util.UUID;
 
 public interface ManageAppointmentsUseCase {
 
-    Appointment createAppointment(UUID clinicId, UUID actingUserId, CreateAppointmentCommand command);
+    /** Ruta interna (importacion de calendario, seeders): sin control de permiso. */
+    default Appointment createAppointment(UUID clinicId, CreateAppointmentCommand command) {
+        return createAppointment(null, clinicId, command);
+    }
 
-    /**
-     * Usado por la sincronizacion con Google Calendar (importacion de eventos externos):
-     * no hay usuario en la peticion. No exponer desde un controlador.
-     */
-    Appointment createAppointmentForSystem(UUID clinicId, CreateAppointmentCommand command);
+    Appointment createAppointment(UUID actingUserId, UUID clinicId, CreateAppointmentCommand command);
 
-    List<Appointment> createAppointmentSeries(UUID clinicId, UUID actingUserId, CreateAppointmentSeriesCommand command);
+    List<Appointment> createAppointmentSeries(UUID actingUserId, UUID clinicId, CreateAppointmentSeriesCommand command);
 
-    Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId, LocalDateTime newStart, LocalDateTime newEnd);
+    default Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd) {
+        return rescheduleAppointment(null, appointmentId, clinicId, newStart, newEnd, false);
+    }
 
-    /**
-     * Usado por la sincronizacion con Google Calendar: no hay usuario en la peticion.
-     * No exponer desde un controlador.
-     */
-    Appointment rescheduleAppointmentForSystem(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport);
+    /** Ruta interna (sincronizacion de calendario externo): sin control de permiso. */
+    default Appointment rescheduleAppointment(UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport) {
+        return rescheduleAppointment(null, appointmentId, clinicId, newStart, newEnd, externalImport);
+    }
 
-    Appointment transitionStatus(UUID appointmentId, UUID clinicId, UUID actingUserId, AppointmentStatus targetStatus, String cancellationReason);
+    Appointment rescheduleAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId, LocalDateTime newStart, LocalDateTime newEnd, boolean externalImport);
 
-    /**
-     * Usado por la sincronizacion con Google Calendar (cancelacion detectada externamente):
-     * no hay usuario en la peticion. No exponer desde un controlador.
-     */
-    Appointment transitionStatusForSystem(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId);
+    default Appointment transitionStatus(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus) {
+        return transitionStatus(null, appointmentId, clinicId, targetStatus, null, null);
+    }
 
-    /**
-     * Solo lo usa la integracion con Google Calendar para enlazar el evento externo tras
-     * crear o sincronizar una cita: no hay usuario en la peticion. No exponer desde un
-     * controlador.
-     */
+    /** Ruta interna (sincronizacion de calendario externo, seeders): sin control de permiso. */
+    default Appointment transitionStatus(UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId) {
+        return transitionStatus(null, appointmentId, clinicId, targetStatus, cancellationReason, cancelledByUserId);
+    }
+
+    Appointment transitionStatus(UUID actingUserId, UUID appointmentId, UUID clinicId, AppointmentStatus targetStatus, String cancellationReason, UUID cancelledByUserId);
+
+    /** Sin control de permiso: paso interno del flujo de vinculacion de eventos externos. */
     Appointment attachExternalCalendarEvent(UUID appointmentId, UUID clinicId, String externalCalendarEventId);
 
-    void deleteAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId);
+    void deleteAppointment(UUID actingUserId, UUID appointmentId, UUID clinicId);
 
-    Appointment getAppointment(UUID appointmentId, UUID clinicId, UUID actingUserId);
+    /** Sin control de permiso: lo consumen orquestadores internos de integraciones. */
+    Appointment getAppointment(UUID appointmentId, UUID clinicId);
 
-    /**
-     * Lectura interna para la sincronizacion con Google Calendar: no hay usuario en la
-     * peticion. No exponer desde un controlador.
-     */
-    Appointment getAppointmentForSystem(UUID appointmentId, UUID clinicId);
+    List<Appointment> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to);
 
-    List<Appointment> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to);
+    List<Appointment> listByQuotation(UUID actingUserId, UUID quotationId, UUID clinicId);
 
-    List<Appointment> listByQuotation(UUID quotationId, UUID clinicId, UUID actingUserId);
+    List<Appointment> listByPatient(UUID actingUserId, UUID patientId, UUID clinicId);
 
-    List<Appointment> listByPatient(UUID patientId, UUID clinicId, UUID actingUserId);
-
-    /**
-     * Lectura interna para caja (cobros pendientes de citas completadas): no hay usuario
-     * en la peticion. No exponer desde un controlador.
-     */
+    /** Sin control de permiso: lo consume el modulo de caja (cobros pendientes). */
     List<Appointment> listCompletedByClinic(UUID clinicId);
 
-    List<DoctorSnapshot> listDoctors(UUID clinicId, UUID actingUserId);
+    List<DoctorSnapshot> listDoctors(UUID actingUserId, UUID clinicId);
 
-    Appointment assignPatient(UUID appointmentId, UUID clinicId, UUID actingUserId, UUID patientId);
+    Appointment assignPatient(UUID actingUserId, UUID appointmentId, UUID clinicId, UUID patientId);
 
-    List<Appointment> listWithoutPatient(UUID clinicId, UUID actingUserId);
+    List<Appointment> listWithoutPatient(UUID actingUserId, UUID clinicId);
 
     record CreateAppointmentCommand(
             UUID patientId,

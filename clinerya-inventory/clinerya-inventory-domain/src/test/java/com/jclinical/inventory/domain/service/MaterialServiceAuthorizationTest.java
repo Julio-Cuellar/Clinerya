@@ -49,20 +49,20 @@ class MaterialServiceAuthorizationTest {
     @Test
     void deniesCreatingMaterialWithoutManagePermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.createMaterial(clinicId, actingUserId, createCommand()));
+                () -> service.createMaterial(actingUserId, clinicId, createCommand()));
         assertTrue(materialRepository.items.isEmpty());
     }
 
     @Test
     void deniesReadingMaterialsWithoutViewPermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getMaterialsByClinic(clinicId, actingUserId, false));
+                () -> service.getMaterialsByClinic(actingUserId, clinicId, false));
     }
 
     @Test
     void deniesEveryOperationWhenActingUserIsNull() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getMaterialsByClinic(clinicId, null, false));
+                () -> service.getMaterialsByClinic(null, clinicId, false));
     }
 
     @Test
@@ -70,7 +70,7 @@ class MaterialServiceAuthorizationTest {
         UUID materialId = UUID.randomUUID();
         materialRepository.items.add(Material.builder().id(materialId).clinicId(clinicId).active(true).build());
 
-        Optional<Material> found = service.getMaterialForSystem(materialId, clinicId);
+        Optional<Material> found = service.getMaterial(materialId, clinicId);
 
         assertTrue(found.isPresent());
     }
@@ -79,7 +79,7 @@ class MaterialServiceAuthorizationTest {
     void allowsCreatingMaterialWhenPermissionGranted() {
         grantedPermission = StaffPermission.MANAGE_MATERIALS;
 
-        Material created = service.createMaterial(clinicId, actingUserId, createCommand());
+        Material created = service.createMaterial(actingUserId, clinicId, createCommand());
 
         assertEquals(1, materialRepository.items.size());
         assertEquals(created.getId(), materialRepository.items.get(0).getId());

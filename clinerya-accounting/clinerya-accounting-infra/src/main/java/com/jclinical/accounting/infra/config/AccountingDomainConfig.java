@@ -31,12 +31,14 @@ import java.util.List;
 public class AccountingDomainConfig {
 
     @Bean
-    public JournalEntryService journalEntryService(JournalEntryRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
+    public JournalEntryService journalEntryService(JournalEntryRepositoryPort repository,
+                                                  StaffPermissionCheckerPort permissionChecker) {
         return new JournalEntryService(repository, permissionChecker);
     }
 
     @Bean
-    public IncomeStatementService incomeStatementService(JournalEntryRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
+    public IncomeStatementService incomeStatementService(JournalEntryRepositoryPort repository,
+                                                        StaffPermissionCheckerPort permissionChecker) {
         return new IncomeStatementService(repository, permissionChecker);
     }
 

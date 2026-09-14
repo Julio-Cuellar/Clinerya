@@ -48,7 +48,8 @@ public class TreatmentCatalogController {
                 request.estimatedDurationMinutes(),
                 toMaterialCommands(request.materials())
         );
-        TreatmentCatalogItem item = catalogUseCase.createCatalogItem(clinicId, currentUserResolver.getCurrentUserId(), command);
+        TreatmentCatalogItem item = catalogUseCase.createCatalogItem(
+                currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(item));
     }
 
@@ -56,7 +57,8 @@ public class TreatmentCatalogController {
     public ResponseEntity<List<TreatmentCatalogItemResponse>> getItems(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        List<TreatmentCatalogItemResponse> responses = catalogUseCase.getCatalogItemsByClinic(clinicId, currentUserResolver.getCurrentUserId(), includeInactive).stream()
+        List<TreatmentCatalogItemResponse> responses = catalogUseCase
+                .getCatalogItemsByClinic(currentUserResolver.getCurrentUserId(), clinicId, includeInactive).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -66,7 +68,7 @@ public class TreatmentCatalogController {
     public ResponseEntity<TreatmentCatalogItemResponse> getItem(
             @PathVariable UUID clinicId,
             @PathVariable UUID itemId) {
-        return catalogUseCase.getCatalogItem(itemId, clinicId, currentUserResolver.getCurrentUserId())
+        return catalogUseCase.getCatalogItem(currentUserResolver.getCurrentUserId(), itemId, clinicId)
                 .map(item -> ResponseEntity.ok(toResponse(item)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -85,7 +87,8 @@ public class TreatmentCatalogController {
                 toMaterialCommands(request.materials()),
                 request.active()
         );
-        TreatmentCatalogItem item = catalogUseCase.updateCatalogItem(itemId, clinicId, currentUserResolver.getCurrentUserId(), command);
+        TreatmentCatalogItem item = catalogUseCase.updateCatalogItem(
+                currentUserResolver.getCurrentUserId(), itemId, clinicId, command);
         return ResponseEntity.ok(toResponse(item));
     }
 
@@ -93,7 +96,7 @@ public class TreatmentCatalogController {
     public ResponseEntity<Void> deactivateItem(
             @PathVariable UUID clinicId,
             @PathVariable UUID itemId) {
-        catalogUseCase.deactivateCatalogItem(itemId, clinicId, currentUserResolver.getCurrentUserId());
+        catalogUseCase.deactivateCatalogItem(currentUserResolver.getCurrentUserId(), itemId, clinicId);
         return ResponseEntity.noContent().build();
     }
 

@@ -108,7 +108,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public List<AttendanceSummary> listAttendance(UUID clinicId, UUID staffId, LocalDate from, LocalDate to) {
+    public List<AttendanceSummary> listAttendance(UUID clinicId, UUID actingUserId, UUID staffId, LocalDate from, LocalDate to) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_ATTENDANCE,
+                "No tienes permiso para consultar la asistencia de esta clinica.");
         LocalDate effectiveFrom = from != null ? from : LocalDate.now().minusDays(30);
         LocalDate effectiveTo = to != null ? to : LocalDate.now();
         return attendanceRepository.findByClinicIdAndWorkDateBetween(clinicId, effectiveFrom, effectiveTo).stream()
@@ -118,8 +120,11 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public ActivitySummary recordActivity(UUID clinicId, UUID staffId, StaffActivityType type, String referenceType,
-                                          UUID referenceId, String description, BigDecimal amount, LocalDateTime occurredAt) {
+    public ActivitySummary recordActivity(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
+                                          String referenceType, UUID referenceId, String description, BigDecimal amount,
+                                          LocalDateTime occurredAt) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_ACTIVITY,
+                "No tienes permiso para registrar la actividad del personal de esta clinica.");
         ensureActiveStaff(clinicId, staffId);
         if (type == null) {
             throw new IllegalArgumentException("El tipo de actividad es obligatorio.");
@@ -140,8 +145,10 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public List<ActivitySummary> listActivities(UUID clinicId, UUID staffId, StaffActivityType type,
+    public List<ActivitySummary> listActivities(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
                                                 LocalDateTime from, LocalDateTime to) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_ACTIVITY,
+                "No tienes permiso para consultar la actividad del personal de esta clinica.");
         LocalDateTime effectiveFrom = from != null ? from : LocalDate.now().minusDays(30).atStartOfDay();
         LocalDateTime effectiveTo = to != null ? to : LocalDateTime.now();
         List<StaffActivityLog> activities;
@@ -409,11 +416,16 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     private void requirePayrollPermission(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_PAYROLL,
+                "No tienes permiso para gestionar la nomina de esta clinica.");
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
         if (actingUserId == null) {
             throw new ClinicAccessDeniedException("Usuario no autenticado.");
         }
-        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_PAYROLL)) {
-            throw new ClinicAccessDeniedException("No tienes permiso para gestionar la nomina de esta clinica.");
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
         }
     }
 

@@ -32,15 +32,10 @@ public class RoomBlockService implements ManageRoomBlocksUseCase {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de agenda.");
-        }
-    }
-
     @Override
-    public RoomBlock createBlock(UUID clinicId, UUID actingUserId, CreateRoomBlockCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_ROOMS);
+    public RoomBlock createBlock(UUID actingUserId, UUID clinicId, CreateRoomBlockCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_SCHEDULES,
+                "No tienes permiso para gestionar los bloqueos de consultorios de esta clinica.");
         validateTimeRange(command.startsAt(), command.endsAt());
         RoomBlockType type = command.type() != null ? command.type() : RoomBlockType.OTHER;
 
@@ -76,19 +71,30 @@ public class RoomBlockService implements ManageRoomBlocksUseCase {
     }
 
     @Override
-    public List<RoomBlock> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_ROOMS);
+    public List<RoomBlock> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_AGENDA,
+                "No tienes permiso para consultar la agenda de esta clinica.");
         validateTimeRange(from, to);
         return roomBlockRepository.findByClinicIdAndRange(clinicId, from, to);
     }
 
     @Override
-    public void deactivateBlock(UUID clinicId, UUID blockId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_ROOMS);
+    public void deactivateBlock(UUID actingUserId, UUID clinicId, UUID blockId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_SCHEDULES,
+                "No tienes permiso para gestionar los bloqueos de consultorios de esta clinica.");
         RoomBlock block = roomBlockRepository.findByIdAndClinicId(blockId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El bloqueo no existe en esta clínica."));
         block.deactivate();
         roomBlockRepository.save(block);
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private void validateTimeRange(LocalDateTime startsAt, LocalDateTime endsAt) {

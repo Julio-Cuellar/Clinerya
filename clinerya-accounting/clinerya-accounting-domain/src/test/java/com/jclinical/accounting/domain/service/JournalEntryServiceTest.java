@@ -28,9 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JournalEntryServiceTest {
 
     private final InMemoryJournalRepository repository = new InMemoryJournalRepository();
-    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
-    private final JournalEntryService service = new JournalEntryService(repository, permissionChecker);
-    private final UUID actingUserId = UUID.randomUUID();
+    private static final UUID ACTING_USER = UUID.randomUUID();
+    private final JournalEntryService service = new JournalEntryService(repository, (c, u, p) -> true);
 
     @Test
     void recordsMixedPaymentWithBankLineAndAdvanceWhenQuotationIsNotFullyPaid() {
@@ -176,7 +175,7 @@ class JournalEntryServiceTest {
                 ))
                 .build();
 
-        JournalEntry saved = service.createManualEntry(clinicId, actingUserId, manual);
+        JournalEntry saved = service.createManualEntry(ACTING_USER, clinicId, manual);
 
         assertEquals(clinicId, saved.getClinicId());
         assertEquals("Manual", saved.getSourceEventType());

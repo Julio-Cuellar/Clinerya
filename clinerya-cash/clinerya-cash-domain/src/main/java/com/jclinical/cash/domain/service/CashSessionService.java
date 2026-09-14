@@ -39,8 +39,9 @@ public class CashSessionService implements ManageCashSessionUseCase {
     }
 
     @Override
-    public CashSession openSession(UUID clinicId, UUID actingUserId, OpenSessionCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_CASH_CUTS);
+    public CashSession openSession(UUID actingUserId, UUID clinicId, OpenSessionCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_CASH_CUTS,
+                "No tienes permiso para abrir turnos de caja en esta clinica.");
         if (command.openingAmount() == null || command.openingAmount().signum() < 0) {
             throw new IllegalArgumentException("El monto de apertura no puede ser negativo.");
         }
@@ -66,8 +67,9 @@ public class CashSessionService implements ManageCashSessionUseCase {
     }
 
     @Override
-    public CashSession closeSession(UUID clinicId, UUID actingUserId, CloseSessionCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_CASH_CUTS);
+    public CashSession closeSession(UUID actingUserId, UUID clinicId, CloseSessionCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_CASH_CUTS,
+                "No tienes permiso para cerrar turnos de caja en esta clinica.");
         CashSession session = cashSessionRepository.findOpenByClinicIdForUpdate(clinicId)
                 .orElseThrow(() -> new IllegalStateException("No hay un turno de caja abierto para cerrar."));
 
@@ -88,31 +90,35 @@ public class CashSessionService implements ManageCashSessionUseCase {
     }
 
     @Override
-    public Optional<CashSession> getCurrentSession(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
+    public Optional<CashSession> getCurrentSession(UUID actingUserId, UUID clinicId) {
+        requireCashRead(clinicId, actingUserId);
         return cashSessionRepository.findOpenByClinicId(clinicId);
     }
 
     @Override
-    public CashSession getSession(UUID sessionId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
+    public CashSession getSession(UUID actingUserId, UUID sessionId, UUID clinicId) {
+        requireCashRead(clinicId, actingUserId);
         return cashSessionRepository.findByIdAndClinicId(sessionId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El turno de caja no existe en esta clínica."));
     }
 
     @Override
-    public List<CashSession> listSessions(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
+    public List<CashSession> listSessions(UUID actingUserId, UUID clinicId) {
+        requireCashRead(clinicId, actingUserId);
         return cashSessionRepository.findByClinicId(clinicId);
     }
 
-    /**
-     * Mismo patron que QuotationService/MedicalHistoryService: la autorizacion vive en el
-     * dominio, no en el controlador, para que un endpoint nuevo no pueda saltarsela.
-     */
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+    private void requireCashRead(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_CASH,
+                "No tienes permiso para consultar la caja de esta clinica.");
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
         }
     }
 }

@@ -9,11 +9,11 @@ import java.util.UUID;
 
 public interface ManageRoomBlocksUseCase {
 
-    RoomBlock createBlock(UUID clinicId, UUID actingUserId, CreateRoomBlockCommand command);
+    RoomBlock createBlock(UUID actingUserId, UUID clinicId, CreateRoomBlockCommand command);
 
-    List<RoomBlock> listByClinicRange(UUID clinicId, UUID actingUserId, LocalDateTime from, LocalDateTime to);
+    List<RoomBlock> listByClinicRange(UUID actingUserId, UUID clinicId, LocalDateTime from, LocalDateTime to);
 
-    void deactivateBlock(UUID clinicId, UUID blockId, UUID actingUserId);
+    void deactivateBlock(UUID actingUserId, UUID clinicId, UUID blockId);
 
     record CreateRoomBlockCommand(
             UUID roomId,

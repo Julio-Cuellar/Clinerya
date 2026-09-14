@@ -21,31 +21,31 @@ public class TransactionalCashSessionUseCase implements ManageCashSessionUseCase
 
     @Override
     @Transactional
-    public CashSession openSession(UUID clinicId, UUID actingUserId, OpenSessionCommand command) {
-        return cashSessionService.openSession(clinicId, actingUserId, command);
+    public CashSession openSession(UUID actingUserId, UUID clinicId, OpenSessionCommand command) {
+        return cashSessionService.openSession(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional
-    public CashSession closeSession(UUID clinicId, UUID actingUserId, CloseSessionCommand command) {
-        return cashSessionService.closeSession(clinicId, actingUserId, command);
+    public CashSession closeSession(UUID actingUserId, UUID clinicId, CloseSessionCommand command) {
+        return cashSessionService.closeSession(actingUserId, clinicId, command);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<CashSession> getCurrentSession(UUID clinicId, UUID actingUserId) {
-        return cashSessionService.getCurrentSession(clinicId, actingUserId);
+    public Optional<CashSession> getCurrentSession(UUID actingUserId, UUID clinicId) {
+        return cashSessionService.getCurrentSession(actingUserId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public CashSession getSession(UUID sessionId, UUID clinicId, UUID actingUserId) {
-        return cashSessionService.getSession(sessionId, clinicId, actingUserId);
+    public CashSession getSession(UUID actingUserId, UUID sessionId, UUID clinicId) {
+        return cashSessionService.getSession(actingUserId, sessionId, clinicId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CashSession> listSessions(UUID clinicId, UUID actingUserId) {
-        return cashSessionService.listSessions(clinicId, actingUserId);
+    public List<CashSession> listSessions(UUID actingUserId, UUID clinicId) {
+        return cashSessionService.listSessions(actingUserId, clinicId);
     }
 }

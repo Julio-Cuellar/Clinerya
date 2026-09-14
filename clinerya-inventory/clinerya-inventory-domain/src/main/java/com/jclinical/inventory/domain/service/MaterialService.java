@@ -1,11 +1,11 @@
 package com.jclinical.inventory.domain.service;
 
-import com.jclinical.inventory.domain.model.Material;
-import com.jclinical.inventory.domain.ports.in.ManageMaterialUseCase;
-import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.StaffPermission;
 import com.jclinical.core.security.StaffPermissionCheckerPort;
+import com.jclinical.inventory.domain.model.Material;
+import com.jclinical.inventory.domain.ports.in.ManageMaterialUseCase;
+import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,15 +23,10 @@ public class MaterialService implements ManageMaterialUseCase {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de inventario.");
-        }
-    }
-
     @Override
-    public Material createMaterial(UUID clinicId, UUID actingUserId, CreateMaterialCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
+    public Material createMaterial(UUID actingUserId, UUID clinicId, CreateMaterialCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_MATERIALS,
+                "No tienes permiso para gestionar el catalogo de materiales de esta clinica.");
         validate(command.name(), command.unitOfMeasure(), command.quantityPerPresentation(), command.unitCost());
         validateMinimumStock(command.minimumStock());
         validateSalePrice(command.saleEnabled(), command.salePrice());
@@ -62,8 +57,9 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public Material updateMaterial(UUID materialId, UUID clinicId, UUID actingUserId, UpdateMaterialCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
+    public Material updateMaterial(UUID actingUserId, UUID materialId, UUID clinicId, UpdateMaterialCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_MATERIALS,
+                "No tienes permiso para gestionar el catalogo de materiales de esta clinica.");
         validate(command.name(), command.unitOfMeasure(), command.quantityPerPresentation(), command.unitCost());
         validateMinimumStock(command.minimumStock());
         validateSalePrice(command.saleEnabled(), command.salePrice());
@@ -91,8 +87,9 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public void deactivateMaterial(UUID materialId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_MATERIALS);
+    public void deactivateMaterial(UUID actingUserId, UUID materialId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_MATERIALS,
+                "No tienes permiso para gestionar el catalogo de materiales de esta clinica.");
         Material material = materialRepository.findByIdAndClinicId(materialId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El material no existe en esta clínica."));
         material.setActive(false);
@@ -101,20 +98,24 @@ public class MaterialService implements ManageMaterialUseCase {
     }
 
     @Override
-    public Optional<Material> getMaterial(UUID materialId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public Optional<Material> getMaterial(UUID materialId, UUID clinicId) {
         return materialRepository.findByIdAndClinicId(materialId, clinicId);
     }
 
     @Override
-    public List<Material> getMaterialsByClinic(UUID clinicId, UUID actingUserId, boolean includeInactive) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<Material> getMaterialsByClinic(UUID actingUserId, UUID clinicId, boolean includeInactive) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_INVENTORY,
+                "No tienes permiso para consultar el inventario de esta clinica.");
         return materialRepository.findByClinicId(clinicId, includeInactive);
     }
 
-    @Override
-    public Optional<Material> getMaterialForSystem(UUID materialId, UUID clinicId) {
-        return materialRepository.findByIdAndClinicId(materialId, clinicId);
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private void validate(String name, String unitOfMeasure, BigDecimal quantityPerPresentation, BigDecimal unitCost) {

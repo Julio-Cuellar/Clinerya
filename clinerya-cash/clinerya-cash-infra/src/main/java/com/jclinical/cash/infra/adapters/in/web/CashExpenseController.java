@@ -38,7 +38,8 @@ public class CashExpenseController {
                 request.amount(),
                 request.createdByStaffId()
         );
-        CashExpense expense = cashExpensesUseCase.registerExpense(clinicId, currentUserResolver.getCurrentUserId(), command);
+        CashExpense expense = cashExpensesUseCase.registerExpense(
+                currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(expense));
     }
 
@@ -46,7 +47,8 @@ public class CashExpenseController {
     public ResponseEntity<CashExpenseResponse> getExpense(
             @PathVariable UUID clinicId,
             @PathVariable UUID expenseId) {
-        CashExpense expense = cashExpensesUseCase.getExpense(expenseId, clinicId, currentUserResolver.getCurrentUserId());
+        CashExpense expense = cashExpensesUseCase.getExpense(
+                currentUserResolver.getCurrentUserId(), expenseId, clinicId);
         return ResponseEntity.ok(toResponse(expense));
     }
 
@@ -54,7 +56,8 @@ public class CashExpenseController {
     public ResponseEntity<List<CashExpenseResponse>> listBySession(
             @PathVariable UUID clinicId,
             @PathVariable UUID cashSessionId) {
-        List<CashExpenseResponse> responses = cashExpensesUseCase.listBySession(cashSessionId, clinicId, currentUserResolver.getCurrentUserId()).stream()
+        List<CashExpenseResponse> responses = cashExpensesUseCase
+                .listBySession(currentUserResolver.getCurrentUserId(), cashSessionId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -66,7 +69,8 @@ public class CashExpenseController {
             @PathVariable UUID expenseId,
             @RequestBody VoidCashExpenseRequest request) {
         VoidExpenseCommand command = new VoidExpenseCommand(request.staffId(), request.reason());
-        CashExpense expense = cashExpensesUseCase.voidExpense(expenseId, clinicId, currentUserResolver.getCurrentUserId(), command);
+        CashExpense expense = cashExpensesUseCase.voidExpense(
+                currentUserResolver.getCurrentUserId(), expenseId, clinicId, command);
         return ResponseEntity.ok(toResponse(expense));
     }
 

@@ -41,8 +41,9 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
     }
 
     @Override
-    public CashExpense registerExpense(UUID clinicId, UUID actingUserId, RegisterExpenseCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_EXPENSES);
+    public CashExpense registerExpense(UUID actingUserId, UUID clinicId, RegisterExpenseCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_EXPENSES,
+                "No tienes permiso para registrar egresos de caja en esta clinica.");
         staffValidator.findActiveStaff(command.createdByStaffId(), clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El empleado indicado no existe o no está activo en esta clínica."));
 
@@ -84,21 +85,24 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
     }
 
     @Override
-    public CashExpense getExpense(UUID expenseId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
+    public CashExpense getExpense(UUID actingUserId, UUID expenseId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_CASH,
+                "No tienes permiso para consultar la caja de esta clinica.");
         return expenseRepository.findByIdAndClinicId(expenseId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El egreso no existe en esta clínica."));
     }
 
     @Override
-    public List<CashExpense> listBySession(UUID cashSessionId, UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_CASH);
+    public List<CashExpense> listBySession(UUID actingUserId, UUID cashSessionId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.VIEW_CASH,
+                "No tienes permiso para consultar la caja de esta clinica.");
         return expenseRepository.findByCashSessionId(cashSessionId, clinicId);
     }
 
     @Override
-    public CashExpense voidExpense(UUID expenseId, UUID clinicId, UUID actingUserId, VoidExpenseCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_EXPENSES);
+    public CashExpense voidExpense(UUID actingUserId, UUID expenseId, UUID clinicId, VoidExpenseCommand command) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_EXPENSES,
+                "No tienes permiso para cancelar egresos de caja en esta clinica.");
         CashExpense expense = expenseRepository.findByIdAndClinicId(expenseId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El egreso no existe en esta clínica."));
 
@@ -121,9 +125,12 @@ public class CashExpenseService implements ManageCashExpensesUseCase {
         return saved;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de caja.");
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
         }
     }
 }

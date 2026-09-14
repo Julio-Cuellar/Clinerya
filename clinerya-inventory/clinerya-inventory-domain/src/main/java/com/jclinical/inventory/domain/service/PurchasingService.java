@@ -3,9 +3,6 @@ package com.jclinical.inventory.domain.service;
 import com.jclinical.core.events.DomainEventPublisherPort;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import com.jclinical.core.events.PurchaseOrderCreatedEvent;
-import com.jclinical.core.security.ClinicAccessDeniedException;
-import com.jclinical.core.security.StaffPermission;
-import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.inventory.domain.model.InventoryMovement;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.model.PurchaseOrder;
@@ -27,6 +24,9 @@ import com.jclinical.inventory.domain.ports.out.PurchaseOrderRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.PurchaseReceiptRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.SupplierRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.SupplierMaterialRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -68,14 +68,8 @@ public class PurchasingService {
         this.permissionChecker = permissionChecker;
     }
 
-    private void authorize(UUID actingUserId, UUID clinicId, StaffPermission permission) {
-        if (actingUserId == null || !permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
-            throw new ClinicAccessDeniedException("No tienes permisos para esta operación de compras.");
-        }
-    }
-
-    public Supplier createSupplier(UUID clinicId, UUID actingUserId, CreateSupplierCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public Supplier createSupplier(UUID actingUserId, UUID clinicId, CreateSupplierCommand command) {
+        requirePurchases(clinicId, actingUserId);
         requireClinic(clinicId);
         String name = requireText(command.name(), "El nombre del proveedor es obligatorio.");
         LocalDateTime now = LocalDateTime.now();
@@ -94,8 +88,8 @@ public class PurchasingService {
                 .build());
     }
 
-    public Supplier updateSupplier(UUID clinicId, UUID supplierId, UUID actingUserId, UpdateSupplierCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public Supplier updateSupplier(UUID actingUserId, UUID clinicId, UUID supplierId, UpdateSupplierCommand command) {
+        requirePurchases(clinicId, actingUserId);
         Supplier supplier = requireSupplier(clinicId, supplierId);
         supplier.setName(requireText(command.name(), "El nombre del proveedor es obligatorio."));
         supplier.setContactName(normalize(command.contactName()));
@@ -108,20 +102,20 @@ public class PurchasingService {
         return supplierRepository.save(supplier);
     }
 
-    public List<Supplier> listSuppliers(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<Supplier> listSuppliers(UUID actingUserId, UUID clinicId) {
+        requirePurchases(clinicId, actingUserId);
         requireClinic(clinicId);
         return supplierRepository.findByClinicId(clinicId);
     }
 
-    public List<SupplierMaterial> listSupplierMaterials(UUID clinicId, UUID supplierId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<SupplierMaterial> listSupplierMaterials(UUID actingUserId, UUID clinicId, UUID supplierId) {
+        requirePurchases(clinicId, actingUserId);
         requireSupplier(clinicId, supplierId);
         return supplierMaterialRepository.findActiveBySupplierIdAndClinicId(supplierId, clinicId);
     }
 
-    public SupplierMaterial addSupplierMaterial(UUID clinicId, UUID supplierId, UUID actingUserId, AddSupplierMaterialCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public SupplierMaterial addSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, AddSupplierMaterialCommand command) {
+        requirePurchases(clinicId, actingUserId);
         requireSupplier(clinicId, supplierId);
         if (command.materialId() == null) {
             throw new IllegalArgumentException("Selecciona un material.");
@@ -159,8 +153,8 @@ public class PurchasingService {
         return supplierMaterialRepository.save(supplierMaterial);
     }
 
-    public void removeSupplierMaterial(UUID clinicId, UUID supplierId, UUID materialId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public void removeSupplierMaterial(UUID actingUserId, UUID clinicId, UUID supplierId, UUID materialId) {
+        requirePurchases(clinicId, actingUserId);
         requireSupplier(clinicId, supplierId);
         SupplierMaterial supplierMaterial = supplierMaterialRepository
                 .findBySupplierIdAndMaterialId(supplierId, materialId)
@@ -170,8 +164,8 @@ public class PurchasingService {
         supplierMaterialRepository.save(supplierMaterial);
     }
 
-    public PurchaseOrder createPurchaseOrder(UUID clinicId, UUID actingUserId, CreatePurchaseOrderCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public PurchaseOrder createPurchaseOrder(UUID actingUserId, UUID clinicId, CreatePurchaseOrderCommand command) {
+        requirePurchases(clinicId, actingUserId);
         requireClinic(clinicId);
         Supplier supplier = requireSupplier(clinicId, command.supplierId());
         if (!supplier.isActive()) {
@@ -256,34 +250,34 @@ public class PurchasingService {
         return savedOrder;
     }
 
-    public PurchaseOrder getPurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public PurchaseOrder getPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId) {
+        requirePurchases(clinicId, actingUserId);
         return orderRepository.findByIdAndClinicId(orderId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("La orden de compra no existe."));
     }
 
-    public List<PurchaseOrder> listPurchaseOrders(UUID clinicId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
+    public List<PurchaseOrder> listPurchaseOrders(UUID actingUserId, UUID clinicId) {
+        requirePurchases(clinicId, actingUserId);
         requireClinic(clinicId);
         return orderRepository.findByClinicId(clinicId);
     }
 
-    public PurchaseOrder markPurchaseOrderOrdered(UUID clinicId, UUID orderId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public PurchaseOrder markPurchaseOrderOrdered(UUID actingUserId, UUID clinicId, UUID orderId) {
+        requirePurchases(clinicId, actingUserId);
         PurchaseOrder order = requireOrderForUpdate(clinicId, orderId);
         order.markOrdered();
         return orderRepository.save(order);
     }
 
-    public PurchaseOrder cancelPurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public PurchaseOrder cancelPurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId) {
+        requirePurchases(clinicId, actingUserId);
         PurchaseOrder order = requireOrderForUpdate(clinicId, orderId);
         order.cancel();
         return orderRepository.save(order);
     }
 
-    public PurchaseReceipt receivePurchaseOrder(UUID clinicId, UUID orderId, UUID actingUserId, ReceivePurchaseOrderCommand command) {
-        authorize(actingUserId, clinicId, StaffPermission.MANAGE_PURCHASES);
+    public PurchaseReceipt receivePurchaseOrder(UUID actingUserId, UUID clinicId, UUID orderId, ReceivePurchaseOrderCommand command) {
+        requirePurchases(clinicId, actingUserId);
         PurchaseOrder order = requireOrderForUpdate(clinicId, orderId);
         if (order.getStatus() != PurchaseOrderStatus.ORDERED
                 && order.getStatus() != PurchaseOrderStatus.PARTIALLY_RECEIVED) {
@@ -362,9 +356,8 @@ public class PurchasingService {
         return receiptRepository.save(receipt);
     }
 
-    public List<PurchaseReceipt> listReceipts(UUID clinicId, UUID orderId, UUID actingUserId) {
-        authorize(actingUserId, clinicId, StaffPermission.VIEW_INVENTORY);
-        getPurchaseOrder(clinicId, orderId, actingUserId);
+    public List<PurchaseReceipt> listReceipts(UUID actingUserId, UUID clinicId, UUID orderId) {
+        getPurchaseOrder(actingUserId, clinicId, orderId);
         return receiptRepository.findByPurchaseOrderId(orderId);
     }
 
@@ -409,6 +402,15 @@ public class PurchasingService {
     private void requireClinic(UUID clinicId) {
         if (clinicId == null) {
             throw new IllegalArgumentException("La clínica es obligatoria.");
+        }
+    }
+
+    private void requirePurchases(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_PURCHASES)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para gestionar las compras de esta clinica.");
         }
     }
 

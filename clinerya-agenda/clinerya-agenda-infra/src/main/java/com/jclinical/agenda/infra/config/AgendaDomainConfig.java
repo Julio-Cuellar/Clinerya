@@ -33,7 +33,8 @@ import org.springframework.context.annotation.Configuration;
 public class AgendaDomainConfig {
 
     @Bean
-    public ClinicScheduleService clinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository, StaffPermissionCheckerPort permissionChecker) {
+    public ClinicScheduleService clinicScheduleService(ClinicScheduleRepositoryPort scheduleRepository,
+                                                       StaffPermissionCheckerPort permissionChecker) {
         return new ClinicScheduleService(scheduleRepository, permissionChecker);
     }
 

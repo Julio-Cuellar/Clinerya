@@ -9,15 +9,15 @@ import java.util.UUID;
 
 public interface ManageCashSessionUseCase {
 
-    CashSession openSession(UUID clinicId, UUID actingUserId, OpenSessionCommand command);
+    CashSession openSession(UUID actingUserId, UUID clinicId, OpenSessionCommand command);
 
-    CashSession closeSession(UUID clinicId, UUID actingUserId, CloseSessionCommand command);
+    CashSession closeSession(UUID actingUserId, UUID clinicId, CloseSessionCommand command);
 
-    Optional<CashSession> getCurrentSession(UUID clinicId, UUID actingUserId);
+    Optional<CashSession> getCurrentSession(UUID actingUserId, UUID clinicId);
 
-    CashSession getSession(UUID sessionId, UUID clinicId, UUID actingUserId);
+    CashSession getSession(UUID actingUserId, UUID sessionId, UUID clinicId);
 
-    List<CashSession> listSessions(UUID clinicId, UUID actingUserId);
+    List<CashSession> listSessions(UUID actingUserId, UUID clinicId);
 
     record OpenSessionCommand(UUID openedByStaffId, BigDecimal openingAmount) {}
 

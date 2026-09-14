@@ -31,13 +31,15 @@ class MaterialReservationServiceTest {
     @Mock
     private MaterialReservationQueryPort reservationQuery;
 
-    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
     private final UUID actingUserId = UUID.randomUUID();
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+
     private MaterialReservationService service;
 
     @BeforeEach
     void setUp() {
-        service = new MaterialReservationService(materialRepository, reservationRepository, reservationQuery, permissionChecker);
+        service = new MaterialReservationService(
+                materialRepository, reservationRepository, reservationQuery, permissionChecker);
     }
 
     @Test
@@ -62,7 +64,7 @@ class MaterialReservationServiceTest {
         );
         when(reservationQuery.findActiveByClinicId(clinicId)).thenReturn(List.of(reservation));
 
-        List<MaterialReservationDetail> result = service.listActiveReservations(clinicId, actingUserId);
+        List<MaterialReservationDetail> result = service.listActiveReservations(actingUserId, clinicId);
 
         assertThat(result).containsExactly(reservation);
         assertThat(result.getFirst().patientName()).isEqualTo("Mariana Torres Vega");

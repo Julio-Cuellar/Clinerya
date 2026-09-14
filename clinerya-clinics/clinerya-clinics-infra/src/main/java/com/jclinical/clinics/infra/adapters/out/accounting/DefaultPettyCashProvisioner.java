@@ -29,13 +29,13 @@ public class DefaultPettyCashProvisioner {
         if (clinicId == null) {
             return;
         }
-        boolean alreadyExists = openingBalancesUseCase.listBankAccountsForSystem(clinicId).stream()
+        boolean alreadyExists = openingBalancesUseCase.listBankAccounts(clinicId).stream()
                 .anyMatch(account -> account.getAccountKind() == OperationalAccountKind.PETTY_CASH);
         if (alreadyExists) {
             return;
         }
 
-        openingBalancesUseCase.createBankAccountForSystem(
+        openingBalancesUseCase.createBankAccount(
                 clinicId,
                 new ManageOpeningBalancesUseCase.CreateBankAccountCommand(
                         DEFAULT_ALIAS,

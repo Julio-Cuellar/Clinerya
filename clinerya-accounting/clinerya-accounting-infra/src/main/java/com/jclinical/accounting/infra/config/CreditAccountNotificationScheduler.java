@@ -31,7 +31,7 @@ public class CreditAccountNotificationScheduler {
             );
             LocalDate today = LocalDate.now();
             clinicIds.forEach(clinicId -> openingBalancesUseCase
-                    .listCreditAccountAlertsForSystem(clinicId, today, 7)
+                    .listCreditAccountAlerts(clinicId, today, 7)
                     .forEach(alert -> publish(clinicId, alert)));
         } catch (Exception exception) {
             log.error("Error publicando notificaciones de tarjetas de crédito", exception);

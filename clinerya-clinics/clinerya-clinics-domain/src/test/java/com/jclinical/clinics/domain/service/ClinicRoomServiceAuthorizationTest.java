@@ -41,20 +41,20 @@ class ClinicRoomServiceAuthorizationTest {
     @Test
     void deniesCreatingRoomWithoutCreatePermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.createRoom(clinicId, actingUserId, "Consultorio 1", null, null, null));
+                () -> service.createRoom(actingUserId, clinicId, "Consultorio 1", null, null, null));
         assertTrue(roomRepository.items.isEmpty());
     }
 
     @Test
     void deniesListingRoomsWithoutViewPermission() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getRoomsByClinic(clinicId, actingUserId));
+                () -> service.getRoomsByClinic(actingUserId, clinicId));
     }
 
     @Test
     void deniesEveryOperationWhenActingUserIsNull() {
         assertThrows(ClinicAccessDeniedException.class,
-                () -> service.getRoomsByClinic(clinicId, null));
+                () -> service.getRoomsByClinic(null, clinicId));
     }
 
     @Test
@@ -62,7 +62,7 @@ class ClinicRoomServiceAuthorizationTest {
         UUID roomId = UUID.randomUUID();
         roomRepository.items.add(ClinicRoom.builder().id(roomId).clinicId(clinicId).active(true).build());
 
-        List<ClinicRoom> found = service.getActiveRoomsByClinicForSystem(clinicId);
+        List<ClinicRoom> found = service.getActiveRoomsByClinic(clinicId);
 
         assertEquals(1, found.size());
     }
@@ -71,7 +71,7 @@ class ClinicRoomServiceAuthorizationTest {
     void allowsCreatingRoomWhenPermissionGranted() {
         grantedPermission = StaffPermission.CREATE_ROOMS;
 
-        ClinicRoom created = service.createRoom(clinicId, actingUserId, "Consultorio 1", null, null, null);
+        ClinicRoom created = service.createRoom(actingUserId, clinicId, "Consultorio 1", null, null, null);
 
         assertEquals(1, roomRepository.items.size());
         assertEquals(created.getId(), roomRepository.items.get(0).getId());

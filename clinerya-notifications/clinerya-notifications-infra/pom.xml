@@ -16,6 +16,11 @@
             <groupId>com.jclinical</groupId>
             <artifactId>clinerya-notifications-domain</artifactId>
         </dependency>
+        <!-- Resolución del usuario autenticado para el control de acceso en el controlador -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
