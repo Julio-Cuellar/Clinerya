@@ -37,7 +37,9 @@ jobs:
         run: mvn -B -q dependency:tree -DoutputFile=maven-dependency-tree.txt -DoutputType=text
 
       - name: Scan with osv-scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2
+        # Sin pin a un patch fijo: google/osv-scanner-action dejo de publicar el tag
+        # flotante "v2" (solo hay versiones completas), asi que "@v2" no resuelve.
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.1
         continue-on-error: true
         with:
           scan-args: |-
