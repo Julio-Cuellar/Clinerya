@@ -16,6 +16,8 @@ medicloud:
     # (ENC_GCM:...) con esa clave -p. ej. credenciales de Google Calendar- cambiar este valor
     # rompe el descifrado de esos datos existentes (Tag mismatch en AesCryptoConverter).
     encryption-key: DefaultSecretEncryptionKey32Chars!
+    # Sin TLS en local: una cookie Secure no la manda el navegador y el refresh nunca llega.
+    secure-cookies: false
 
 google:
   oauth:

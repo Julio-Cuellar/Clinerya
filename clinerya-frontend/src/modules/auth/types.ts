@@ -52,14 +52,12 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
-  refreshToken: string;
   tokenType: string;
   user: AuthUserProfile;
 }
 
 export interface RefreshResponse {
   token: string;
-  refreshToken: string;
   tokenType: string;
 }
 

@@ -434,10 +434,22 @@ ruta legacy; las escrituras nuevas usan `ENC_GCM_V2:`.
       componentes, `fonts.googleapis/gstatic` por la fuente Inter de `index.html`, e
       `img-src data: blob:` por la firma del paciente (`toDataURL`) y el export a PDF.
       Cuando el reporte salga limpio, renombrar la cabecera a `Content-Security-Policy`.
-- [ ] **No hecho — decisión pendiente:** mover el refresh token a cookie `HttpOnly`.
-      Obliga a reintroducir protección CSRF (hoy deshabilitada con razón, porque el JWT
-      va en cabecera) y a rehacer el flujo de renovación del frontend. Es un cambio de
-      arquitectura de sesión, no un endurecimiento: merece decidirse aparte.
+- [x] **Refresh token movido a cookie `HttpOnly`** (2026-09-13). Antes viajaba en el
+      cuerpo JSON de login/refresh/logout y se guardaba en `localStorage`: un XSS que
+      leyera `localStorage` se llevaba un token de 7 días. Ahora `AuthController` lo
+      entrega como `Set-Cookie` (`HttpOnly`, `Secure` — configurable con
+      `medicloud.security.secure-cookies`, `false` solo en `application-local.yml` sin
+      TLS —, `SameSite=Strict`, `Path=/api/v1/auth`), `refresh`/`logout` lo leen con
+      `@CookieValue` en vez de del cuerpo, y `LoginResponse`/`TokenRefreshResponse` ya
+      no lo exponen. **Decisión sobre CSRF:** no se reactivó el filtro CSRF de Spring
+      (rompería todo el API autenticado por cabecera `Authorization`); la mitigación es
+      `SameSite=Strict`, que evita que el navegador mande la cookie en peticiones
+      cross-site — el filtro de rate limit y el hecho de que la respuesta de `/refresh`
+      no es legible cross-origin (SOP) acotan aún más el riesgo residual. Frontend:
+      `sessionStore` ya no guarda ni lee un refresh token (`fetch` manda la cookie sola
+      vía `credentials: "include"`); el reintento en 401 ya no puede comprobar si hay
+      refresh token antes de intentar — simplemente lo intenta y limpia la sesión si
+      falla.
 
 **Adjuntos**
 

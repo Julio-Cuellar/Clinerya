@@ -121,6 +121,9 @@ medicloud:
     # persiste .field-key cuando el contenedor no monta /run/secrets/machine_id.
     # Debe montarse como volumen dedicado en produccion.
     key-store-dir: ${MEDICLOUD_KEY_STORE_DIR:/app/secrets}
+    # Cookie del refresh token: Secure exige HTTPS. Solo se desactiva en application-local.yml
+    # (desarrollo local sin TLS); produccion siempre corre detras de Caddy con TLS.
+    secure-cookies: ${MEDICLOUD_SECURE_COOKIES:true}
 
 google:
   oauth:

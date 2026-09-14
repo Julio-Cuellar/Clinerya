@@ -133,7 +133,6 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 const ACCESS_TOKEN_KEY = "clinicloud.access_token";
-const REFRESH_TOKEN_KEY = "clinicloud.refresh_token";
 const USER_KEY = "clinicloud.user";
 
 export class ApiClientError extends Error {
@@ -146,21 +145,20 @@ export class ApiClientError extends Error {
   }
 }
 
+// El refresh token ya no pasa por aqui: vive solo en una cookie HttpOnly que el
+// navegador manda solo, y que este codigo no puede leer ni escribir.
 export const sessionStore = {
   getAccessToken: () => localStorage.getItem(ACCESS_TOKEN_KEY),
-  getRefreshToken: () => localStorage.getItem(REFRESH_TOKEN_KEY),
   getUser: (): UserProfile | null => {
     const raw = localStorage.getItem(USER_KEY);
     return raw ? (JSON.parse(raw) as UserProfile) : null;
   },
-  setTokens: (payload: { token: string; refreshToken: string }) => {
+  setTokens: (payload: { token: string }) => {
     localStorage.setItem(ACCESS_TOKEN_KEY, payload.token);
-    localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
   },
   setUser: (user: UserProfile) => localStorage.setItem(USER_KEY, JSON.stringify(user)),
   clear: () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   }
 };
@@ -178,7 +176,9 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers
+    headers,
+    // Necesario para que la cookie del refresh token viaje en /auth/refresh y /auth/logout.
+    credentials: "include"
   });
 
   if (response.status === 204) {
@@ -188,7 +188,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    if (response.status === 401 && retry && sessionStore.getRefreshToken() && path !== "/v1/auth/refresh") {
+    // Ya no se puede saber desde JS si hay un refresh token (vive en una cookie
+    // HttpOnly): se intenta siempre y, si no hay cookie valida, el backend responde
+    // 400 y el catch limpia la sesion.
+    if (response.status === 401 && retry && path !== "/v1/auth/refresh") {
       try {
         const refreshed = await authApi.refresh();
         sessionStore.setTokens(refreshed);
@@ -226,20 +229,11 @@ export const authApi = {
     }),
   login: (body: LoginRequest) =>
     request<LoginResponse>("/v1/auth/login", { method: "POST", body: JSON.stringify(body) }),
-  refresh: () =>
-    request<RefreshResponse>(
-      "/v1/auth/refresh",
-      { method: "POST", body: JSON.stringify({ refreshToken: sessionStore.getRefreshToken() }) },
-      false
-    ),
-  // Se manda el refresh token para que el backend tambien lo invalide: si no, sobrevive
-  // al logout y sigue emitiendo tokens de acceso durante toda su vigencia.
-  logout: () =>
-    request<void>(
-      "/v1/auth/logout",
-      { method: "POST", body: JSON.stringify({ refreshToken: sessionStore.getRefreshToken() }) },
-      false
-    ),
+  // El refresh token va en la cookie HttpOnly; el navegador la manda solo.
+  refresh: () => request<RefreshResponse>("/v1/auth/refresh", { method: "POST" }, false),
+  // El backend lee la misma cookie para invalidar el refresh token y borrarla; si no,
+  // sobrevive al logout y sigue emitiendo tokens de acceso durante toda su vigencia.
+  logout: () => request<void>("/v1/auth/logout", { method: "POST" }, false),
   me: () => request<UserProfile>("/v1/auth/me"),
   changePassword: (body: any) =>
     request<{ message: string }>("/v1/users/change-password", { method: "POST", body: JSON.stringify(body) }),
