@@ -34,12 +34,12 @@ el árbol de trabajo y en el historial de git.
 | Blacklist de logout | `clinerya-auth-infra/.../adapters/out/SqlTokenRepository.java` | `core.revoked_tokens`, SHA-256 del token, barrido horario (P2) |
 | Permiso de plataforma | `users.users.platform_admin` + `PlatformAccessDeniedException` (`clinerya-core`) | Config global y respaldos (`/api/v1/system-configs`), fuera del ámbito de clínica (P1) |
 | Membresía de clínica | `clinerya-app/.../security/ClinicAccessInterceptor.java` + `ClinicAccessWebConfig.java` | Solo `/api/v1/clinics/**`; pregunta "¿eres staff activo?" sin mirar rol |
-| Permisos granulares | `clinerya-staff-domain/.../model/StaffPermission.java` (~60 permisos) | Aplicado **únicamente** en los servicios de `clinerya-staff` — pendiente P3 |
+| Permisos granulares | `StaffPermission` (movido a `clinerya-core/.../security` en P3) | Aplicado en los 27 controladores de `/api/v1/clinics/**` y `/api/v1/patients/**` — ver ArchTest de abajo |
 | Acceso a expediente | `clinerya-records-infra/.../crossmodule/RecordsAccessAuthorizationAdapter.java` | `PatientAccessAuthorizationPort` (movido a `clinerya-core` en P1): rol de staff + grants externos; lo usan expediente, tratamientos y adjuntos |
 | Cifrado de campo | `clinerya-records-infra/.../persistence/security/AesCryptoConverter.java` (duplicado en `clinerya-integrations-infra`) | AES-GCM con prefijo `ENC_GCM:`, lectura legacy `ENC:` |
 | Bitácora de accesos | `clinerya-records-domain/.../service/RecordAccessLogService.java` + outbox | Lecturas de expediente con IP y user-agent |
 | Reverse proxy | `Caddyfile` (TLS/Let's Encrypt), `nginx.conf` | HSTS, nosniff, DENY, Referrer/Permissions-Policy y CSP en Report-Only (P5) |
-| Migraciones Flyway | `clinerya-app/src/main/resources/db/migration/` — `V46` (permiso de plataforma) y `V47` (blacklist de tokens) creadas por este plan; **siguiente libre: `V48`** | |
+| Migraciones Flyway | `clinerya-app/src/main/resources/db/migration/` — de `V46` a `V51` creadas por este plan; **siguiente libre: `V52`** | |
 
 ### Cobertura real del modelo de permisos
 
@@ -397,9 +397,17 @@ ruta legacy; las escrituras nuevas usan `ENC_GCM_V2:`.
       — sirve el binario como `attachment`+`nosniff`, rate limit por prefijo, puerto
       `SharedStudyLookupPort` sobre el módulo de adjuntos. Commits `e32b639` (4 secciones)
       + commit B (estudios).
-- [ ] **Verificar al destinatario** con un código de un solo uso al correo: columna
-      `recipient_verified_at` reservada en `V48`, pero el flujo (envío + pantalla para
-      introducir el código) queda pendiente — necesita frontend y una plantilla de correo.
+- [x] **Verificar al destinatario** con un código de un solo uso al correo (`V51`):
+      `verification_code_hash`/`verification_code_expires_at`/`verification_attempts`
+      (mismo criterio de hash que `token_hash`, sin persistir el código en claro).
+      `POST /api/v1/public/shared-history/verify/request` genera y envía el código
+      (`EmailSenderPort.sendShareRecipientVerificationCode`, plantilla de texto plano);
+      `POST /api/v1/public/shared-history/verify/confirm` lo valida (10 min de vigencia,
+      bloqueo tras 5 intentos). `getSharedRecord`/`getSharedStudyContent` exigen
+      `recipient_verified_at` no nulo — si falta, lanzan `RecipientVerificationRequiredException`
+      (HTTP 428, `code: RECIPIENT_VERIFICATION_REQUIRED`) para que el frontend muestre la
+      pantalla de código en vez de un error. `ShareViewScreen` implementa ese flujo.
+      Rate limit dedicado en ambos endpoints nuevos.
 
 **Pendiente operativo (ventana de mantenimiento, solo tú):**
 

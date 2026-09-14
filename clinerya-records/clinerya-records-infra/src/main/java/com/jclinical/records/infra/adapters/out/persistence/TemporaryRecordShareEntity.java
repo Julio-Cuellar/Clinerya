@@ -61,4 +61,13 @@ public class TemporaryRecordShareEntity {
     /** CSV de claves de SharedSection; ver V50. */
     @Column(name = "shared_sections", nullable = false)
     private String sharedSections;
+
+    @Column(name = "verification_code_hash")
+    private String verificationCodeHash;
+
+    @Column(name = "verification_code_expires_at")
+    private LocalDateTime verificationCodeExpiresAt;
+
+    @Column(name = "verification_attempts", nullable = false)
+    private int verificationAttempts;
 }

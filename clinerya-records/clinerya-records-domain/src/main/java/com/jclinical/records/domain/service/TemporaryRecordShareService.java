@@ -1,6 +1,7 @@
 package com.jclinical.records.domain.service;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.RecipientVerificationRequiredException;
 import com.jclinical.records.domain.model.ClinicalNote;
 import com.jclinical.records.domain.model.MedicalHistory;
 import com.jclinical.records.domain.model.MedicalHistoryTemplate;
@@ -20,6 +21,7 @@ import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.PrescriptionRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
 import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
+import com.jclinical.records.domain.ports.out.ShareVerificationNotifierPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 
 import java.nio.charset.StandardCharsets;
@@ -36,6 +38,11 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
     private static final int TOKEN_BYTES = 32;
 
+    private static final String VERIFICATION_CODE_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int VERIFICATION_CODE_LENGTH = 6;
+    private static final int VERIFICATION_CODE_VALID_MINUTES = 10;
+    private static final int MAX_VERIFICATION_ATTEMPTS = 5;
+
     /** Id del elemento de plantilla bajo el que se guardan los estudios del paciente. */
     private static final String STUDIES_ELEMENT_ID = "patient_studies";
 
@@ -49,6 +56,7 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     private final MedicalHistoryTemplateRepositoryPort templateRepository;
     private final PrescriptionRepositoryPort prescriptionRepository;
     private final SharedStudyLookupPort sharedStudyLookup;
+    private final ShareVerificationNotifierPort verificationNotifier;
 
     public TemporaryRecordShareService(TemporaryRecordShareRepositoryPort repository,
                                        ClinicalNoteRepositoryPort noteRepository,
@@ -59,7 +67,8 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                                        MedicalHistoryRepositoryPort medicalHistoryRepository,
                                        MedicalHistoryTemplateRepositoryPort templateRepository,
                                        PrescriptionRepositoryPort prescriptionRepository,
-                                       SharedStudyLookupPort sharedStudyLookup) {
+                                       SharedStudyLookupPort sharedStudyLookup,
+                                       ShareVerificationNotifierPort verificationNotifier) {
         this.repository = repository;
         this.noteRepository = noteRepository;
         this.patientLookup = patientLookup;
@@ -70,6 +79,7 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
         this.templateRepository = templateRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.sharedStudyLookup = sharedStudyLookup;
+        this.verificationNotifier = verificationNotifier;
     }
 
     @Override
@@ -103,20 +113,56 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
     }
 
     @Override
+    public void requestRecipientVerification(String token) {
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        if (share.isRecipientVerified()) {
+            return;
+        }
+
+        String code = generateVerificationCode();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(VERIFICATION_CODE_VALID_MINUTES);
+        share.setVerificationCodeHash(hashToken(code));
+        share.setVerificationCodeExpiresAt(expiresAt);
+        share.setVerificationAttempts(0);
+        repository.save(share);
+
+        verificationNotifier.sendVerificationCode(share.getEmail(), code, expiresAt);
+    }
+
+    @Override
+    public void confirmRecipientVerification(String token, String code) {
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("El codigo de verificacion es obligatorio.");
+        }
+
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        if (share.isRecipientVerified()) {
+            return;
+        }
+        if (!share.hasPendingVerificationCode()) {
+            throw new IllegalArgumentException("No hay un codigo de verificacion vigente. Solicita uno nuevo.");
+        }
+        if (share.getVerificationAttempts() >= MAX_VERIFICATION_ATTEMPTS) {
+            throw new IllegalStateException("Demasiados intentos fallidos. Solicita un nuevo codigo.");
+        }
+
+        if (!hashToken(code.trim().toUpperCase()).equals(share.getVerificationCodeHash())) {
+            share.setVerificationAttempts(share.getVerificationAttempts() + 1);
+            repository.save(share);
+            throw new IllegalArgumentException("El codigo de verificacion es incorrecto.");
+        }
+
+        share.setRecipientVerifiedAt(LocalDateTime.now());
+        share.setVerificationCodeHash(null);
+        share.setVerificationCodeExpiresAt(null);
+        share.setVerificationAttempts(0);
+        repository.save(share);
+    }
+
+    @Override
     public SharedRecordSummary getSharedRecord(String token, String ipAddress, String userAgent) {
-        if (token == null || token.isBlank()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido.");
-        }
-
-        TemporaryRecordShare share = repository.findByTokenHash(hashToken(token))
-                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido."));
-
-        if (share.isRevoked()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida fue revocado.");
-        }
-        if (share.isExpired()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
-        }
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        requireRecipientVerified(share);
 
         PatientLookupPort.PatientDetails patient = patientLookup.findPatient(share.getPatientId())
                 .orElseThrow(() -> new IllegalArgumentException("El paciente asociado al expediente ya no existe."));
@@ -158,19 +204,12 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
 
     @Override
     public SharedStudyContent getSharedStudyContent(String token, UUID attachmentId, String ipAddress, String userAgent) {
-        if (token == null || token.isBlank() || attachmentId == null) {
+        if (attachmentId == null) {
             throw new IllegalArgumentException("Solicitud de estudio invalida.");
         }
 
-        TemporaryRecordShare share = repository.findByTokenHash(hashToken(token))
-                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido."));
-
-        if (share.isRevoked()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida fue revocado.");
-        }
-        if (share.isExpired()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
-        }
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        requireRecipientVerified(share);
         if (!share.includes(SharedSection.STUDIES)) {
             throw new IllegalArgumentException("Este enlace no comparte estudios.");
         }
@@ -285,6 +324,36 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 .createdAt(LocalDateTime.now())
                 .build();
         accessLogOutbox.enqueue(log);
+    }
+
+    private TemporaryRecordShare findUsableShareOrThrow(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido.");
+        }
+        TemporaryRecordShare share = repository.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido."));
+        if (share.isRevoked()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida fue revocado.");
+        }
+        if (share.isExpired()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
+        }
+        return share;
+    }
+
+    private void requireRecipientVerified(TemporaryRecordShare share) {
+        if (!share.isRecipientVerified()) {
+            throw new RecipientVerificationRequiredException(
+                    "Debes verificar tu correo con el codigo de un solo uso antes de consultar este expediente.");
+        }
+    }
+
+    private String generateVerificationCode() {
+        StringBuilder code = new StringBuilder(VERIFICATION_CODE_LENGTH);
+        for (int index = 0; index < VERIFICATION_CODE_LENGTH; index++) {
+            code.append(VERIFICATION_CODE_CHARACTERS.charAt(TOKEN_RANDOM.nextInt(VERIFICATION_CODE_CHARACTERS.length())));
+        }
+        return code.toString();
     }
 
     private String generateSecureToken() {

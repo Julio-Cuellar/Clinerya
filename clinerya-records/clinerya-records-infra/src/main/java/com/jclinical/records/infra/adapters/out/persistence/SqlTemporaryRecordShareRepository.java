@@ -54,6 +54,9 @@ public class SqlTemporaryRecordShareRepository implements TemporaryRecordShareRe
                 .lastAccessedAt(domain.getLastAccessedAt())
                 .accessCount(domain.getAccessCount())
                 .sharedSections(SharedSection.toCsv(domain.getSharedSections()))
+                .verificationCodeHash(domain.getVerificationCodeHash())
+                .verificationCodeExpiresAt(domain.getVerificationCodeExpiresAt())
+                .verificationAttempts(domain.getVerificationAttempts())
                 .build();
     }
 
@@ -73,6 +76,9 @@ public class SqlTemporaryRecordShareRepository implements TemporaryRecordShareRe
                 .lastAccessedAt(entity.getLastAccessedAt())
                 .accessCount(entity.getAccessCount())
                 .sharedSections(SharedSection.parseCsv(entity.getSharedSections()))
+                .verificationCodeHash(entity.getVerificationCodeHash())
+                .verificationCodeExpiresAt(entity.getVerificationCodeExpiresAt())
+                .verificationAttempts(entity.getVerificationAttempts())
                 .build();
     }
 }

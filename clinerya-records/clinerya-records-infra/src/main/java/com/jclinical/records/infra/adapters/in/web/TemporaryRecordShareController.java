@@ -90,6 +90,23 @@ public class TemporaryRecordShareController {
     }
 
     /**
+     * Envia (o reenvia) el codigo de un solo uso al correo destinatario del enlace.
+     * No revela si ya estaba verificado ni el contenido del expediente.
+     */
+    @PostMapping("/api/v1/public/shared-history/verify/request")
+    public ResponseEntity<Void> requestRecipientVerification(@RequestBody RedeemShareRequest request) {
+        temporaryShareUseCase.requestRecipientVerification(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Confirma el codigo enviado por {@link #requestRecipientVerification}. */
+    @PostMapping("/api/v1/public/shared-history/verify/confirm")
+    public ResponseEntity<Void> confirmRecipientVerification(@RequestBody ConfirmVerificationRequest request) {
+        temporaryShareUseCase.confirmRecipientVerification(request.token(), request.code());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Descarga de un estudio expuesto por el enlace. El token va en el cuerpo. Se
      * sirve como {@code attachment} y con {@code nosniff}: un PDF renombrado no
      * debe abrirse ni ejecutarse en nuestro origen.
@@ -150,6 +167,11 @@ public class TemporaryRecordShareController {
 
     public record RedeemShareRequest(
             String token
+    ) {}
+
+    public record ConfirmVerificationRequest(
+            String token,
+            String code
     ) {}
 
     public record TemporaryRecordShareResponse(

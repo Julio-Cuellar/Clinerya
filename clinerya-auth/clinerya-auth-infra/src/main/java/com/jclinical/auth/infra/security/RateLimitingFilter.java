@@ -44,7 +44,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             // Enumeración del token de invitación (12 caracteres).
             "/api/v1/users/register-staff", new Limit(10, FIFTEEN_MINUTES),
             // Endpoint público que devuelve expediente completo a quien tenga el token.
-            "/api/v1/public/shared-history", new Limit(30, FIFTEEN_MINUTES)
+            "/api/v1/public/shared-history", new Limit(30, FIFTEEN_MINUTES),
+            // Envía un correo por solicitud: límite estricto para no habilitar bombardeo.
+            "/api/v1/public/shared-history/verify/request", new Limit(5, FIFTEEN_MINUTES),
+            // Código de 6 caracteres; el propio dominio bloquea el enlace tras varios intentos.
+            "/api/v1/public/shared-history/verify/confirm", new Limit(20, FIFTEEN_MINUTES)
     );
 
     // Descarga de estudios por enlace compartido: la ruta lleva el id del adjunto,

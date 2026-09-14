@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { IconPrinter, IconAlertTriangle, IconFileText, IconPill, IconClipboardText, IconDownload, IconFolderOpen } from "@tabler/icons-react";
-import { collaborationApi, getFriendlyError } from "@shared/api/api";
+import { IconPrinter, IconAlertTriangle, IconFileText, IconPill, IconClipboardText, IconDownload, IconFolderOpen, IconMailCheck } from "@tabler/icons-react";
+import { ApiClientError, collaborationApi, getFriendlyError } from "@shared/api/api";
 import { parseSchema, parseAnswers, parseTableRows, type TemplateElement } from "@modules/records/types";
 import { TableFieldEditor } from "@shared/ui/TableFieldEditor";
 import { OdontogramField } from "@modules/records/components/OdontogramField";
@@ -146,7 +146,62 @@ export function ShareViewScreen() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [studyError, setStudyError] = useState("");
 
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+
   const token = new URLSearchParams(window.location.search).get("token") || "";
+
+  const loadRecord = () => {
+    setLoading(true);
+    setError("");
+
+    return collaborationApi.getSharedRecord(token)
+      .then((data) => {
+        setNeedsVerification(false);
+        setRecord(data);
+      })
+      .catch((caught) => {
+        if (caught instanceof ApiClientError && caught.status === 428) {
+          setNeedsVerification(true);
+        } else {
+          setError(getFriendlyError(caught));
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
+
+  const sendVerificationCode = async () => {
+    setSendingCode(true);
+    setVerificationError("");
+    try {
+      await collaborationApi.requestShareVerification(token);
+      setCodeSent(true);
+    } catch (caught) {
+      setVerificationError(getFriendlyError(caught));
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const confirmVerificationCode = async () => {
+    if (!verificationCode.trim()) return;
+    setVerifying(true);
+    setVerificationError("");
+    try {
+      await collaborationApi.confirmShareVerification(token, verificationCode.trim());
+      await loadRecord();
+    } catch (caught) {
+      setVerificationError(getFriendlyError(caught));
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const downloadStudy = async (study: SharedStudy) => {
     setDownloadingId(study.id);
@@ -175,19 +230,7 @@ export function ShareViewScreen() {
       return;
     }
 
-    setLoading(true);
-    setError("");
-
-    collaborationApi.getSharedRecord(token)
-      .then((data) => {
-        setRecord(data);
-      })
-      .catch((caught) => {
-        setError(getFriendlyError(caught));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    void loadRecord();
   }, [token]);
 
   const handlePrint = () => {
@@ -198,6 +241,57 @@ export function ShareViewScreen() {
     return (
       <div className="auth-layout" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
         <p style={{ fontSize: "16px", color: "var(--color-text-2)" }}>Cargando expediente clínico compartido...</p>
+      </div>
+    );
+  }
+
+  if (needsVerification) {
+    return (
+      <div className="auth-layout" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+        <section className="auth-panel" style={{ maxWidth: "450px", textAlign: "center" }}>
+          <div style={{ color: "var(--color-primary)", marginBottom: "15px" }}>
+            <IconMailCheck size={48} style={{ margin: "0 auto" }} />
+          </div>
+          <h2>Verifica tu correo</h2>
+          <p style={{ fontSize: "14px", color: "var(--color-text-2)", marginTop: "10px", marginBottom: "20px" }}>
+            Por seguridad, antes de mostrar el expediente enviamos un código de un solo uso al correo al que se compartió este enlace.
+          </p>
+
+          {verificationError && <p className="alert error" style={{ marginBottom: "15px" }}>{verificationError}</p>}
+
+          {!codeSent ? (
+            <button className="btn primary" type="button" disabled={sendingCode} onClick={() => void sendVerificationCode()}>
+              {sendingCode ? "Enviando..." : "Enviar código a mi correo"}
+            </button>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <input
+                type="text"
+                placeholder="Código de 6 caracteres"
+                value={verificationCode}
+                maxLength={6}
+                onChange={(event) => setVerificationCode(event.target.value.toUpperCase())}
+                style={{ textAlign: "center", fontSize: "18px", letterSpacing: "4px", textTransform: "uppercase" }}
+              />
+              <button
+                className="btn primary"
+                type="button"
+                disabled={verifying || !verificationCode.trim()}
+                onClick={() => void confirmVerificationCode()}
+              >
+                {verifying ? "Verificando..." : "Verificar y continuar"}
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={sendingCode}
+                onClick={() => void sendVerificationCode()}
+              >
+                {sendingCode ? "Enviando..." : "Reenviar código"}
+              </button>
+            </div>
+          )}
+        </section>
       </div>
     );
   }

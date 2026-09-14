@@ -15,6 +15,19 @@ public interface ManageTemporaryShareUseCase {
                                         Set<SharedSection> sections, UUID requestingUserId);
 
     /**
+     * Envia (o reenvia) el codigo de un solo uso al correo destinatario del enlace.
+     * No hace nada si el destinatario ya esta verificado.
+     */
+    void requestRecipientVerification(String token);
+
+    /**
+     * Confirma el codigo enviado por {@link #requestRecipientVerification}. Una vez
+     * verificado, el destinatario queda habilitado para canjear el enlace mientras
+     * siga vigente.
+     */
+    void confirmRecipientVerification(String token, String code);
+
+    /**
      * Canje del enlace publico. El token viaja en el cuerpo de la peticion, no en
      * el query string, y cada consulta se registra en la bitacora de acceso.
      */

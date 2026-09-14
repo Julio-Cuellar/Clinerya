@@ -117,4 +117,35 @@ public class ConfigurableEmailSender implements EmailSenderPort {
                 + "Si no solicitaste este cambio, puedes ignorar este correo.\n\n"
                 + "Clinerya";
     }
+
+    @Override
+    public void sendShareRecipientVerificationCode(String email, String code, LocalDateTime expiresAt) {
+        if (!emailEnabled) {
+            log.info(">>>> [VERIFICACION-ENLACE-DEV] Código para '{}' (válido hasta {}): {}",
+                    email, expiresAt.format(EXPIRATION_FORMAT), code);
+            return;
+        }
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(email);
+        message.setSubject("Código para consultar tu expediente compartido");
+        message.setText(buildShareVerificationBody(code, expiresAt));
+
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo enviar el código de verificación de enlace compartido a '{}'.", email, exception);
+            throw new IllegalStateException("No se pudo enviar el código de verificación. Intenta nuevamente.", exception);
+        }
+    }
+
+    private String buildShareVerificationBody(String code, LocalDateTime expiresAt) {
+        return "Hola,\n\n"
+                + "Para consultar el expediente clínico que compartieron contigo, ingresa este código:\n\n"
+                + "    " + code + "\n\n"
+                + "El código vence el " + expiresAt.format(EXPIRATION_FORMAT) + ".\n"
+                + "Si no esperabas esta consulta, puedes ignorar este correo.\n\n"
+                + "Clinerya";
+    }
 }

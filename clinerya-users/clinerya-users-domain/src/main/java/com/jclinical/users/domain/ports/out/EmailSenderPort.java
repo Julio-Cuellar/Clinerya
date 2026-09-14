@@ -9,4 +9,6 @@ public interface EmailSenderPort {
     void sendStaffInvitation(String email, String role, String invitationUrl, LocalDateTime expiresAt);
 
     void sendPasswordReset(String email, String fullName, String resetUrl, LocalDateTime expiresAt);
+
+    void sendShareRecipientVerificationCode(String email, String code, LocalDateTime expiresAt);
 }

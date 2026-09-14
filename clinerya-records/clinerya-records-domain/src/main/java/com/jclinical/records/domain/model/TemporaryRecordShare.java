@@ -30,6 +30,11 @@ public class TemporaryRecordShare {
     private LocalDateTime lastAccessedAt;
     private int accessCount;
 
+    /** SHA-256 (base64url) del codigo de verificacion vigente. Nulo si no hay uno pendiente. */
+    private String verificationCodeHash;
+    private LocalDateTime verificationCodeExpiresAt;
+    private int verificationAttempts;
+
     /** Secciones del expediente que este enlace expone. */
     private Set<SharedSection> sharedSections;
 
@@ -49,6 +54,15 @@ public class TemporaryRecordShare {
 
     public boolean isUsable() {
         return !isRevoked() && !isExpired();
+    }
+
+    public boolean isRecipientVerified() {
+        return recipientVerifiedAt != null;
+    }
+
+    public boolean hasPendingVerificationCode() {
+        return verificationCodeHash != null && verificationCodeExpiresAt != null
+                && verificationCodeExpiresAt.isAfter(LocalDateTime.now());
     }
 
     public void registerAccess(LocalDateTime when) {

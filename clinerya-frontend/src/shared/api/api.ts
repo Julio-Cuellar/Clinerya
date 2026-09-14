@@ -844,6 +844,16 @@ export const collaborationApi = {
       method: "POST",
       body: JSON.stringify({ token })
     }),
+  requestShareVerification: (token: string) =>
+    request<void>(`/v1/public/shared-history/verify/request`, {
+      method: "POST",
+      body: JSON.stringify({ token })
+    }),
+  confirmShareVerification: (token: string, code: string) =>
+    request<void>(`/v1/public/shared-history/verify/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ token, code })
+    }),
   getSharedStudyContent: async (token: string, attachmentId: string): Promise<Blob> => {
     const response = await fetch(`${API_BASE_URL}/v1/public/shared-history/studies/${attachmentId}/content`, {
       method: "POST",

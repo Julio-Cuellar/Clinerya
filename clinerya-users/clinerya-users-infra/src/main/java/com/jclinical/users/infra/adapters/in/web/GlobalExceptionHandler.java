@@ -2,6 +2,7 @@ package com.jclinical.users.infra.adapters.in.web;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.PlatformAccessDeniedException;
+import com.jclinical.core.security.RecipientVerificationRequiredException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +37,18 @@ public class GlobalExceptionHandler {
         body.put("error", "Forbidden");
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(RecipientVerificationRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleRecipientVerificationRequiredException(
+            RecipientVerificationRequiredException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.PRECONDITION_REQUIRED.value());
+        body.put("error", "Precondition Required");
+        body.put("code", "RECIPIENT_VERIFICATION_REQUIRED");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED).body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
