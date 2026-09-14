@@ -1,8 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { IconCopy, IconDeviceFloppy, IconSignature, IconX } from "@tabler/icons-react";
 import { agendaApi, clinicalNotesApi, getFriendlyError } from "@shared/api/api";
-import type { ClinicalNoteAddendumResponse, ClinicalNoteFields, ClinicalNoteResponse } from "@modules/records/types";
+import type {
+  ClinicalNoteAddendumResponse,
+  ClinicalNoteDiagnosisResponse,
+  ClinicalNoteFields,
+  ClinicalNoteResponse,
+  DiagnosisEntryInput
+} from "@modules/records/types";
 import type { DoctorResponse } from "@modules/agenda/types";
+import { Icd10Autocomplete } from "@modules/records/components/Icd10Autocomplete";
 
 function toNumberString(value: number | null | undefined): string {
   return value === null || value === undefined ? "" : String(value);
@@ -95,6 +102,9 @@ export function ClinicalNoteModal({
   const [addendumText, setAddendumText] = useState("");
   const [addingAddendum, setAddingAddendum] = useState(false);
 
+  const [diagnoses, setDiagnoses] = useState<DiagnosisEntryInput[]>([]);
+  const [savedDiagnoses, setSavedDiagnoses] = useState<ClinicalNoteDiagnosisResponse[]>([]);
+
   const currentDraft = useMemo<DraftState>(
     () => ({
       subjective,
@@ -164,6 +174,17 @@ export function ClinicalNoteModal({
       });
   }, [patientId, clinicId, existingNote?.id, existingNote?.status]);
 
+  // Diagnosticos CIE-10 de una nota ya firmada (se capturan al firmar, ver handleSign).
+  useEffect(() => {
+    if (existingNote?.status !== "SIGNED") return;
+    clinicalNotesApi
+      .listDiagnoses(patientId, existingNote.id, clinicId)
+      .then(setSavedDiagnoses)
+      .catch(() => {
+        // no se pudieron cargar los diagnosticos; no bloquea la vista de la nota
+      });
+  }, [patientId, clinicId, existingNote?.id, existingNote?.status]);
+
   const buildFields = (): ClinicalNoteFields => ({
     subjective: subjective || undefined,
     objective: objective || undefined,
@@ -203,7 +224,7 @@ export function ClinicalNoteModal({
     setSigning(true);
     setError("");
     try {
-      await clinicalNotesApi.sign(patientId, existingNote.id, clinicId);
+      await clinicalNotesApi.sign(patientId, existingNote.id, clinicId, diagnoses);
       clearDraft(draftKey);
       onSaved();
     } catch (caught) {
@@ -375,6 +396,24 @@ export function ClinicalNoteModal({
             <span>Plan</span>
             <textarea value={plan} disabled={locked} onChange={(event) => setPlan(event.target.value)} />
           </label>
+
+          {existingNote && existingNote.status === "DRAFT" && !readOnly && (
+            <div className="field field-full">
+              <span>Diagnóstico (CIE-10)</span>
+              <Icd10Autocomplete value={diagnoses} onChange={setDiagnoses} />
+            </div>
+          )}
+
+          {existingNote?.status === "SIGNED" && savedDiagnoses.length > 0 && (
+            <div className="field field-full">
+              <span>Diagnóstico (CIE-10)</span>
+              <Icd10Autocomplete
+                value={savedDiagnoses.map((d) => ({ icd10Code: d.icd10Code, kind: d.kind }))}
+                onChange={() => {}}
+                disabled
+              />
+            </div>
+          )}
 
           {locked && (
             <p className="field-full">

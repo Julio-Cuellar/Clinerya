@@ -2,17 +2,21 @@ package com.jclinical.records.infra.adapters.in.web;
 
 import com.jclinical.records.domain.model.ClinicalNote;
 import com.jclinical.records.domain.model.ClinicalNoteAddendum;
+import com.jclinical.records.domain.model.ClinicalNoteDiagnosis;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.AddendumCommand;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.CreateNoteCommand;
+import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.DiagnosisEntry;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.SignNoteCommand;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.UpdateNoteCommand;
 import com.jclinical.records.domain.ports.in.ManageRecordAccessLogUseCase;
 import com.jclinical.records.domain.ports.out.StaffDirectoryPort;
 import com.jclinical.records.infra.adapters.in.web.dto.ClinicalNoteAddendumResponse;
+import com.jclinical.records.infra.adapters.in.web.dto.ClinicalNoteDiagnosisResponse;
 import com.jclinical.records.infra.adapters.in.web.dto.ClinicalNoteResponse;
 import com.jclinical.records.infra.adapters.in.web.dto.CreateClinicalNoteAddendumRequest;
 import com.jclinical.records.infra.adapters.in.web.dto.CreateClinicalNoteRequest;
+import com.jclinical.records.infra.adapters.in.web.dto.SignClinicalNoteRequest;
 import com.jclinical.records.infra.adapters.in.web.dto.UpdateClinicalNoteRequest;
 import com.jclinical.users.infra.security.CurrentUserResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -180,12 +184,19 @@ public class ClinicalNoteController {
             @PathVariable UUID patientId,
             @PathVariable UUID noteId,
             @RequestParam UUID clinicId,
+            @RequestBody(required = false) SignClinicalNoteRequest request,
             HttpServletRequest servletRequest) {
         var currentUser = currentUserResolver.getCurrentUser();
+        List<DiagnosisEntry> diagnoses = request == null || request.diagnoses() == null
+                ? List.of()
+                : request.diagnoses().stream()
+                        .map(entry -> new DiagnosisEntry(entry.icd10Code(), entry.kind()))
+                        .toList();
         SignNoteCommand command = new SignNoteCommand(
                 displayName(currentUser.getFullName(), currentUser.getEmail()),
                 servletRequest.getRemoteAddr(),
-                servletRequest.getHeader("User-Agent")
+                servletRequest.getHeader("User-Agent"),
+                diagnoses
         );
         ClinicalNote note = noteUseCase.signClinicalNote(noteId, patientId, clinicId, currentUser.getId(), command);
 
@@ -258,6 +269,16 @@ public class ClinicalNoteController {
         );
 
         return ResponseEntity.ok(addenda.stream().map(ClinicalNoteAddendumResponse::from).toList());
+    }
+
+    @GetMapping("/{noteId}/diagnoses")
+    public ResponseEntity<List<ClinicalNoteDiagnosisResponse>> getDiagnoses(
+            @PathVariable UUID patientId,
+            @PathVariable UUID noteId,
+            @RequestParam UUID clinicId) {
+        var currentUser = currentUserResolver.getCurrentUser();
+        List<ClinicalNoteDiagnosis> diagnoses = noteUseCase.getDiagnoses(noteId, patientId, clinicId, currentUser.getId());
+        return ResponseEntity.ok(diagnoses.stream().map(ClinicalNoteDiagnosisResponse::from).toList());
     }
 
     private ClinicalNoteResponse toResponse(ClinicalNote note) {

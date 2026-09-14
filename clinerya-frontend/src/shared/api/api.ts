@@ -18,9 +18,12 @@ import type {
   AttachmentMeta,
   ClinicalNoteResponse,
   ClinicalNoteAddendumResponse,
+  ClinicalNoteDiagnosisResponse,
   CreateClinicalNoteRequest,
   CreateHistoryTemplateRequest,
+  DiagnosisEntryInput,
   HistoryTemplateResponse,
+  Icd10CodeResponse,
   MedicalHistoryResponse,
   SaveMedicalHistoryRequest,
   UpdateClinicalNoteRequest,
@@ -342,10 +345,10 @@ export const clinicalNotesApi = {
       method: "PUT",
       body: JSON.stringify(body)
     }),
-  sign: (patientId: string, noteId: string, clinicId: string) =>
+  sign: (patientId: string, noteId: string, clinicId: string, diagnoses?: DiagnosisEntryInput[]) =>
     request<ClinicalNoteResponse>(
       `/v1/patients/${patientId}/clinical-notes/${noteId}/sign?clinicId=${encodeURIComponent(clinicId)}`,
-      { method: "PATCH" }
+      { method: "PATCH", body: JSON.stringify({ diagnoses: diagnoses ?? [] }) }
     ),
   listAddenda: (patientId: string, noteId: string, clinicId: string) =>
     request<ClinicalNoteAddendumResponse[]>(
@@ -355,7 +358,16 @@ export const clinicalNotesApi = {
     request<ClinicalNoteAddendumResponse>(`/v1/patients/${patientId}/clinical-notes/${noteId}/addenda`, {
       method: "POST",
       body: JSON.stringify(body)
-    })
+    }),
+  listDiagnoses: (patientId: string, noteId: string, clinicId: string) =>
+    request<ClinicalNoteDiagnosisResponse[]>(
+      `/v1/patients/${patientId}/clinical-notes/${noteId}/diagnoses?clinicId=${encodeURIComponent(clinicId)}`
+    )
+};
+
+export const icd10Api = {
+  search: (query: string, limit = 20) =>
+    request<Icd10CodeResponse[]>(`/v1/icd10?query=${encodeURIComponent(query)}&limit=${limit}`)
 };
 
 export const prescriptionsApi = {

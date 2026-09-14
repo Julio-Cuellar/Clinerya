@@ -35,6 +35,7 @@ import com.jclinical.patients.domain.model.MaritalStatus;
 import com.jclinical.patients.domain.model.Patient;
 import com.jclinical.patients.domain.ports.in.RegisterPatientUseCase;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.DiagnosisKind;
 import com.jclinical.records.domain.model.MedicalHistoryTemplate;
 import com.jclinical.records.domain.model.NoteStatus;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
@@ -416,7 +417,8 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 user.getId());
         clinicalNoteUseCase.signClinicalNote(
                 note.getId(), patients.primary().getId(), clinicId, user.getId(),
-                new ManageClinicalNoteUseCase.SignNoteCommand(fullName, IP_ADDRESS, USER_AGENT));
+                new ManageClinicalNoteUseCase.SignNoteCommand(fullName, IP_ADDRESS, USER_AGENT,
+                        List.of(new ManageClinicalNoteUseCase.DiagnosisEntry("K04.0", DiagnosisKind.PRIMARY))));
 
         clinicalNoteUseCase.createClinicalNote(
                 patients.pediatric().getId(), clinicId, staffId,

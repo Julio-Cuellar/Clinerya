@@ -14,8 +14,10 @@ import com.jclinical.records.domain.model.SignatureDocumentType;
 import com.jclinical.records.domain.model.SignerType;
 import com.jclinical.records.domain.model.VitalSigns;
 import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
+import com.jclinical.records.domain.ports.out.ClinicalNoteDiagnosisRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
+import com.jclinical.records.domain.ports.out.Icd10CatalogRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
@@ -37,6 +39,7 @@ import com.jclinical.records.domain.ports.out.ShareVerificationNotifierPort;
 import com.jclinical.records.domain.ports.out.PrivacyConsentRepositoryPort;
 import com.jclinical.records.domain.service.ClinicalNoteService;
 import com.jclinical.records.domain.service.HistoryTemplateService;
+import com.jclinical.records.domain.service.Icd10CatalogService;
 import com.jclinical.records.domain.service.MedicalHistoryService;
 import com.jclinical.records.domain.service.RecordAccessLogService;
 import com.jclinical.records.domain.service.PrivacyConsentService;
@@ -169,9 +172,16 @@ public class RecordsDomainConfig {
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
             DocumentSignatureRepositoryPort signatureRepository,
-            ClinicalNoteAddendumRepositoryPort addendumRepository) {
+            ClinicalNoteAddendumRepositoryPort addendumRepository,
+            ClinicalNoteDiagnosisRepositoryPort diagnosisRepository,
+            Icd10CatalogRepositoryPort icd10CatalogRepository) {
         return new ClinicalNoteService(noteRepository, patientValidator, accessAuthorizationPort,
-                signatureRepository, addendumRepository);
+                signatureRepository, addendumRepository, diagnosisRepository, icd10CatalogRepository);
+    }
+
+    @Bean
+    public Icd10CatalogService icd10CatalogService(Icd10CatalogRepositoryPort icd10CatalogRepository) {
+        return new Icd10CatalogService(icd10CatalogRepository);
     }
 
     @Bean

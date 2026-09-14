@@ -3,12 +3,19 @@ package com.jclinical.records.domain.service;
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.records.domain.model.ClinicalNote;
 import com.jclinical.records.domain.model.ClinicalNoteAddendum;
+import com.jclinical.records.domain.model.ClinicalNoteDiagnosis;
+import com.jclinical.records.domain.model.DiagnosisKind;
 import com.jclinical.records.domain.model.DocumentSignature;
+import com.jclinical.records.domain.model.Icd10Code;
 import com.jclinical.records.domain.model.NoteStatus;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.AddendumCommand;
+import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.DiagnosisEntry;
+import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase.SignNoteCommand;
 import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
+import com.jclinical.records.domain.ports.out.ClinicalNoteDiagnosisRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
+import com.jclinical.records.domain.ports.out.Icd10CatalogRepositoryPort;
 import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
 import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
@@ -41,6 +48,8 @@ class ClinicalNoteServiceTest {
     @Mock private PatientAccessAuthorizationPort accessAuthorization;
     @Mock private DocumentSignatureRepositoryPort signatureRepository;
     @Mock private ClinicalNoteAddendumRepositoryPort addendumRepository;
+    @Mock private ClinicalNoteDiagnosisRepositoryPort diagnosisRepository;
+    @Mock private Icd10CatalogRepositoryPort icd10CatalogRepository;
 
     private ClinicalNoteService service;
 
@@ -52,7 +61,7 @@ class ClinicalNoteServiceTest {
     @BeforeEach
     void setUp() {
         service = new ClinicalNoteService(noteRepository, patientValidator, accessAuthorization,
-                signatureRepository, addendumRepository);
+                signatureRepository, addendumRepository, diagnosisRepository, icd10CatalogRepository);
     }
 
     private void grant(AccessLevel level) {
@@ -126,6 +135,101 @@ class ClinicalNoteServiceTest {
         assertThatThrownBy(() -> service.addAddendum(noteId, patientId, clinicId, userId, cmd("algo")))
                 .isInstanceOf(ClinicAccessDeniedException.class);
         verifyNoInteractions(addendumRepository, signatureRepository);
+    }
+
+    @Test
+    void signClinicalNoteWithoutDiagnosesHashesAndSavesNothingExtra() {
+        grant(AccessLevel.READ_WRITE);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.DRAFT)));
+        when(noteRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClinicalNote signed = service.signClinicalNote(noteId, patientId, clinicId, userId,
+                new SignNoteCommand("Dra. Ruiz", "10.0.0.1", "JUnit", null));
+
+        assertThat(signed.isSigned()).isTrue();
+        assertThat(signed.getDocumentHash()).hasSize(64);
+        verifyNoInteractions(diagnosisRepository);
+        verify(signatureRepository).save(any());
+    }
+
+    @Test
+    void signClinicalNoteValidatesAndPersistsDiagnoses() {
+        grant(AccessLevel.READ_WRITE);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.DRAFT)));
+        when(noteRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(icd10CatalogRepository.findByCode("K04.0"))
+                .thenReturn(Optional.of(Icd10Code.builder().code("K04.0").description("Pulpitis").billable(true).build()));
+        when(diagnosisRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.signClinicalNote(noteId, patientId, clinicId, userId,
+                new SignNoteCommand("Dra. Ruiz", "10.0.0.1", "JUnit",
+                        List.of(new DiagnosisEntry("k04.0", DiagnosisKind.PRIMARY))));
+
+        ArgumentCaptor<List<ClinicalNoteDiagnosis>> captor = ArgumentCaptor.forClass(List.class);
+        verify(diagnosisRepository).saveAll(captor.capture());
+        ClinicalNoteDiagnosis saved = captor.getValue().get(0);
+        assertThat(saved.getIcd10Code()).isEqualTo("K04.0");
+        assertThat(saved.getKind()).isEqualTo(DiagnosisKind.PRIMARY);
+        assertThat(saved.getClinicalNoteId()).isEqualTo(noteId);
+    }
+
+    @Test
+    void signClinicalNoteRejectsUnknownIcd10Code() {
+        grant(AccessLevel.READ_WRITE);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.DRAFT)));
+        when(icd10CatalogRepository.findByCode("Z99.9")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.signClinicalNote(noteId, patientId, clinicId, userId,
+                new SignNoteCommand("Dra. Ruiz", "10.0.0.1", "JUnit",
+                        List.of(new DiagnosisEntry("Z99.9", DiagnosisKind.PRIMARY)))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(noteRepository, never()).save(any());
+        verifyNoInteractions(diagnosisRepository);
+    }
+
+    @Test
+    void signClinicalNoteRejectsNonBillableIcd10Code() {
+        grant(AccessLevel.READ_WRITE);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.DRAFT)));
+        when(icd10CatalogRepository.findByCode("A00"))
+                .thenReturn(Optional.of(Icd10Code.builder().code("A00").description("Colera").billable(false).build()));
+
+        assertThatThrownBy(() -> service.signClinicalNote(noteId, patientId, clinicId, userId,
+                new SignNoteCommand("Dra. Ruiz", "10.0.0.1", "JUnit",
+                        List.of(new DiagnosisEntry("A00", DiagnosisKind.PRIMARY)))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(noteRepository, never()).save(any());
+        verifyNoInteractions(diagnosisRepository);
+    }
+
+    @Test
+    void signClinicalNoteRejectsMoreThanOnePrimaryDiagnosis() {
+        grant(AccessLevel.READ_WRITE);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.DRAFT)));
+
+        assertThatThrownBy(() -> service.signClinicalNote(noteId, patientId, clinicId, userId,
+                new SignNoteCommand("Dra. Ruiz", "10.0.0.1", "JUnit",
+                        List.of(new DiagnosisEntry("K04.0", DiagnosisKind.PRIMARY),
+                                new DiagnosisEntry("K02.9", DiagnosisKind.PRIMARY)))))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(noteRepository, never()).save(any());
+        verifyNoInteractions(diagnosisRepository, icd10CatalogRepository);
+    }
+
+    @Test
+    void getDiagnosesReturnsRepositoryListForExistingNote() {
+        grant(AccessLevel.READ_ONLY);
+        when(noteRepository.findByIdAndPatientIdAndClinicId(noteId, patientId, clinicId))
+                .thenReturn(Optional.of(note(NoteStatus.SIGNED)));
+        ClinicalNoteDiagnosis one = ClinicalNoteDiagnosis.builder().id(UUID.randomUUID()).clinicalNoteId(noteId).build();
+        when(diagnosisRepository.findByClinicalNoteIdAndClinicId(noteId, clinicId)).thenReturn(List.of(one));
+
+        assertThat(service.getDiagnoses(noteId, patientId, clinicId, userId)).containsExactly(one);
     }
 
     @Test

@@ -434,34 +434,80 @@ justifican todavía).
 
 ---
 
-### P3 — Codificación diagnóstica (CIE-10)
+### P3 — Codificación diagnóstica (CIE-10) — HECHO
 
 - **Esfuerzo:** M
-- **Migración:** `V46`
+- **Migración:** `V52` (el plan decía `V46`; se corrió la numeración por trabajo
+  posterior de seguridad — ver nota de `plan-seguridad.md`).
 - **Riesgo:** bajo
 
 **Problema.** `assessment` es texto libre, cero CIE-10. Bloquea reportes
 epidemiológicos y cualquier informe a Secretaría de Salud.
 
-**Migración `V46`**
+**Migración `V52__icd10_catalog_and_note_diagnoses.sql`** (+ `V53`, ver abajo)
 
-- `records.icd10_catalog (code PK, description, chapter, billable BOOLEAN)` —
-  seed con el subset usado en México (o carga diferida desde CSV).
-- `records.clinical_note_diagnoses (id, note_id, clinic_id, icd10_code, kind
-  [PRIMARY|SECONDARY], created_at)`.
+- `records.icd10_catalog (code PK, description, chapter, billable BOOLEAN)` — la
+  migración solo trae un seed manual de 53 códigos comunes; el catálogo **completo
+  y oficial** (14,485 códigos, CAT_DIAGNOSTICOS de la DGIS/Secretaría de Salud,
+  https://www.datos.gob.mx/dataset/catalogo_cie_10) se carga aparte — ver
+  `Icd10CatalogLoader` más abajo.
+- `records.clinical_note_diagnoses (id, clinical_note_id FK, clinic_id, icd10_code
+  FK, kind [PRIMARY|SECONDARY], created_at)`.
+- `V53__fix_incorrect_hand_seeded_icd10_code.sql`: uno de los 53 códigos a mano
+  de `V52` (`M26.6` para "trastornos de la articulación temporomandibular") era
+  el código de **ICD-10-CM (EEUU)**, no el de la CIE-10 mexicana (que usa `K07.6`
+  para lo mismo) — se detectó al cargar el catálogo oficial y no coincidir. `V53`
+  lo borra; el código correcto ya está en el catálogo oficial.
 
-**Backend**
+**Backend — HECHO**
 
-- [ ] `ManageIcd10CatalogUseCase.search(term, limit)` +
-  `Icd10Controller` (`GET /api/v1/icd10?query=`).
-- [ ] `ClinicalNote` + `SignNoteCommand` aceptan `diagnoses[]`; se incluyen en el
-  cálculo del `documentHash` (hoy `calculateClinicalNoteHash` cubre SOAP + vitals).
-- [ ] `PatientCondition.icd10_code` (P1a) se puede poblar desde aquí.
+- [x] `ManageIcd10CatalogUseCase.search(term, limit)` (min. 2 caracteres, limit
+  clamp a 1-50) + `Icd10Controller` (`GET /api/v1/icd10?query=&limit=`, protegido
+  por el filtro global `anyRequest().authenticated()`; no cae bajo
+  `/clinics/**`/`/patients/**` asi que el `PermissionEnforcementArchTest` no lo
+  exige gateado por `CurrentUserResolver` — es catalogo global, no dato de paciente).
+- [x] **Diseño**: los diagnosticos se capturan al **firmar** la nota, no al
+  crearla/editarla — `SignNoteCommand` gano un cuarto campo `diagnoses:
+  List<DiagnosisEntry>` (`icd10Code`, `kind`); `ClinicalNoteService.signClinicalNote`
+  valida cada codigo contra el catalogo (`IllegalArgumentException` si no existe),
+  exige a lo sumo un `PRIMARY`, y los incluye (ordenados) en
+  `calculateClinicalNoteHash` antes de firmar. Persistencia via
+  `ClinicalNoteDiagnosisRepositoryPort.saveAll`, nueva tabla ligada a la nota (no
+  se modela como columna embebida porque es una lista 0..N).
+  `GET .../clinical-notes/{noteId}/diagnoses` para leerlos despues.
+- [x] **Catálogo completo**: `Icd10CatalogLoader` (`ApplicationRunner` en
+  `clinerya-records-infra/.../config/`) sincroniza en cada arranque el catálogo
+  oficial completo desde `data/icd10_catalog_mx.tsv` (recurso empaquetado,
+  ~1.7MB, 14,485 filas) vía `INSERT ... ON CONFLICT DO UPDATE` en lotes de 1000 —
+  así una actualización futura del catálogo (la DGIS lo revisa) solo implica
+  reemplazar el TSV, sin migración nueva. La búsqueda (`Icd10CatalogRepositoryPort
+  .search`) y la validación al firmar solo aceptan códigos con `billable = true`
+  (mapeado del campo oficial `VALID`), lo que excluye categorías de 3 caracteres
+  que exigen mayor especificidad (p. ej. `A00` "Cólera" no es codificable
+  directo, solo sus hijas `A00.0/A00.1/A00.9`) y códigos retirados/históricos.
+- [ ] `PatientCondition.icd10_code` (P1a) poblarse desde aqui queda pendiente —
+  no se automatizo el volcado condicion<->diagnostico de nota firmada.
 
-**Frontend**
+**Frontend — HECHO**
 
-- [ ] `Icd10Autocomplete` en `ClinicalNoteModal` (diagnóstico principal +
-  secundarios). Chips con código + descripción.
+- [x] `Icd10Autocomplete` (nuevo, `modules/records/components/`): input con
+  debounce de 250ms + dropdown, chips con codigo + boton "Hacer principal" /
+  quitar. Se muestra editable en `ClinicalNoteModal` solo mientras la nota esta
+  en `DRAFT` (mismo gate que el boton "Firmar"); en una nota `SIGNED` se muestra
+  en modo solo lectura poblado por `GET .../diagnoses`.
+- [x] Verificado end-to-end contra Postgres local: migraciones (V51-V53) aplican
+  limpio, Hibernate `ddl-auto: validate` no marca discrepancias, el loader carga
+  las 14,485 filas oficiales en cada arranque (log `Icd10CatalogLoader`), ciclo
+  completo crear nota → firmar con diagnostico → leer diagnosticos probado por
+  API real, codigo invalido y codigo no-billable (categoria `A00`) rechazados
+  con 400, busqueda de "covid"/"temporomaxilar" devuelve los codigos oficiales
+  correctos, y la UI probada en navegador (buscar, agregar, cambiar principal,
+  ver chips en nota firmada).
+
+**Pendiente (no bloqueante, fuera de alcance de este corte):** volcar el
+diagnostico principal a `PatientCondition` automaticamente; UI para exportar/
+filtrar notas por codigo CIE-10 (util para el reporte epidemiologico que motiva
+este punto, pero es una pantalla nueva, no una extension de lo ya construido).
 
 ---
 

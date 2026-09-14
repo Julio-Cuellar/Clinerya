@@ -318,6 +318,29 @@ export interface ClinicalNoteAddendumResponse {
   createdAt: string;
 }
 
+export type DiagnosisKind = "PRIMARY" | "SECONDARY";
+
+export interface Icd10CodeResponse {
+  code: string;
+  description: string;
+  chapter?: string | null;
+  billable: boolean;
+}
+
+export interface DiagnosisEntryInput {
+  icd10Code: string;
+  kind: DiagnosisKind;
+}
+
+export interface ClinicalNoteDiagnosisResponse {
+  id: string;
+  clinicalNoteId: string;
+  clinicId: string;
+  icd10Code: string;
+  kind: DiagnosisKind;
+  createdAt: string;
+}
+
 export interface ClinicalNoteFields {
   subjective?: string;
   objective?: string;
