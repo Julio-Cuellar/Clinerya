@@ -38,6 +38,8 @@ public interface SpringDataAppointmentRepository extends JpaRepository<Appointme
 
     List<AppointmentEntity> findByQuotationIdAndClinicId(UUID quotationId, UUID clinicId);
 
+    List<AppointmentEntity> findByPatientIdAndClinicIdOrderByScheduledStartDesc(UUID patientId, UUID clinicId);
+
     List<AppointmentEntity> findByClinicIdAndStatusOrderByUpdatedAtDesc(UUID clinicId, AppointmentStatus status);
 
     @Query("select distinct a from AppointmentEntity a left join a.quotationItemIds selectedItem where a.quotationId is not null "

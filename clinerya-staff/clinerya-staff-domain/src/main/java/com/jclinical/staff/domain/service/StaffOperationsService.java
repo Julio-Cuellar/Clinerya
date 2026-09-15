@@ -1,6 +1,8 @@
 package com.jclinical.staff.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.staff.domain.model.ClinicStaff;
+import com.jclinical.staff.domain.model.StaffCompensation;
 import com.jclinical.staff.domain.model.StaffActivityLog;
 import com.jclinical.staff.domain.model.StaffActivityType;
 import com.jclinical.staff.domain.model.StaffAttendanceEntry;
@@ -9,19 +11,28 @@ import com.jclinical.staff.domain.model.StaffPayrollLine;
 import com.jclinical.staff.domain.model.StaffPayrollPeriod;
 import com.jclinical.staff.domain.model.StaffPayrollPeriodStatus;
 import com.jclinical.staff.domain.model.StaffPayrollPaymentStatus;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.ports.in.ManageStaffOperationsUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffActivityRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffAttendanceRepositoryPort;
+import com.jclinical.staff.domain.ports.out.StaffCompensationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollLineRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPayrollPeriodRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.PayrollAccountingPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class StaffOperationsService implements ManageStaffOperationsUseCase {
 
@@ -33,19 +44,25 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     private final StaffPayrollPeriodRepositoryPort payrollPeriodRepository;
     private final StaffPayrollLineRepositoryPort payrollLineRepository;
     private final PayrollAccountingPort payrollAccounting;
+    private final StaffPermissionCheckerPort permissionChecker;
+    private final StaffCompensationRepositoryPort staffCompensationRepository;
 
     public StaffOperationsService(ClinicStaffRepositoryPort clinicStaffRepository,
                                   StaffAttendanceRepositoryPort attendanceRepository,
                                   StaffActivityRepositoryPort activityRepository,
                                   StaffPayrollPeriodRepositoryPort payrollPeriodRepository,
                                   StaffPayrollLineRepositoryPort payrollLineRepository,
-                                  PayrollAccountingPort payrollAccounting) {
+                                  PayrollAccountingPort payrollAccounting,
+                                  StaffPermissionCheckerPort permissionChecker,
+                                  StaffCompensationRepositoryPort staffCompensationRepository) {
         this.clinicStaffRepository = clinicStaffRepository;
         this.attendanceRepository = attendanceRepository;
         this.activityRepository = activityRepository;
         this.payrollPeriodRepository = payrollPeriodRepository;
         this.payrollLineRepository = payrollLineRepository;
         this.payrollAccounting = payrollAccounting;
+        this.permissionChecker = permissionChecker;
+        this.staffCompensationRepository = staffCompensationRepository;
     }
 
     @Override
@@ -91,7 +108,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public List<AttendanceSummary> listAttendance(UUID clinicId, UUID staffId, LocalDate from, LocalDate to) {
+    public List<AttendanceSummary> listAttendance(UUID clinicId, UUID actingUserId, UUID staffId, LocalDate from, LocalDate to) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_ATTENDANCE,
+                "No tienes permiso para consultar la asistencia de esta clinica.");
         LocalDate effectiveFrom = from != null ? from : LocalDate.now().minusDays(30);
         LocalDate effectiveTo = to != null ? to : LocalDate.now();
         return attendanceRepository.findByClinicIdAndWorkDateBetween(clinicId, effectiveFrom, effectiveTo).stream()
@@ -101,8 +120,11 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public ActivitySummary recordActivity(UUID clinicId, UUID staffId, StaffActivityType type, String referenceType,
-                                          UUID referenceId, String description, BigDecimal amount, LocalDateTime occurredAt) {
+    public ActivitySummary recordActivity(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
+                                          String referenceType, UUID referenceId, String description, BigDecimal amount,
+                                          LocalDateTime occurredAt) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_ACTIVITY,
+                "No tienes permiso para registrar la actividad del personal de esta clinica.");
         ensureActiveStaff(clinicId, staffId);
         if (type == null) {
             throw new IllegalArgumentException("El tipo de actividad es obligatorio.");
@@ -123,8 +145,10 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public List<ActivitySummary> listActivities(UUID clinicId, UUID staffId, StaffActivityType type,
+    public List<ActivitySummary> listActivities(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
                                                 LocalDateTime from, LocalDateTime to) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_STAFF_ACTIVITY,
+                "No tienes permiso para consultar la actividad del personal de esta clinica.");
         LocalDateTime effectiveFrom = from != null ? from : LocalDate.now().minusDays(30).atStartOfDay();
         LocalDateTime effectiveTo = to != null ? to : LocalDateTime.now();
         List<StaffActivityLog> activities;
@@ -142,7 +166,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary createPayrollPeriod(UUID clinicId, String name, LocalDate periodStart, LocalDate periodEnd) {
+    public PayrollPeriodSummary createPayrollPeriod(UUID clinicId, UUID actingUserId, String name, LocalDate periodStart,
+                                                   LocalDate periodEnd) {
+        requirePayrollPermission(clinicId, actingUserId);
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre del periodo de nomina es obligatorio.");
         }
@@ -172,9 +198,10 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal baseSalary,
-                                                BigDecimal commissionAmount, BigDecimal bonusAmount,
+    public PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId,
+                                                BigDecimal baseSalary, BigDecimal commissionAmount, BigDecimal bonusAmount,
                                                 BigDecimal deductionAmount, String notes) {
+        requirePayrollPermission(clinicId, actingUserId);
         ensureActiveStaff(clinicId, staffId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
@@ -200,7 +227,8 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID periodId, UUID staffId) {
+    public PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
         StaffPayrollLine line = payrollLineRepository.findByPeriodIdAndStaffId(periodId, staffId)
@@ -219,7 +247,130 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID periodId) {
+    public List<PayrollLineSummary> generatePayrollLines(UUID clinicId, UUID actingUserId, UUID periodId,
+                                                         PayrollLineSource source) {
+        requirePayrollPermission(clinicId, actingUserId);
+        StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
+        ensureDraft(period);
+        PayrollLineSource effectiveSource = source != null ? source : PayrollLineSource.BASE_COMPENSATION;
+
+        Set<UUID> alreadyCaptured = payrollLineRepository.findByPeriodId(periodId).stream()
+                .map(StaffPayrollLine::getStaffId)
+                .collect(Collectors.toSet());
+
+        if (effectiveSource == PayrollLineSource.PREVIOUS_PERIOD) {
+            StaffPayrollPeriod previous = payrollPeriodRepository.findByClinicId(clinicId).stream()
+                    .filter(candidate -> !candidate.getId().equals(periodId))
+                    .filter(candidate -> candidate.getStatus() == StaffPayrollPeriodStatus.CLOSED)
+                    .max(Comparator.comparing(StaffPayrollPeriod::getPeriodEnd)
+                            .thenComparing(candidate -> candidate.getCreatedAt() != null
+                                    ? candidate.getCreatedAt() : LocalDateTime.MIN))
+                    .orElseThrow(() -> new IllegalStateException("No hay un periodo de nomina cerrado para copiar."));
+            for (StaffPayrollLine template : payrollLineRepository.findByPeriodId(previous.getId())) {
+                if (alreadyCaptured.contains(template.getStaffId()) || !isActiveStaff(clinicId, template.getStaffId())) {
+                    continue;
+                }
+                saveGeneratedLine(clinicId, periodId, template.getStaffId(), template.getBaseSalary(),
+                        template.getCommissionAmount(), template.getBonusAmount(), template.getDeductionAmount(),
+                        template.getNotes());
+            }
+        } else {
+            for (ClinicStaff member : clinicStaffRepository.findByClinicId(clinicId)) {
+                if (!member.isActive() || alreadyCaptured.contains(member.getId())) {
+                    continue;
+                }
+                BigDecimal base = staffCompensationRepository.findByStaffId(member.getId())
+                        .map(StaffCompensation::getBaseSalary)
+                        .orElse(ZERO);
+                saveGeneratedLine(clinicId, periodId, member.getId(), base, ZERO, ZERO, ZERO, null);
+            }
+        }
+
+        refreshPayrollTotals(period);
+        return payrollLineRepository.findByPeriodId(periodId).stream()
+                .map(this::toPayrollLineSummary)
+                .toList();
+    }
+
+    @Override
+    public List<CommissionPreviewEntry> previewPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
+        StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
+        Map<UUID, BigDecimal> activityByStaff = activityTotalsForPeriod(clinicId, period);
+        Map<UUID, BigDecimal> commissionByStaff = payrollLineRepository.findByPeriodId(periodId).stream()
+                .collect(Collectors.toMap(StaffPayrollLine::getStaffId,
+                        line -> amountOrZero(line.getCommissionAmount()), (a, b) -> a));
+        return activityByStaff.entrySet().stream()
+                .map(entry -> new CommissionPreviewEntry(entry.getKey(), entry.getValue(),
+                        commissionByStaff.getOrDefault(entry.getKey(), ZERO)))
+                .toList();
+    }
+
+    @Override
+    public List<PayrollLineSummary> applyPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
+        StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
+        ensureDraft(period);
+        Map<UUID, BigDecimal> activityByStaff = activityTotalsForPeriod(clinicId, period);
+
+        for (StaffPayrollLine line : payrollLineRepository.findByPeriodId(periodId)) {
+            BigDecimal activityTotal = activityByStaff.get(line.getStaffId());
+            if (activityTotal == null || activityTotal.signum() <= 0) {
+                continue;
+            }
+            line.setCommissionAmount(activityTotal);
+            line.setGrossAmount(amountOrZero(line.getBaseSalary())
+                    .add(activityTotal).add(amountOrZero(line.getBonusAmount())));
+            line.setNetAmount(line.getGrossAmount().subtract(amountOrZero(line.getDeductionAmount())));
+            line.setUpdatedAt(LocalDateTime.now());
+            payrollLineRepository.save(line);
+        }
+
+        refreshPayrollTotals(period);
+        return payrollLineRepository.findByPeriodId(periodId).stream()
+                .map(this::toPayrollLineSummary)
+                .toList();
+    }
+
+    private Map<UUID, BigDecimal> activityTotalsForPeriod(UUID clinicId, StaffPayrollPeriod period) {
+        LocalDateTime from = period.getPeriodStart().atStartOfDay();
+        LocalDateTime to = period.getPeriodEnd().atTime(LocalTime.MAX);
+        Map<UUID, BigDecimal> totals = new HashMap<>();
+        for (StaffActivityLog activity : activityRepository.findByClinicIdAndOccurredAtBetween(clinicId, from, to)) {
+            totals.merge(activity.getStaffId(), amountOrZero(activity.getAmount()), BigDecimal::add);
+        }
+        return totals;
+    }
+
+    private void saveGeneratedLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal base, BigDecimal commission,
+                                   BigDecimal bonus, BigDecimal deduction, String notes) {
+        StaffPayrollLine line = StaffPayrollLine.builder()
+                .id(UUID.randomUUID())
+                .clinicId(clinicId)
+                .payrollPeriodId(periodId)
+                .staffId(staffId)
+                .createdAt(LocalDateTime.now())
+                .build();
+        line.setBaseSalary(amountOrZero(base));
+        line.setCommissionAmount(amountOrZero(commission));
+        line.setBonusAmount(amountOrZero(bonus));
+        line.setDeductionAmount(amountOrZero(deduction));
+        line.setGrossAmount(line.getBaseSalary().add(line.getCommissionAmount()).add(line.getBonusAmount()));
+        line.setNetAmount(line.getGrossAmount().subtract(line.getDeductionAmount()));
+        line.setNotes(blankToNull(notes));
+        line.setUpdatedAt(LocalDateTime.now());
+        payrollLineRepository.save(line);
+    }
+
+    private boolean isActiveStaff(UUID clinicId, UUID staffId) {
+        return clinicStaffRepository.findById(staffId)
+                .filter(staff -> staff.getClinicId().equals(clinicId) && staff.isActive())
+                .isPresent();
+    }
+
+    @Override
+    public PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         ensureDraft(period);
         refreshPayrollTotals(period);
@@ -229,7 +380,9 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
     }
 
     @Override
-    public PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID periodId, UUID bankAccountId, LocalDate paymentDate) {
+    public PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
+                                                LocalDate paymentDate) {
+        requirePayrollPermission(clinicId, actingUserId);
         StaffPayrollPeriod period = findPayrollPeriod(clinicId, periodId);
         if (period.getStatus() != StaffPayrollPeriodStatus.CLOSED) {
             throw new IllegalStateException("Cierra el periodo antes de generar el pago.");
@@ -260,6 +413,20 @@ public class StaffOperationsService implements ManageStaffOperationsUseCase {
         period.setPaymentAccountId(bankAccountId);
         period.setPaymentJournalEntryId(payment.journalEntryId());
         return toPayrollPeriodSummary(payrollPeriodRepository.save(period));
+    }
+
+    private void requirePayrollPermission(UUID clinicId, UUID actingUserId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_PAYROLL,
+                "No tienes permiso para gestionar la nomina de esta clinica.");
+    }
+
+    private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, permission)) {
+            throw new ClinicAccessDeniedException(deniedMessage);
+        }
     }
 
     private ClinicStaff ensureActiveStaff(UUID clinicId, UUID staffId) {

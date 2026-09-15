@@ -1,5 +1,8 @@
 package com.jclinical.notifications.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.notifications.domain.model.Notification;
 import com.jclinical.notifications.domain.ports.in.ManageNotificationsUseCase;
 import com.jclinical.notifications.domain.ports.out.NotificationRepositoryPort;
@@ -11,9 +14,11 @@ import java.util.UUID;
 public class NotificationService implements ManageNotificationsUseCase {
 
     private final NotificationRepositoryPort repository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public NotificationService(NotificationRepositoryPort repository) {
+    public NotificationService(NotificationRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
         this.repository = repository;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
@@ -36,8 +41,9 @@ public class NotificationService implements ManageNotificationsUseCase {
     }
 
     @Override
-    public NotificationList list(UUID clinicId, boolean unreadOnly, int limit) {
+    public NotificationList list(UUID clinicId, UUID actingUserId, boolean unreadOnly, int limit) {
         if (clinicId == null) throw new IllegalArgumentException("La clínica es obligatoria.");
+        requireNotificationsAccess(clinicId, actingUserId);
         int safeLimit = Math.max(1, Math.min(limit, 100));
         return new NotificationList(
                 repository.findByClinicId(clinicId, unreadOnly, safeLimit),
@@ -46,7 +52,8 @@ public class NotificationService implements ManageNotificationsUseCase {
     }
 
     @Override
-    public Notification markRead(UUID clinicId, UUID notificationId) {
+    public Notification markRead(UUID clinicId, UUID actingUserId, UUID notificationId) {
+        requireNotificationsAccess(clinicId, actingUserId);
         Notification notification = repository.findByClinicIdAndId(clinicId, notificationId)
                 .orElseThrow(() -> new IllegalArgumentException("La notificación no existe en esta clínica."));
         if (notification.getReadAt() == null) {
@@ -57,8 +64,18 @@ public class NotificationService implements ManageNotificationsUseCase {
     }
 
     @Override
-    public void markAllRead(UUID clinicId) {
+    public void markAllRead(UUID clinicId, UUID actingUserId) {
+        requireNotificationsAccess(clinicId, actingUserId);
         repository.markAllRead(clinicId);
+    }
+
+    private void requireNotificationsAccess(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_NOTIFICATIONS)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para ver las notificaciones de esta clinica.");
+        }
     }
 
     private Notification refresh(Notification existing, PublishNotificationCommand command) {

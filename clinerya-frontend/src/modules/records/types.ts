@@ -32,6 +32,43 @@ export type TemplatePdfFontFamily = "helvetica" | "times" | "courier";
 
 export type TemplateTextAlign = "left" | "center" | "right";
 
+export type ClinicalMappingTarget = "ALLERGY" | "CONDITION" | "MEDICATION";
+export type ClinicalMappingCategory = "DRUG" | "FOOD" | "ENVIRONMENTAL" | "OTHER";
+
+/**
+ * Vuelca las respuestas de este campo a los datos clínicos tipados del paciente
+ * (alergias / padecimientos / medicación). `primary/secondary/tertiary` son
+ * índices de columna cuando el campo es una tabla; para campos de texto se ignora.
+ * Lo interpreta `TemplateClinicalDataSyncAdapter` en el backend al guardar la historia.
+ */
+export interface ClinicalMapping {
+  target: ClinicalMappingTarget;
+  primary?: number;
+  secondary?: number;
+  tertiary?: number;
+  defaultCategory?: ClinicalMappingCategory;
+}
+
+export const CLINICAL_MAPPING_TARGET_LABELS: Record<ClinicalMappingTarget, string> = {
+  ALLERGY: "Alergias",
+  CONDITION: "Padecimientos",
+  MEDICATION: "Medicación"
+};
+
+export const CLINICAL_MAPPING_CATEGORY_LABELS: Record<ClinicalMappingCategory, string> = {
+  DRUG: "Fármaco",
+  FOOD: "Alimento",
+  ENVIRONMENTAL: "Ambiental",
+  OTHER: "Otro"
+};
+
+/** Rol de cada columna mapeada, por destino. `null` = esa columna no aplica. */
+export const CLINICAL_MAPPING_COLUMN_ROLES: Record<ClinicalMappingTarget, [string, string | null, string | null]> = {
+  ALLERGY: ["Sustancia", "Reacción", null],
+  CONDITION: ["Padecimiento", "CIE-10", "Fecha de inicio"],
+  MEDICATION: ["Medicamento", "Dosis", "Frecuencia"]
+};
+
 export interface TemplateElement {
   id: string;
   sectionId?: string;
@@ -39,6 +76,7 @@ export interface TemplateElement {
   type: TemplateFieldType;
   options?: string[];
   columns?: string[];
+  clinicalMapping?: ClinicalMapping;
   x: number;
   y: number;
   width: number;
@@ -253,6 +291,7 @@ export interface ClinicalNoteResponse {
   patientId: string;
   clinicId: string;
   doctorId: string;
+  doctorName?: string | null;
   subjective?: string;
   objective?: string;
   vitalSigns?: VitalSigns | null;
@@ -262,9 +301,44 @@ export interface ClinicalNoteResponse {
   authoredByExternalUserId?: string | null;
   signedAt?: string | null;
   signedByUserId?: string | null;
+  signedByName?: string | null;
   documentHash?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ClinicalNoteAddendumResponse {
+  id: string;
+  clinicalNoteId: string;
+  clinicId: string;
+  patientId: string;
+  createdByUserId: string;
+  createdByUserName: string;
+  content: string;
+  createdAt: string;
+}
+
+export type DiagnosisKind = "PRIMARY" | "SECONDARY";
+
+export interface Icd10CodeResponse {
+  code: string;
+  description: string;
+  chapter?: string | null;
+  billable: boolean;
+}
+
+export interface DiagnosisEntryInput {
+  icd10Code: string;
+  kind: DiagnosisKind;
+}
+
+export interface ClinicalNoteDiagnosisResponse {
+  id: string;
+  clinicalNoteId: string;
+  clinicId: string;
+  icd10Code: string;
+  kind: DiagnosisKind;
+  createdAt: string;
 }
 
 export interface ClinicalNoteFields {
@@ -344,4 +418,121 @@ export interface SignPrivacyConsentRequest {
   signerName: string;
   signatureImage: string;
 }
+
+// ---- Resumen clínico (datos tipados: alergias / crónicos / medicación) ----
+
+export type AllergySeverity = "MILD" | "MODERATE" | "SEVERE" | "UNKNOWN";
+export type AllergyCategory = "DRUG" | "FOOD" | "ENVIRONMENTAL" | "OTHER";
+export type ConditionStatus = "ACTIVE" | "RESOLVED";
+export type ClinicalDataSource = "MANUAL" | "TEMPLATE";
+
+export interface PatientAllergyDto {
+  id: string;
+  substance: string;
+  reaction?: string | null;
+  severity: AllergySeverity;
+  category: AllergyCategory;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface PatientConditionDto {
+  id: string;
+  name: string;
+  icd10Code?: string | null;
+  status: ConditionStatus;
+  onsetDate?: string | null;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface PatientMedicationDto {
+  id: string;
+  medicationName: string;
+  dose?: string | null;
+  schedule?: string | null;
+  active: boolean;
+  startedOn?: string | null;
+  stoppedOn?: string | null;
+  prescriptionId?: string | null;
+  source: ClinicalDataSource;
+  notedByUserName?: string | null;
+  notedAt: string;
+}
+
+export interface ClinicalReviewDto {
+  noneReported: boolean;
+  reviewedByUserName?: string | null;
+  reviewedAt?: string | null;
+}
+
+export type ClinicalReviewKind = "allergies" | "conditions" | "medications";
+
+export interface PatientClinicalSummaryResponse {
+  patientId: string;
+  bloodType?: string | null;
+  allergies: PatientAllergyDto[];
+  conditions: PatientConditionDto[];
+  activeMedications: PatientMedicationDto[];
+  lastNoteAt?: string | null;
+  allergiesReview: ClinicalReviewDto;
+  conditionsReview: ClinicalReviewDto;
+  medicationsReview: ClinicalReviewDto;
+}
+
+export interface AllergyInput {
+  substance: string;
+  reaction?: string | null;
+  severity?: AllergySeverity | null;
+  category?: AllergyCategory | null;
+}
+
+export interface ConditionInput {
+  name: string;
+  icd10Code?: string | null;
+  status?: ConditionStatus | null;
+  onsetDate?: string | null;
+}
+
+export interface MedicationInput {
+  medicationName: string;
+  dose?: string | null;
+  schedule?: string | null;
+  active: boolean;
+  startedOn?: string | null;
+  stoppedOn?: string | null;
+  prescriptionId?: string | null;
+}
+
+export const BLOOD_TYPE_LABELS: Record<string, string> = {
+  O_POSITIVE: "O+",
+  O_NEGATIVE: "O−",
+  A_POSITIVE: "A+",
+  A_NEGATIVE: "A−",
+  B_POSITIVE: "B+",
+  B_NEGATIVE: "B−",
+  AB_POSITIVE: "AB+",
+  AB_NEGATIVE: "AB−"
+};
+
+export const ALLERGY_SEVERITY_LABELS: Record<AllergySeverity, string> = {
+  MILD: "Leve",
+  MODERATE: "Moderada",
+  SEVERE: "Severa",
+  UNKNOWN: "Sin especificar"
+};
+
+export const ALLERGY_CATEGORY_LABELS: Record<AllergyCategory, string> = {
+  DRUG: "Fármaco",
+  FOOD: "Alimento",
+  ENVIRONMENTAL: "Ambiental",
+  OTHER: "Otra"
+};
+
+export const CONDITION_STATUS_LABELS: Record<ConditionStatus, string> = {
+  ACTIVE: "Activo",
+  RESOLVED: "Resuelto"
+};
 

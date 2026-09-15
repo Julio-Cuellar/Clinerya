@@ -28,7 +28,8 @@ public class PatientLookupAdapter implements PatientLookupPort {
                             fullName,
                             patient.getCurp(),
                             patient.getPhone(),
-                            patient.getEmail()
+                            patient.getEmail(),
+                            patient.getBloodType() != null ? patient.getBloodType().name() : null
                     );
                 });
     }

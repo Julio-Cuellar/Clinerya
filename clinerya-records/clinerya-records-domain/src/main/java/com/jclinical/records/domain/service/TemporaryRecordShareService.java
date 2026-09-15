@@ -1,85 +1,191 @@
 package com.jclinical.records.domain.service;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.RecipientVerificationRequiredException;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.MedicalHistory;
+import com.jclinical.records.domain.model.MedicalHistoryTemplate;
+import com.jclinical.records.domain.model.Prescription;
+import com.jclinical.records.domain.model.RecordAccessLog;
+import com.jclinical.records.domain.model.SharedSection;
 import com.jclinical.records.domain.model.TemporaryRecordShare;
 import com.jclinical.records.domain.ports.in.ManageTemporaryShareUseCase;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicLookupPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
+import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
+import com.jclinical.records.domain.ports.out.PrescriptionRepositoryPort;
+import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
+import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
+import com.jclinical.records.domain.ports.out.ShareVerificationNotifierPort;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public class TemporaryRecordShareService implements ManageTemporaryShareUseCase {
     private static final SecureRandom TOKEN_RANDOM = new SecureRandom();
+    private static final int TOKEN_BYTES = 32;
+
+    private static final String VERIFICATION_CODE_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int VERIFICATION_CODE_LENGTH = 6;
+    private static final int VERIFICATION_CODE_VALID_MINUTES = 10;
+    private static final int MAX_VERIFICATION_ATTEMPTS = 5;
+
+    /** Id del elemento de plantilla bajo el que se guardan los estudios del paciente. */
+    private static final String STUDIES_ELEMENT_ID = "patient_studies";
 
     private final TemporaryRecordShareRepositoryPort repository;
     private final ClinicalNoteRepositoryPort noteRepository;
     private final PatientLookupPort patientLookup;
     private final ClinicLookupPort clinicLookup;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
+    private final RecordAccessLogOutboxPort accessLogOutbox;
+    private final MedicalHistoryRepositoryPort medicalHistoryRepository;
+    private final MedicalHistoryTemplateRepositoryPort templateRepository;
+    private final PrescriptionRepositoryPort prescriptionRepository;
+    private final SharedStudyLookupPort sharedStudyLookup;
+    private final ShareVerificationNotifierPort verificationNotifier;
 
     public TemporaryRecordShareService(TemporaryRecordShareRepositoryPort repository,
                                        ClinicalNoteRepositoryPort noteRepository,
                                        PatientLookupPort patientLookup,
                                        ClinicLookupPort clinicLookup,
-                                       PatientAccessAuthorizationPort accessAuthorizationPort) {
+                                       PatientAccessAuthorizationPort accessAuthorizationPort,
+                                       RecordAccessLogOutboxPort accessLogOutbox,
+                                       MedicalHistoryRepositoryPort medicalHistoryRepository,
+                                       MedicalHistoryTemplateRepositoryPort templateRepository,
+                                       PrescriptionRepositoryPort prescriptionRepository,
+                                       SharedStudyLookupPort sharedStudyLookup,
+                                       ShareVerificationNotifierPort verificationNotifier) {
         this.repository = repository;
         this.noteRepository = noteRepository;
         this.patientLookup = patientLookup;
         this.clinicLookup = clinicLookup;
         this.accessAuthorizationPort = accessAuthorizationPort;
+        this.accessLogOutbox = accessLogOutbox;
+        this.medicalHistoryRepository = medicalHistoryRepository;
+        this.templateRepository = templateRepository;
+        this.prescriptionRepository = prescriptionRepository;
+        this.sharedStudyLookup = sharedStudyLookup;
+        this.verificationNotifier = verificationNotifier;
     }
 
     @Override
-    public TemporaryRecordShare createShareLink(UUID clinicId, UUID patientId, String email, int daysValid, UUID requestingUserId) {
-        AccessDecision decision = accessAuthorizationPort.resolveAccess(requestingUserId, clinicId, patientId);
-        if (decision.level() != AccessLevel.READ_WRITE || decision.viaExternalGrant()) {
-            throw new ClinicAccessDeniedException("No tienes permisos para compartir este expediente.");
-        }
+    public TemporaryRecordShare createShareLink(UUID clinicId, UUID patientId, String email, int daysValid,
+                                               Set<SharedSection> sections, UUID requestingUserId) {
+        requireReadWrite(requestingUserId, clinicId, patientId, "No tienes permisos para compartir este expediente.");
 
         patientLookup.findPatient(patientId)
                 .orElseThrow(() -> new IllegalArgumentException("El paciente no existe."));
 
         String token = generateSecureToken();
+        Set<SharedSection> effectiveSections = (sections == null || sections.isEmpty())
+                ? SharedSection.all()
+                : sections;
 
         TemporaryRecordShare share = TemporaryRecordShare.builder()
                 .id(UUID.randomUUID())
                 .clinicId(clinicId)
                 .patientId(patientId)
                 .email(email)
-                .token(token)
+                .tokenHash(hashToken(token))
+                .createdByUserId(requestingUserId)
+                .sharedSections(effectiveSections)
                 .expiresAt(LocalDateTime.now().plusDays(normalizeDaysValid(daysValid)))
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return repository.save(share);
+        TemporaryRecordShare saved = repository.save(share);
+        saved.setPlaintextToken(token);
+        return saved;
     }
 
     @Override
-    public SharedRecordSummary getSharedRecord(String token) {
-        TemporaryRecordShare share = repository.findByToken(token)
-                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es inválido."));
-
-        if (share.isExpired()) {
-            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
+    public void requestRecipientVerification(String token) {
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        if (share.isRecipientVerified()) {
+            return;
         }
+
+        String code = generateVerificationCode();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(VERIFICATION_CODE_VALID_MINUTES);
+        share.setVerificationCodeHash(hashToken(code));
+        share.setVerificationCodeExpiresAt(expiresAt);
+        share.setVerificationAttempts(0);
+        repository.save(share);
+
+        verificationNotifier.sendVerificationCode(share.getEmail(), code, expiresAt);
+    }
+
+    @Override
+    public void confirmRecipientVerification(String token, String code) {
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("El codigo de verificacion es obligatorio.");
+        }
+
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        if (share.isRecipientVerified()) {
+            return;
+        }
+        if (!share.hasPendingVerificationCode()) {
+            throw new IllegalArgumentException("No hay un codigo de verificacion vigente. Solicita uno nuevo.");
+        }
+        if (share.getVerificationAttempts() >= MAX_VERIFICATION_ATTEMPTS) {
+            throw new IllegalStateException("Demasiados intentos fallidos. Solicita un nuevo codigo.");
+        }
+
+        if (!hashToken(code.trim().toUpperCase()).equals(share.getVerificationCodeHash())) {
+            share.setVerificationAttempts(share.getVerificationAttempts() + 1);
+            repository.save(share);
+            throw new IllegalArgumentException("El codigo de verificacion es incorrecto.");
+        }
+
+        share.setRecipientVerifiedAt(LocalDateTime.now());
+        share.setVerificationCodeHash(null);
+        share.setVerificationCodeExpiresAt(null);
+        share.setVerificationAttempts(0);
+        repository.save(share);
+    }
+
+    @Override
+    public SharedRecordSummary getSharedRecord(String token, String ipAddress, String userAgent) {
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        requireRecipientVerified(share);
 
         PatientLookupPort.PatientDetails patient = patientLookup.findPatient(share.getPatientId())
                 .orElseThrow(() -> new IllegalArgumentException("El paciente asociado al expediente ya no existe."));
 
         String clinicName = clinicLookup.findClinicName(share.getClinicId())
-                .orElse("Clínica Médica");
+                .orElse("Clinica Medica");
 
-        // Ordenamos las notas por fecha de creación descendente para mejor lectura.
-        List<ClinicalNote> notes = noteRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(share.getPatientId(), share.getClinicId());
+        List<ClinicalNote> notes = share.includes(SharedSection.CLINICAL_NOTES)
+                ? loadNotes(share)
+                : List.of();
+        List<MedicalHistoryView> histories = share.includes(SharedSection.MEDICAL_HISTORY)
+                ? loadMedicalHistories(share)
+                : List.of();
+        List<PrescriptionView> prescriptions = share.includes(SharedSection.PRESCRIPTIONS)
+                ? loadPrescriptions(share)
+                : List.of();
+        List<SharedStudyView> studies = share.includes(SharedSection.STUDIES)
+                ? loadStudies(share)
+                : List.of();
+
+        share.registerAccess(LocalDateTime.now());
+        repository.save(share);
+        recordConsultation(share, ipAddress, userAgent, "TEMPORARY_SHARE", share.getId());
 
         return new SharedRecordSummary(
                 patient.id(),
@@ -88,17 +194,181 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
                 patient.phone(),
                 patient.email(),
                 clinicName,
-                notes
+                share.getSharedSections() == null ? SharedSection.all() : share.getSharedSections(),
+                notes,
+                histories,
+                prescriptions,
+                studies
         );
     }
 
-    private String generateSecureToken() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder sb = new StringBuilder(32);
-        for (int i = 0; i < 32; i++) {
-            sb.append(chars.charAt(TOKEN_RANDOM.nextInt(chars.length())));
+    @Override
+    public SharedStudyContent getSharedStudyContent(String token, UUID attachmentId, String ipAddress, String userAgent) {
+        if (attachmentId == null) {
+            throw new IllegalArgumentException("Solicitud de estudio invalida.");
         }
-        return sb.toString();
+
+        TemporaryRecordShare share = findUsableShareOrThrow(token);
+        requireRecipientVerified(share);
+        if (!share.includes(SharedSection.STUDIES)) {
+            throw new IllegalArgumentException("Este enlace no comparte estudios.");
+        }
+
+        SharedStudyLookupPort.SharedStudyContent content = sharedStudyLookup
+                .readStudy(attachmentId, share.getPatientId(), share.getClinicId(), STUDIES_ELEMENT_ID)
+                .orElseThrow(() -> new IllegalArgumentException("El estudio solicitado no existe en este expediente."));
+
+        recordConsultation(share, ipAddress, userAgent, "TEMPORARY_SHARE_STUDY", attachmentId);
+
+        return new SharedStudyContent(content.filename(), content.contentType(), content.bytes());
+    }
+
+    private List<ClinicalNote> loadNotes(TemporaryRecordShare share) {
+        List<ClinicalNote> notes = noteRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(
+                share.getPatientId(), share.getClinicId());
+        if (!share.includes(SharedSection.VITAL_SIGNS)) {
+            notes.forEach(note -> note.setVitalSigns(null));
+        }
+        return notes;
+    }
+
+    private List<MedicalHistoryView> loadMedicalHistories(TemporaryRecordShare share) {
+        return medicalHistoryRepository.findByPatientIdAndClinicId(share.getPatientId(), share.getClinicId()).stream()
+                .map(history -> toMedicalHistoryView(share.getClinicId(), history))
+                .toList();
+    }
+
+    private MedicalHistoryView toMedicalHistoryView(UUID clinicId, MedicalHistory history) {
+        MedicalHistoryTemplate template = templateRepository
+                .findByIdAndClinicId(history.getTemplateId(), clinicId)
+                .orElse(null);
+        String templateName = template != null ? template.getName() : "Formulario";
+        String schemaJson = template != null ? template.getSchemaJson() : null;
+        return new MedicalHistoryView(templateName, schemaJson, history.getAnswersJson(), history.getUpdatedAt());
+    }
+
+    private List<PrescriptionView> loadPrescriptions(TemporaryRecordShare share) {
+        return prescriptionRepository.findByClinicIdAndPatientId(share.getClinicId(), share.getPatientId()).stream()
+                .map(this::toPrescriptionView)
+                .toList();
+    }
+
+    private List<SharedStudyView> loadStudies(TemporaryRecordShare share) {
+        return sharedStudyLookup.listStudies(share.getPatientId(), share.getClinicId(), STUDIES_ELEMENT_ID).stream()
+                .map(study -> new SharedStudyView(
+                        study.id(), study.filename(), study.contentType(), study.sizeBytes(), study.createdAt()))
+                .toList();
+    }
+
+    private PrescriptionView toPrescriptionView(Prescription prescription) {
+        List<PrescriptionItemView> items = prescription.getItems() == null ? List.of()
+                : prescription.getItems().stream()
+                        .map(item -> new PrescriptionItemView(
+                                item.getMedicationName(),
+                                item.getDosage(),
+                                item.getFrequency(),
+                                item.getDuration(),
+                                item.getInstructions()))
+                        .toList();
+        return new PrescriptionView(prescription.getCreatedAt(), prescription.getNotes(), items);
+    }
+
+    @Override
+    public List<ShareLinkView> listActiveShares(UUID clinicId, UUID patientId, UUID requestingUserId) {
+        requireReadWrite(requestingUserId, clinicId, patientId, "No tienes permisos para ver los enlaces de este expediente.");
+        return repository.findActiveByClinicAndPatient(clinicId, patientId).stream()
+                .filter(TemporaryRecordShare::isUsable)
+                .map(s -> new ShareLinkView(
+                        s.getId(), s.getEmail(), s.getCreatedByUserId(), s.getCreatedAt(),
+                        s.getExpiresAt(), s.getLastAccessedAt(), s.getAccessCount(),
+                        s.getSharedSections() == null ? SharedSection.all() : s.getSharedSections()))
+                .toList();
+    }
+
+    @Override
+    public void revokeShare(UUID clinicId, UUID shareId, UUID requestingUserId) {
+        TemporaryRecordShare share = repository.findById(shareId)
+                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe."));
+        if (!share.getClinicId().equals(clinicId)) {
+            throw new IllegalArgumentException("El enlace no pertenece a esta clinica.");
+        }
+        requireReadWrite(requestingUserId, clinicId, share.getPatientId(),
+                "No tienes permisos para revocar enlaces de este expediente.");
+        if (share.isRevoked()) {
+            return;
+        }
+        share.setRevokedAt(LocalDateTime.now());
+        repository.save(share);
+    }
+
+    private void requireReadWrite(UUID requestingUserId, UUID clinicId, UUID patientId, String message) {
+        AccessDecision decision = accessAuthorizationPort.resolveAccess(requestingUserId, clinicId, patientId);
+        if (decision.level() != AccessLevel.READ_WRITE || decision.viaExternalGrant()) {
+            throw new ClinicAccessDeniedException(message);
+        }
+    }
+
+    private void recordConsultation(TemporaryRecordShare share, String ipAddress, String userAgent,
+                                    String resourceType, UUID resourceId) {
+        RecordAccessLog log = RecordAccessLog.builder()
+                .id(UUID.randomUUID())
+                .clinicId(share.getClinicId())
+                .patientId(share.getPatientId())
+                .userId(null)
+                .userName(truncate("enlace-compartido:" + share.getEmail(), 255))
+                .resourceType(resourceType)
+                .resourceId(resourceId)
+                .actionType("VIEW")
+                .ipAddress(truncate(ipAddress, 64))
+                .userAgent(truncate(userAgent, 512))
+                .createdAt(LocalDateTime.now())
+                .build();
+        accessLogOutbox.enqueue(log);
+    }
+
+    private TemporaryRecordShare findUsableShareOrThrow(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido.");
+        }
+        TemporaryRecordShare share = repository.findByTokenHash(hashToken(token))
+                .orElseThrow(() -> new IllegalArgumentException("El enlace de consulta compartida no existe o es invalido."));
+        if (share.isRevoked()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida fue revocado.");
+        }
+        if (share.isExpired()) {
+            throw new IllegalArgumentException("El enlace de consulta compartida ha expirado.");
+        }
+        return share;
+    }
+
+    private void requireRecipientVerified(TemporaryRecordShare share) {
+        if (!share.isRecipientVerified()) {
+            throw new RecipientVerificationRequiredException(
+                    "Debes verificar tu correo con el codigo de un solo uso antes de consultar este expediente.");
+        }
+    }
+
+    private String generateVerificationCode() {
+        StringBuilder code = new StringBuilder(VERIFICATION_CODE_LENGTH);
+        for (int index = 0; index < VERIFICATION_CODE_LENGTH; index++) {
+            code.append(VERIFICATION_CODE_CHARACTERS.charAt(TOKEN_RANDOM.nextInt(VERIFICATION_CODE_CHARACTERS.length())));
+        }
+        return code.toString();
+    }
+
+    private String generateSecureToken() {
+        byte[] bytes = new byte[TOKEN_BYTES];
+        TOKEN_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String hashToken(String token) {
+        try {
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 no esta disponible.", e);
+        }
     }
 
     private int normalizeDaysValid(int daysValid) {
@@ -106,5 +376,12 @@ public class TemporaryRecordShareService implements ManageTemporaryShareUseCase 
             return 1;
         }
         return Math.min(daysValid, 30);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 }

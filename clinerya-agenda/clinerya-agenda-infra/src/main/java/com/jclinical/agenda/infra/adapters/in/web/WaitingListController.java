@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,7 @@ public class WaitingListController {
 
     private final ManageWaitingListUseCase manageWaitingListUseCase;
     private final WaitingListMapper waitingListMapper;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<WaitingListResponse> addToWaitingList(
@@ -27,6 +29,7 @@ public class WaitingListController {
             @RequestBody AddToWaitingListRequest request) {
         WaitingListEntry entry = manageWaitingListUseCase.addToWaitingList(
                 clinicId,
+                currentUserResolver.getCurrentUserId(),
                 request.patientId(),
                 request.doctorStaffId(),
                 request.roomId(),
@@ -42,7 +45,7 @@ public class WaitingListController {
     public ResponseEntity<List<WaitingListResponse>> getWaitingList(
             @PathVariable UUID clinicId,
             @RequestParam(required = false, defaultValue = "true") boolean waitingOnly) {
-        List<WaitingListEntry> list = manageWaitingListUseCase.listWaitingList(clinicId, waitingOnly);
+        List<WaitingListEntry> list = manageWaitingListUseCase.listWaitingList(clinicId, currentUserResolver.getCurrentUserId(), waitingOnly);
         List<WaitingListResponse> response = list.stream()
                 .map(waitingListMapper::toResponse)
                 .toList();
@@ -54,7 +57,7 @@ public class WaitingListController {
             @PathVariable UUID clinicId,
             @PathVariable UUID entryId,
             @RequestParam WaitingListEntry.Status status) {
-        WaitingListEntry entry = manageWaitingListUseCase.updateStatus(clinicId, entryId, status);
+        WaitingListEntry entry = manageWaitingListUseCase.updateStatus(clinicId, entryId, currentUserResolver.getCurrentUserId(), status);
         return ResponseEntity.ok(waitingListMapper.toResponse(entry));
     }
 
@@ -62,7 +65,7 @@ public class WaitingListController {
     public ResponseEntity<Void> removeFromWaitingList(
             @PathVariable UUID clinicId,
             @PathVariable UUID entryId) {
-        manageWaitingListUseCase.removeFromWaitingList(clinicId, entryId);
+        manageWaitingListUseCase.removeFromWaitingList(clinicId, entryId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 }

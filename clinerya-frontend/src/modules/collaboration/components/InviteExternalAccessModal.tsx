@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { IconSend, IconX } from "@tabler/icons-react";
 import { collaborationApi, getFriendlyError } from "@shared/api/api";
 import type { AccessLevel, ExternalAccessGrantResponse } from "@modules/collaboration/types";
+import { SHARE_SECTION_OPTIONS } from "@modules/collaboration/types";
 
 export function InviteExternalAccessModal({
   clinicId,
@@ -47,9 +48,16 @@ export function InviteExternalAccessModal({
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
     const daysValid = Number(form.get("daysValid") ?? "7");
+    const sections = form.getAll("sections").map(String);
+
+    if (sections.length === 0) {
+      setError("Selecciona al menos una sección para compartir.");
+      setLoading(false);
+      return;
+    }
 
     try {
-      const response = await collaborationApi.createTemporaryShare(clinicId, patientId, { email, daysValid });
+      const response = await collaborationApi.createTemporaryShare(clinicId, patientId, { email, daysValid, sections });
       const link = `${window.location.origin}/share-view?token=${response.token}`;
       setGeneratedLink(link);
     } catch (caught) {
@@ -193,6 +201,21 @@ export function InviteExternalAccessModal({
                 <option value="30">30 días</option>
               </select>
             </label>
+
+            <div className="field field-full">
+              <span>¿Qué incluir en el enlace?</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "6px" }}>
+                {SHARE_SECTION_OPTIONS.map((option) => (
+                  <label key={option.key} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "13px", fontWeight: "normal" }}>
+                    <input type="checkbox" name="sections" value={option.key} defaultChecked style={{ marginTop: "2px" }} />
+                    <span>
+                      <strong>{option.label}</strong>
+                      <span style={{ color: "var(--color-text-3)" }}> — {option.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
             {error && <p className="alert error">{error}</p>}
             <div className="form-actions">

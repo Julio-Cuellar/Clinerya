@@ -7,6 +7,7 @@ import com.jclinical.inventory.domain.ports.in.ManageMaterialUseCase.UpdateMater
 import com.jclinical.inventory.infra.adapters.in.web.dto.CreateMaterialRequest;
 import com.jclinical.inventory.infra.adapters.in.web.dto.MaterialResponse;
 import com.jclinical.inventory.infra.adapters.in.web.dto.UpdateMaterialRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class MaterialController {
 
     private final ManageMaterialUseCase materialUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<MaterialResponse> createMaterial(
@@ -49,7 +51,7 @@ public class MaterialController {
                 request.salePrice(),
                 request.tracksBatches()
         );
-        Material material = materialUseCase.createMaterial(clinicId, command);
+        Material material = materialUseCase.createMaterial(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(material));
     }
 
@@ -57,7 +59,8 @@ public class MaterialController {
     public ResponseEntity<List<MaterialResponse>> getMaterials(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        List<MaterialResponse> responses = materialUseCase.getMaterialsByClinic(clinicId, includeInactive).stream()
+        List<MaterialResponse> responses = materialUseCase
+                .getMaterialsByClinic(currentUserResolver.getCurrentUserId(), clinicId, includeInactive).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -93,7 +96,8 @@ public class MaterialController {
                 request.tracksBatches(),
                 request.active()
         );
-        Material material = materialUseCase.updateMaterial(materialId, clinicId, command);
+        Material material = materialUseCase.updateMaterial(
+                currentUserResolver.getCurrentUserId(), materialId, clinicId, command);
         return ResponseEntity.ok(toResponse(material));
     }
 
@@ -101,7 +105,7 @@ public class MaterialController {
     public ResponseEntity<Void> deactivateMaterial(
             @PathVariable UUID clinicId,
             @PathVariable UUID materialId) {
-        materialUseCase.deactivateMaterial(materialId, clinicId);
+        materialUseCase.deactivateMaterial(currentUserResolver.getCurrentUserId(), materialId, clinicId);
         return ResponseEntity.noContent().build();
     }
 

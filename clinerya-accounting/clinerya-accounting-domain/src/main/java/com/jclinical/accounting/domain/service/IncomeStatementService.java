@@ -7,6 +7,9 @@ import com.jclinical.accounting.domain.model.TrialBalanceReport;
 import com.jclinical.accounting.domain.model.WasteReport;
 import com.jclinical.accounting.domain.ports.in.GenerateAccountingReportsUseCase;
 import com.jclinical.accounting.domain.ports.out.JournalEntryRepositoryPort;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -36,17 +39,30 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     private static final String INVALID_PERIOD_MESSAGE = "La fecha inicial no puede ser posterior a la fecha final.";
 
     private final JournalEntryRepositoryPort repository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
-    public IncomeStatementService(JournalEntryRepositoryPort repository) {
+    public IncomeStatementService(JournalEntryRepositoryPort repository, StaffPermissionCheckerPort permissionChecker) {
         this.repository = repository;
+        this.permissionChecker = permissionChecker;
+    }
+
+    private void requireViewReports(UUID clinicId, UUID actingUserId) {
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("Usuario no autenticado.");
+        }
+        if (!permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.VIEW_FINANCIAL_REPORTS)) {
+            throw new ClinicAccessDeniedException("No tienes permiso para consultar los reportes financieros de esta clinica.");
+        }
     }
 
     @Override
     public IncomeStatementReport generateIncomeStatement(
+            UUID actingUserId,
             UUID clinicId,
             LocalDate from,
             LocalDate to,
             boolean includeComparison) {
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         long periodDays = ChronoUnit.DAYS.between(from, to) + 1;
@@ -78,7 +94,8 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     }
 
     @Override
-    public TrialBalanceReport generateTrialBalance(UUID clinicId, LocalDate from, LocalDate to) {
+    public TrialBalanceReport generateTrialBalance(UUID actingUserId, UUID clinicId, LocalDate from, LocalDate to) {
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         Map<String, TrialAccount> accounts = new LinkedHashMap<>();
@@ -112,7 +129,8 @@ public class IncomeStatementService implements GenerateAccountingReportsUseCase 
     }
 
     @Override
-    public WasteReport generateWasteReport(UUID clinicId, LocalDate from, LocalDate to) {
+    public WasteReport generateWasteReport(UUID actingUserId, UUID clinicId, LocalDate from, LocalDate to) {
+        requireViewReports(clinicId, actingUserId);
         validatePeriod(clinicId, from, to);
 
         List<WasteReport.Line> lines = new ArrayList<>();

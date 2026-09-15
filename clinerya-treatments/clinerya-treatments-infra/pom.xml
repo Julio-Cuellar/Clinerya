@@ -24,10 +24,23 @@
             <artifactId>clinerya-treatments-domain</artifactId>
         </dependency>
 
+        <!-- Resolución del usuario autenticado para el control de acceso en los controladores -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
+
         <!-- Dependencia del módulo de dominio de pacientes (para validar existencia de pacientes) -->
         <dependency>
             <groupId>com.jclinical</groupId>
             <artifactId>clinerya-patients-domain</artifactId>
+        </dependency>
+
+        <!-- CurrentUserResolver: los controladores resuelven aqui al usuario que actua,
+             en lugar de aceptarlo desde el body de la peticion. -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
         </dependency>
 
         <!-- Dependencia del módulo de dominio de inventario (para validar/consultar materiales) -->

@@ -55,11 +55,13 @@ public class ClinicDomainConfig {
     public com.jclinical.clinics.domain.ports.in.ManageClinicRoomsUseCase manageClinicRoomsUseCase(
             com.jclinical.clinics.domain.ports.out.ClinicRoomRepositoryPort clinicRoomRepository,
             com.jclinical.clinics.domain.ports.out.ClinicRoomStaffAssignmentRepositoryPort assignmentRepository,
-            ClinicStaffRepositoryPort clinicStaffRepository) {
+            ClinicStaffRepositoryPort clinicStaffRepository,
+            com.jclinical.core.security.StaffPermissionCheckerPort permissionChecker) {
         return new com.jclinical.clinics.domain.service.ClinicRoomService(
                 clinicRoomRepository,
                 assignmentRepository,
-                clinicStaffRepository);
+                clinicStaffRepository,
+                permissionChecker);
     }
 
     @Bean

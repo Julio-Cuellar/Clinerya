@@ -50,6 +50,18 @@
             <artifactId>clinerya-users-infra</artifactId>
         </dependency>
 
+        <!-- EmailSenderPort, para el codigo de verificacion del destinatario de un enlace compartido -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-domain</artifactId>
+        </dependency>
+
+        <!-- Lectura de estudios (adjuntos) para exponerlos por enlace compartido -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-attachments</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

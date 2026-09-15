@@ -58,7 +58,8 @@ class AppointmentServiceTest {
                 staffValidator,
                 quotationValidator,
                 reservationSchedulingService,
-                eventPublisher
+                eventPublisher,
+                (clinicId, userId, permission) -> true
         );
     }
 

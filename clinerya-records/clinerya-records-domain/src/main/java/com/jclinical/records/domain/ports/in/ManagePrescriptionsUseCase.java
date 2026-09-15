@@ -13,10 +13,11 @@ public interface ManagePrescriptionsUseCase {
             UUID doctorId,
             UUID appointmentId,
             String notes,
-            List<PrescriptionItem> items
+            List<PrescriptionItem> items,
+            UUID requestingUserId
     );
 
-    List<Prescription> getPrescriptionsByPatient(UUID clinicId, UUID patientId);
+    List<Prescription> getPrescriptionsByPatient(UUID clinicId, UUID patientId, UUID requestingUserId);
 
-    Prescription getPrescriptionById(UUID clinicId, UUID prescriptionId);
+    Prescription getPrescriptionById(UUID clinicId, UUID prescriptionId, UUID requestingUserId);
 }

@@ -5,6 +5,7 @@ import com.jclinical.inventory.domain.model.MaterialReservationStatus;
 import com.jclinical.inventory.domain.ports.out.MaterialRepositoryPort;
 import com.jclinical.inventory.domain.ports.out.MaterialReservationQueryPort;
 import com.jclinical.inventory.domain.ports.out.MaterialReservationRepositoryPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,11 +31,15 @@ class MaterialReservationServiceTest {
     @Mock
     private MaterialReservationQueryPort reservationQuery;
 
+    private final UUID actingUserId = UUID.randomUUID();
+    private final StaffPermissionCheckerPort permissionChecker = (clinicId, userId, permission) -> true;
+
     private MaterialReservationService service;
 
     @BeforeEach
     void setUp() {
-        service = new MaterialReservationService(materialRepository, reservationRepository, reservationQuery);
+        service = new MaterialReservationService(
+                materialRepository, reservationRepository, reservationQuery, permissionChecker);
     }
 
     @Test
@@ -59,7 +64,7 @@ class MaterialReservationServiceTest {
         );
         when(reservationQuery.findActiveByClinicId(clinicId)).thenReturn(List.of(reservation));
 
-        List<MaterialReservationDetail> result = service.listActiveReservations(clinicId);
+        List<MaterialReservationDetail> result = service.listActiveReservations(actingUserId, clinicId);
 
         assertThat(result).containsExactly(reservation);
         assertThat(result.getFirst().patientName()).isEqualTo("Mariana Torres Vega");

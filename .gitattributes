@@ -1,0 +1,9 @@
+# Normaliza los finales de línea para que Flyway calcule siempre el mismo
+# checksum de cada migración, sin importar el sistema operativo o el
+# core.autocrlf de quien hizo el checkout.
+* text=auto eol=lf
+
+*.sql text eol=lf
+*.java text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

@@ -13,21 +13,33 @@ import com.jclinical.records.domain.model.NoteStatus;
 import com.jclinical.records.domain.model.SignatureDocumentType;
 import com.jclinical.records.domain.model.SignerType;
 import com.jclinical.records.domain.model.VitalSigns;
+import com.jclinical.records.domain.ports.out.ClinicalNoteAddendumRepositoryPort;
+import com.jclinical.records.domain.ports.out.ClinicalNoteDiagnosisRepositoryPort;
 import com.jclinical.records.domain.ports.out.ClinicalNoteRepositoryPort;
 import com.jclinical.records.domain.ports.out.DocumentSignatureRepositoryPort;
+import com.jclinical.records.domain.ports.out.Icd10CatalogRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.records.domain.ports.out.PatientAllergyRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientClinicalReviewRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientConditionRepositoryPort;
+import com.jclinical.records.domain.ports.out.PatientMedicationRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
+import com.jclinical.records.domain.ports.out.TemplateClinicalDataSyncPort;
+import com.jclinical.records.domain.service.PatientClinicalSummaryService;
 import com.jclinical.records.domain.ports.out.TemporaryRecordShareRepositoryPort;
 import com.jclinical.records.domain.ports.out.PatientLookupPort;
 import com.jclinical.records.domain.ports.out.ClinicLookupPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogRepositoryPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
+import com.jclinical.records.domain.ports.out.SharedStudyLookupPort;
+import com.jclinical.records.domain.ports.out.ShareVerificationNotifierPort;
 import com.jclinical.records.domain.ports.out.PrivacyConsentRepositoryPort;
 import com.jclinical.records.domain.service.ClinicalNoteService;
 import com.jclinical.records.domain.service.HistoryTemplateService;
+import com.jclinical.records.domain.service.Icd10CatalogService;
 import com.jclinical.records.domain.service.MedicalHistoryService;
 import com.jclinical.records.domain.service.RecordAccessLogService;
 import com.jclinical.records.domain.service.PrivacyConsentService;
@@ -64,8 +76,11 @@ import java.util.stream.Collectors;
 public class RecordsDomainConfig {
 
     @Bean
-    public PrescriptionService prescriptionService(PrescriptionRepositoryPort prescriptionRepositoryPort) {
-        return new PrescriptionService(prescriptionRepositoryPort);
+    public PrescriptionService prescriptionService(
+            PrescriptionRepositoryPort prescriptionRepositoryPort,
+            PatientValidatorPort patientValidator,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
+        return new PrescriptionService(prescriptionRepositoryPort, patientValidator, accessAuthorizationPort);
     }
 
     @Bean
@@ -145,8 +160,10 @@ public class RecordsDomainConfig {
             MedicalHistoryTemplateRepositoryPort templateRepository,
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
-            MedicalHistoryVersionRepositoryPort versionRepository) {
-        return new MedicalHistoryService(historyRepository, templateRepository, patientValidator, accessAuthorizationPort, versionRepository);
+            MedicalHistoryVersionRepositoryPort versionRepository,
+            TemplateClinicalDataSyncPort clinicalDataSync) {
+        return new MedicalHistoryService(historyRepository, templateRepository, patientValidator,
+                accessAuthorizationPort, versionRepository, clinicalDataSync);
     }
 
     @Bean
@@ -154,8 +171,17 @@ public class RecordsDomainConfig {
             ClinicalNoteRepositoryPort noteRepository,
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort,
-            DocumentSignatureRepositoryPort signatureRepository) {
-        return new ClinicalNoteService(noteRepository, patientValidator, accessAuthorizationPort, signatureRepository);
+            DocumentSignatureRepositoryPort signatureRepository,
+            ClinicalNoteAddendumRepositoryPort addendumRepository,
+            ClinicalNoteDiagnosisRepositoryPort diagnosisRepository,
+            Icd10CatalogRepositoryPort icd10CatalogRepository) {
+        return new ClinicalNoteService(noteRepository, patientValidator, accessAuthorizationPort,
+                signatureRepository, addendumRepository, diagnosisRepository, icd10CatalogRepository);
+    }
+
+    @Bean
+    public Icd10CatalogService icd10CatalogService(Icd10CatalogRepositoryPort icd10CatalogRepository) {
+        return new Icd10CatalogService(icd10CatalogRepository);
     }
 
     @Bean
@@ -164,8 +190,16 @@ public class RecordsDomainConfig {
             ClinicalNoteRepositoryPort noteRepository,
             PatientLookupPort patientLookup,
             ClinicLookupPort clinicLookup,
-            PatientAccessAuthorizationPort accessAuthorizationPort) {
-        return new TemporaryRecordShareService(repository, noteRepository, patientLookup, clinicLookup, accessAuthorizationPort);
+            PatientAccessAuthorizationPort accessAuthorizationPort,
+            RecordAccessLogOutboxPort accessLogOutbox,
+            MedicalHistoryRepositoryPort medicalHistoryRepository,
+            MedicalHistoryTemplateRepositoryPort medicalHistoryTemplateRepository,
+            PrescriptionRepositoryPort prescriptionRepository,
+            SharedStudyLookupPort sharedStudyLookup,
+            ShareVerificationNotifierPort verificationNotifier) {
+        return new TemporaryRecordShareService(repository, noteRepository, patientLookup, clinicLookup,
+                accessAuthorizationPort, accessLogOutbox, medicalHistoryRepository,
+                medicalHistoryTemplateRepository, prescriptionRepository, sharedStudyLookup, verificationNotifier);
     }
 
     @Bean
@@ -183,6 +217,20 @@ public class RecordsDomainConfig {
             PatientValidatorPort patientValidator,
             PatientAccessAuthorizationPort accessAuthorizationPort) {
         return new PrivacyConsentService(consentRepository, patientValidator, accessAuthorizationPort);
+    }
+
+    @Bean
+    public PatientClinicalSummaryService patientClinicalSummaryService(
+            PatientAllergyRepositoryPort allergyRepository,
+            PatientConditionRepositoryPort conditionRepository,
+            PatientMedicationRepositoryPort medicationRepository,
+            PatientClinicalReviewRepositoryPort clinicalReviewRepository,
+            PatientValidatorPort patientValidator,
+            PatientAccessAuthorizationPort accessAuthorizationPort,
+            PatientLookupPort patientLookup,
+            ClinicalNoteRepositoryPort noteRepository) {
+        return new PatientClinicalSummaryService(allergyRepository, conditionRepository, medicationRepository,
+                clinicalReviewRepository, patientValidator, accessAuthorizationPort, patientLookup, noteRepository);
     }
 
     @Bean

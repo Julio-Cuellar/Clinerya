@@ -1,0 +1,24 @@
+# Perfil solo para desarrollo local fuera de Docker (IDE, `mvn spring-boot:run`, etc.).
+# Actívalo con SPRING_PROFILES_ACTIVE=local. Nunca se carga a menos que lo actives explícitamente,
+# así que estos valores de ejemplo no representan ningún riesgo en producción (que corre con
+# SPRING_PROFILES_ACTIVE=prod vía docker-compose, con sus propios secretos reales en .env).
+spring:
+  datasource:
+    password: root
+
+jwt:
+  secret: local-dev-only-secret-do-not-use-in-production-1234567890ABCDEFGH
+
+medicloud:
+  security:
+    # OJO: debe coincidir con el valor que traía application.yml antes de quitar el fallback
+    # (DefaultSecretEncryptionKey32Chars!). Si tu base de datos local ya tiene columnas cifradas
+    # (ENC_GCM:...) con esa clave -p. ej. credenciales de Google Calendar- cambiar este valor
+    # rompe el descifrado de esos datos existentes (Tag mismatch en AesCryptoConverter).
+    encryption-key: DefaultSecretEncryptionKey32Chars!
+    # Sin TLS en local: una cookie Secure no la manda el navegador y el refresh nunca llega.
+    secure-cookies: false
+
+google:
+  oauth:
+    state-secret: local-dev-only-google-oauth-state-secret

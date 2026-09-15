@@ -14,9 +14,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, RateLimitingFilter rateLimitingFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
     }
 
     @Bean
@@ -31,10 +33,13 @@ public class SecurityConfig {
                     "/api/v1/users/register",
                     "/api/v1/users/verify-email",
                     "/api/v1/users/resend-verification",
+                    "/api/v1/users/password-reset/request",
+                    "/api/v1/users/password-reset/confirm",
                     "/api/v1/users/register-staff",
                     "/api/v1/auth/login",
                     "/api/v1/auth/refresh",
                     "/api/v1/public/shared-history",
+                    "/api/v1/public/shared-history/**",
                     "/api/v1/integrations/google-calendar/callback",
                     "/api/v1/info",
                     "/actuator/health",
@@ -42,7 +47,8 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(rateLimitingFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

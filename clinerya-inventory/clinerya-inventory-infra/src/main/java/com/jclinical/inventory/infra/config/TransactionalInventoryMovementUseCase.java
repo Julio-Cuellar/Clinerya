@@ -22,20 +22,20 @@ public class TransactionalInventoryMovementUseCase implements ManageInventoryMov
 
     @Override
     @Transactional
-    public InventoryMovement registerPurchaseEntry(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
-        return movementService.registerPurchaseEntry(clinicId, materialId, command);
+    public InventoryMovement registerPurchaseEntry(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        return movementService.registerPurchaseEntry(actingUserId, clinicId, materialId, command);
     }
 
     @Override
     @Transactional
-    public InventoryMovement registerAdjustment(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
-        return movementService.registerAdjustment(clinicId, materialId, command);
+    public InventoryMovement registerAdjustment(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        return movementService.registerAdjustment(actingUserId, clinicId, materialId, command);
     }
 
     @Override
     @Transactional
-    public InventoryMovement registerSaleExit(UUID clinicId, UUID materialId, RegisterMovementCommand command) {
-        return movementService.registerSaleExit(clinicId, materialId, command);
+    public InventoryMovement registerSaleExit(UUID actingUserId, UUID clinicId, UUID materialId, RegisterMovementCommand command) {
+        return movementService.registerSaleExit(actingUserId, clinicId, materialId, command);
     }
 
     @Override
@@ -46,25 +46,25 @@ public class TransactionalInventoryMovementUseCase implements ManageInventoryMov
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryMovement> listMovementsByMaterial(UUID clinicId, UUID materialId, int page, int size) {
-        return movementService.listMovementsByMaterial(clinicId, materialId, page, size);
+    public List<InventoryMovement> listMovementsByMaterial(UUID actingUserId, UUID clinicId, UUID materialId, int page, int size) {
+        return movementService.listMovementsByMaterial(actingUserId, clinicId, materialId, page, size);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryMovement> listMovementsByClinic(UUID clinicId, int page, int size) {
-        return movementService.listMovementsByClinic(clinicId, page, size);
+    public List<InventoryMovement> listMovementsByClinic(UUID actingUserId, UUID clinicId, int page, int size) {
+        return movementService.listMovementsByClinic(actingUserId, clinicId, page, size);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<InventoryBatch> listBatchesByMaterial(UUID clinicId, UUID materialId) {
-        return movementService.listBatchesByMaterial(clinicId, materialId);
+    public List<InventoryBatch> listBatchesByMaterial(UUID actingUserId, UUID clinicId, UUID materialId) {
+        return movementService.listBatchesByMaterial(actingUserId, clinicId, materialId);
     }
 
     @Override
     @Transactional
-    public List<InventoryMovement> registerExpiredBatchWastes(UUID clinicId, LocalDate asOfDate) {
-        return movementService.registerExpiredBatchWastes(clinicId, asOfDate);
+    public List<InventoryMovement> registerExpiredBatchWastes(UUID actingUserId, UUID clinicId, LocalDate asOfDate) {
+        return movementService.registerExpiredBatchWastes(actingUserId, clinicId, asOfDate);
     }
 }

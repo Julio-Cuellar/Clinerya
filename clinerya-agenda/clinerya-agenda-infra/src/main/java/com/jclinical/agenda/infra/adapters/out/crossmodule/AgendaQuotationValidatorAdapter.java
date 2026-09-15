@@ -3,7 +3,7 @@ package com.jclinical.agenda.infra.adapters.out.crossmodule;
 import com.jclinical.agenda.domain.ports.out.QuotationValidatorPort;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationStatus;
-import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase;
+import com.jclinical.treatments.domain.ports.in.QuotationLookupUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -14,11 +14,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgendaQuotationValidatorAdapter implements QuotationValidatorPort {
 
-    private final ManageQuotationUseCase quotationUseCase;
+    private final QuotationLookupUseCase quotationUseCase;
 
     @Override
     public Optional<AcceptedQuotationSnapshot> findAcceptedQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        return quotationUseCase.getQuotation(quotationId, patientId, clinicId)
+        return quotationUseCase.findQuotationForSystem(quotationId, patientId, clinicId)
                 .filter(quotation -> quotation.getStatus() == QuotationStatus.ACCEPTED)
                 .map(this::toSnapshot);
     }

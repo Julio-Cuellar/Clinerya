@@ -941,6 +941,7 @@ h2 {
 
 .panel-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -951,6 +952,289 @@ h2 {
   margin-top: var(--space-6);
   padding-top: var(--space-6);
   border-top: 1px solid var(--color-border);
+}
+
+.note-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.note-row-preview {
+  color: var(--color-text-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60ch;
+}
+
+.note-modal-author {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-2);
+}
+
+.note-modal-hint {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 12px;
+}
+
+.icd10-autocomplete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.icd10-autocomplete-input {
+  position: relative;
+}
+
+.icd10-autocomplete-input input {
+  width: 100%;
+}
+
+.icd10-autocomplete-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.icd10-autocomplete-results li button {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--color-text-1);
+}
+
+.icd10-autocomplete-results li button:hover {
+  background: var(--color-surface);
+}
+
+.diagnosis-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.diagnosis-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--color-card);
+}
+
+.diagnosis-chip.primary {
+  border-color: var(--color-primary);
+  background: var(--color-accent);
+}
+
+.diagnosis-chip-label {
+  color: var(--color-primary);
+  font-size: 11px;
+}
+
+.diagnosis-chip-make-primary {
+  border: none;
+  background: none;
+  color: var(--color-text-3);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.diagnosis-chip-remove {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+}
+
+.note-addenda {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.note-addenda h3 {
+  margin: 0 0 var(--space-1);
+}
+
+.note-addenda-help,
+.note-addenda-empty {
+  margin: 0 0 var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.note-addendum {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-card);
+}
+
+.note-addendum-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--color-text-2);
+  margin-bottom: var(--space-1);
+}
+
+.note-addendum-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.note-addendum-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.note-addendum-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.vitals-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.vitals-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.vitals-section-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.vitals-section-body {
+  margin-top: var(--space-4);
+}
+
+.vitals-empty {
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin: 0;
+}
+
+.vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.vitals-card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-card);
+  padding: var(--space-3);
+}
+
+.vitals-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vitals-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.vitals-card-last {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-1);
+}
+
+.vitals-card-last small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-3);
+}
+
+.vitals-spark {
+  width: 100%;
+  height: 56px;
+  margin-top: var(--space-2);
+  display: block;
+  overflow: visible;
+}
+
+.vitals-card-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: 11px;
+  color: var(--color-text-3);
+}
+
+.vitals-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vitals-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.vitals-card-range {
+  margin-left: auto;
 }
 
 .panel-actions,
@@ -3832,6 +4116,7 @@ h2 {
 
 .clinic-row-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -4334,6 +4619,18 @@ h2 {
   margin-bottom: var(--space-2);
 }
 
+@media (max-width: 1023px) {
+  .tab-switch {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 767px) {
+  .tab-switch {
+    grid-column: span 1;
+  }
+}
+
 .tab-switch button {
   border: none;
   background: transparent;
@@ -4403,6 +4700,147 @@ h2 {
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   border-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+.expediente-body {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.expediente-tab-content {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.expediente-tab-content .panel.full {
+  grid-column: 1 / -1;
+}
+
+.expediente-summary-sidebar {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+@media (max-width: 1023px) {
+  .expediente-body {
+    grid-template-columns: 1fr;
+  }
+
+  .expediente-summary-sidebar {
+    position: static;
+  }
+}
+
+.expediente-summary-message {
+  color: var(--color-text-2);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.expediente-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.expediente-summary-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.expediente-summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.expediente-summary-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.expediente-summary-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-1);
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.expediente-summary-muted {
+  color: var(--color-text-3);
+}
+
+.expediente-summary-ok {
+  color: var(--color-success);
+}
+
+.expediente-summary-alert-text {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.expediente-summary-chip-list,
+.expediente-summary-diagnosis-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.expediente-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.expediente-summary-diagnosis {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  font-size: 0.8rem;
+}
+
+.expediente-summary-diagnosis strong {
+  font-size: 0.75rem;
+  color: var(--color-primary);
+}
+
+.expediente-summary-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-3);
+  font-size: 0.72rem;
 }
 
 .template-kind-options {
@@ -4863,6 +5301,35 @@ h2 {
   cursor: pointer;
 }
 
+.clinical-mapping-toolbar {
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.clinical-mapping-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.clinical-mapping-column {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.clinical-mapping-hint {
+  font-size: 12px;
+  color: var(--color-text-3);
+  font-style: italic;
+}
+
 .canvas-element-resize-handle {
   position: absolute;
   right: 0;
@@ -5070,6 +5537,43 @@ h2 {
   color: var(--color-text-3);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.history-form-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.history-form-stepper-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.history-form-stepper-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  min-width: 120px;
+  text-align: center;
+}
+
+.history-form-stepper-track {
+  display: flex;
+  gap: 4px;
+}
+
+.history-form-stepper-segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+.history-form-stepper-segment.filled {
+  background: var(--color-primary);
 }
 
 .history-form-shell {
@@ -7051,4 +7555,359 @@ h2 {
     min-height: auto;
     padding: var(--space-4);
   }
+}
+
+/* ============================================================
+   Nómina (módulo Personal): sub-navegación, stepper y totales
+   ============================================================ */
+.payroll-subnav {
+  margin-top: var(--space-2);
+}
+
+.payroll-stepper {
+  grid-column: span 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.payroll-stepper-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-2);
+  background: var(--color-surface);
+}
+
+.payroll-stepper-step .payroll-stepper-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-surface-muted);
+  color: var(--color-text-2);
+  font-size: 11px;
+}
+
+.payroll-stepper-step.is-current {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.payroll-stepper-step.is-current .payroll-stepper-index {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.payroll-stepper-step.is-done {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.payroll-stepper-step.is-done .payroll-stepper-index {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.staff-selectable-row.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.data-table tfoot th,
+.data-table tfoot td {
+  font-weight: 700;
+  color: var(--color-text-1);
+  border-top: 2px solid var(--color-border);
+  border-bottom: none;
+  text-transform: none;
+  font-size: 13px;
+}
+
+.payroll-payment-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: var(--space-3) 0;
+}
+
+.payroll-payment-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payroll-payment-summary dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--color-text-2);
+  font-weight: 600;
+}
+
+.payroll-payment-summary dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.confirm-dialog-body {
+  font-size: 13px;
+  color: var(--color-text-1);
+}
+
+.confirm-dialog-body ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.payroll-lines-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.payroll-lines-toolbar input[type="search"] {
+  width: min(320px, 100%);
+}
+
+.payroll-sort-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+
+.payroll-sort-header.is-numeric {
+  flex-direction: row-reverse;
+}
+
+.payroll-sort-header svg {
+  opacity: 0.6;
+}
+
+.payroll-sort-header:hover svg {
+  opacity: 1;
+}
+
+.payroll-generate-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.payroll-commissions {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.payroll-commissions-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* ---- Resumen clínico: cabecera + recuadro pasivo de alergias (P1a) ---- */
+
+.clinical-header {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3) var(--space-5);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.clinical-header--message {
+  align-items: center;
+  color: var(--color-text-2);
+  font-size: 0.85rem;
+}
+
+.clinical-header-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 120px;
+  max-width: 320px;
+}
+
+.clinical-header-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.clinical-header-label svg {
+  color: var(--color-text-3);
+  flex-shrink: 0;
+}
+
+.clinical-header-value {
+  color: var(--color-text-1);
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.clinical-header-cell.is-alert .clinical-header-label,
+.clinical-header-cell.is-alert .clinical-header-label svg,
+.clinical-header-cell.is-alert .clinical-header-value {
+  color: var(--color-error);
+}
+
+.clinical-header-manage {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.drug-allergy-box {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: 8px;
+}
+
+.drug-allergy-box-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-text-1);
+}
+
+.drug-allergy-box-head svg {
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.drug-allergy-box-meta {
+  color: var(--color-text-2);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.drug-allergy-box-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  font-size: 0.88rem;
+}
+
+.drug-allergy-box-list li {
+  margin-bottom: 2px;
+}
+
+.drug-allergy-box-sev {
+  color: var(--color-text-2);
+}
+
+.clinical-editor-section {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.clinical-editor-section h3 {
+  margin: 0 0 var(--space-2);
+}
+
+.clinical-editor-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  margin-bottom: var(--space-2);
+}
+
+.clinical-editor-check input {
+  width: auto;
+  margin: 0;
+}
+
+.clinical-editor-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clinical-editor-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  padding: 4px 0;
+}
+
+.clinical-editor-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.clinical-editor-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 130px;
+  min-width: 0;
+}
+
+.clinical-editor-form label span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-3);
+}
+
+.clinical-editor-form input,
+.clinical-editor-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.clinical-editor-form button {
+  flex: 0 0 auto;
 }

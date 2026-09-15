@@ -17,9 +17,13 @@ import type { PatientResponse, RegisterPatientRequest, UpdatePatientRequest } fr
 import type {
   AttachmentMeta,
   ClinicalNoteResponse,
+  ClinicalNoteAddendumResponse,
+  ClinicalNoteDiagnosisResponse,
   CreateClinicalNoteRequest,
   CreateHistoryTemplateRequest,
+  DiagnosisEntryInput,
   HistoryTemplateResponse,
+  Icd10CodeResponse,
   MedicalHistoryResponse,
   SaveMedicalHistoryRequest,
   UpdateClinicalNoteRequest,
@@ -28,7 +32,14 @@ import type {
   RecordAccessLogResponse,
   RecordAccessLogPageResponse,
   PrivacyConsentResponse,
-  SignPrivacyConsentRequest
+  SignPrivacyConsentRequest,
+  PatientClinicalSummaryResponse,
+  PatientAllergyDto,
+  PatientConditionDto,
+  PatientMedicationDto,
+  AllergyInput,
+  ConditionInput,
+  MedicationInput
 } from "@modules/records/types";
 import type { IssuePrescriptionRequest, Prescription } from "@modules/records/prescriptionTypes";
 import type {
@@ -93,7 +104,11 @@ import type {
   VoidCashExpenseRequest,
   VoidTicketRequest
 } from "@modules/cash/types";
-import type { ExternalAccessGrantResponse, InviteExternalAccessRequest } from "@modules/collaboration/types";
+import type {
+  ExternalAccessGrantResponse,
+  InviteExternalAccessRequest,
+  TemporaryShareView
+} from "@modules/collaboration/types";
 import type { NotificationListResponse } from "@modules/notifications/types";
 import type {
   BankAccountMovementResponse,
@@ -121,7 +136,6 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 const ACCESS_TOKEN_KEY = "clinicloud.access_token";
-const REFRESH_TOKEN_KEY = "clinicloud.refresh_token";
 const USER_KEY = "clinicloud.user";
 
 export class ApiClientError extends Error {
@@ -134,21 +148,20 @@ export class ApiClientError extends Error {
   }
 }
 
+// El refresh token ya no pasa por aqui: vive solo en una cookie HttpOnly que el
+// navegador manda solo, y que este codigo no puede leer ni escribir.
 export const sessionStore = {
   getAccessToken: () => localStorage.getItem(ACCESS_TOKEN_KEY),
-  getRefreshToken: () => localStorage.getItem(REFRESH_TOKEN_KEY),
   getUser: (): UserProfile | null => {
     const raw = localStorage.getItem(USER_KEY);
     return raw ? (JSON.parse(raw) as UserProfile) : null;
   },
-  setTokens: (payload: { token: string; refreshToken: string }) => {
+  setTokens: (payload: { token: string }) => {
     localStorage.setItem(ACCESS_TOKEN_KEY, payload.token);
-    localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
   },
   setUser: (user: UserProfile) => localStorage.setItem(USER_KEY, JSON.stringify(user)),
   clear: () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   }
 };
@@ -166,7 +179,9 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
-    headers
+    headers,
+    // Necesario para que la cookie del refresh token viaje en /auth/refresh y /auth/logout.
+    credentials: "include"
   });
 
   if (response.status === 204) {
@@ -176,7 +191,10 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    if (response.status === 401 && retry && sessionStore.getRefreshToken() && path !== "/v1/auth/refresh") {
+    // Ya no se puede saber desde JS si hay un refresh token (vive en una cookie
+    // HttpOnly): se intenta siempre y, si no hay cookie valida, el backend responde
+    // 400 y el catch limpia la sesion.
+    if (response.status === 401 && retry && path !== "/v1/auth/refresh") {
       try {
         const refreshed = await authApi.refresh();
         sessionStore.setTokens(refreshed);
@@ -195,21 +213,29 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 export const authApi = {
   register: (body: RegisterRequest) =>
     request<UserProfile>("/v1/users/register", { method: "POST", body: JSON.stringify(body) }),
-  verifyEmail: (token: string) =>
-    request<MessageResponse>("/v1/users/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+  verifyEmail: (email: string, token: string) =>
+    request<MessageResponse>("/v1/users/verify-email", { method: "POST", body: JSON.stringify({ email, token }) }),
   resendVerification: (email: string) =>
     request<MessageResponse>("/v1/users/resend-verification", {
       method: "POST",
       body: JSON.stringify({ email })
     }),
+  requestPasswordReset: (email: string) =>
+    request<MessageResponse>("/v1/users/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    }),
+  confirmPasswordReset: (token: string, newPassword: string) =>
+    request<MessageResponse>("/v1/users/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword })
+    }),
   login: (body: LoginRequest) =>
     request<LoginResponse>("/v1/auth/login", { method: "POST", body: JSON.stringify(body) }),
-  refresh: () =>
-    request<RefreshResponse>(
-      "/v1/auth/refresh",
-      { method: "POST", body: JSON.stringify({ refreshToken: sessionStore.getRefreshToken() }) },
-      false
-    ),
+  // El refresh token va en la cookie HttpOnly; el navegador la manda solo.
+  refresh: () => request<RefreshResponse>("/v1/auth/refresh", { method: "POST" }, false),
+  // El backend lee la misma cookie para invalidar el refresh token y borrarla; si no,
+  // sobrevive al logout y sigue emitiendo tokens de acceso durante toda su vigencia.
   logout: () => request<void>("/v1/auth/logout", { method: "POST" }, false),
   me: () => request<UserProfile>("/v1/auth/me"),
   changePassword: (body: any) =>
@@ -319,11 +345,29 @@ export const clinicalNotesApi = {
       method: "PUT",
       body: JSON.stringify(body)
     }),
-  sign: (patientId: string, noteId: string, clinicId: string) =>
+  sign: (patientId: string, noteId: string, clinicId: string, diagnoses?: DiagnosisEntryInput[]) =>
     request<ClinicalNoteResponse>(
       `/v1/patients/${patientId}/clinical-notes/${noteId}/sign?clinicId=${encodeURIComponent(clinicId)}`,
-      { method: "PATCH" }
+      { method: "PATCH", body: JSON.stringify({ diagnoses: diagnoses ?? [] }) }
+    ),
+  listAddenda: (patientId: string, noteId: string, clinicId: string) =>
+    request<ClinicalNoteAddendumResponse[]>(
+      `/v1/patients/${patientId}/clinical-notes/${noteId}/addenda?clinicId=${encodeURIComponent(clinicId)}`
+    ),
+  addAddendum: (patientId: string, noteId: string, body: { clinicId: string; content: string }) =>
+    request<ClinicalNoteAddendumResponse>(`/v1/patients/${patientId}/clinical-notes/${noteId}/addenda`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  listDiagnoses: (patientId: string, noteId: string, clinicId: string) =>
+    request<ClinicalNoteDiagnosisResponse[]>(
+      `/v1/patients/${patientId}/clinical-notes/${noteId}/diagnoses?clinicId=${encodeURIComponent(clinicId)}`
     )
+};
+
+export const icd10Api = {
+  search: (query: string, limit = 20) =>
+    request<Icd10CodeResponse[]>(`/v1/icd10?query=${encodeURIComponent(query)}&limit=${limit}`)
 };
 
 export const prescriptionsApi = {
@@ -334,6 +378,66 @@ export const prescriptionsApi = {
       method: "POST",
       body: JSON.stringify(body)
     })
+};
+
+const summaryBase = (patientId: string, clinicId: string) =>
+  `/v1/patients/${patientId}/clinical-summary?clinicId=${encodeURIComponent(clinicId)}`;
+const summarySub = (patientId: string, clinicId: string, path: string) =>
+  `/v1/patients/${patientId}/clinical-summary/${path}?clinicId=${encodeURIComponent(clinicId)}`;
+
+export const clinicalSummaryApi = {
+  get: (patientId: string, clinicId: string) =>
+    request<PatientClinicalSummaryResponse>(summaryBase(patientId, clinicId)),
+
+  setReview: (
+    patientId: string,
+    clinicId: string,
+    kind: "allergies" | "conditions" | "medications",
+    noneReported: boolean
+  ) =>
+    request<void>(summarySub(patientId, clinicId, `${kind}/review`), {
+      method: "PUT",
+      body: JSON.stringify({ noneReported })
+    }),
+
+  addAllergy: (patientId: string, clinicId: string, body: AllergyInput) =>
+    request<PatientAllergyDto>(summarySub(patientId, clinicId, "allergies"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateAllergy: (patientId: string, allergyId: string, clinicId: string, body: AllergyInput) =>
+    request<PatientAllergyDto>(summarySub(patientId, clinicId, `allergies/${allergyId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeAllergy: (patientId: string, allergyId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `allergies/${allergyId}`), { method: "DELETE" }),
+
+  addCondition: (patientId: string, clinicId: string, body: ConditionInput) =>
+    request<PatientConditionDto>(summarySub(patientId, clinicId, "conditions"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateCondition: (patientId: string, conditionId: string, clinicId: string, body: ConditionInput) =>
+    request<PatientConditionDto>(summarySub(patientId, clinicId, `conditions/${conditionId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeCondition: (patientId: string, conditionId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `conditions/${conditionId}`), { method: "DELETE" }),
+
+  addMedication: (patientId: string, clinicId: string, body: MedicationInput) =>
+    request<PatientMedicationDto>(summarySub(patientId, clinicId, "medications"), {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  updateMedication: (patientId: string, medicationId: string, clinicId: string, body: MedicationInput) =>
+    request<PatientMedicationDto>(summarySub(patientId, clinicId, `medications/${medicationId}`), {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
+  removeMedication: (patientId: string, medicationId: string, clinicId: string) =>
+    request<void>(summarySub(patientId, clinicId, `medications/${medicationId}`), { method: "DELETE" })
 };
 
 export const treatmentCatalogApi = {
@@ -531,6 +635,8 @@ export const agendaApi = {
     request<AppointmentResponse>(`/v1/clinics/${clinicId}/appointments/${appointmentId}`),
   listByQuotation: (clinicId: string, quotationId: string) =>
     request<AppointmentResponse[]>(`/v1/clinics/${clinicId}/appointments/by-quotation/${quotationId}`),
+  listByPatient: (clinicId: string, patientId: string) =>
+    request<AppointmentResponse[]>(`/v1/clinics/${clinicId}/appointments/by-patient/${patientId}`),
   create: (clinicId: string, body: CreateAppointmentRequest) =>
     request<AppointmentResponse>(`/v1/clinics/${clinicId}/appointments`, {
       method: "POST",
@@ -730,13 +836,45 @@ export const collaborationApi = {
     request<ExternalAccessGrantResponse>(`/v1/me/external-access/${grantId}/accept`, { method: "POST" }),
   reject: (grantId: string) =>
     request<ExternalAccessGrantResponse>(`/v1/me/external-access/${grantId}/reject`, { method: "POST" }),
-  createTemporaryShare: (clinicId: string, patientId: string, body: { email: string; daysValid: number }) =>
+  createTemporaryShare: (
+    clinicId: string,
+    patientId: string,
+    body: { email: string; daysValid: number; sections?: string[] }
+  ) =>
     request<{ token: string; expiresAt: string }>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`, {
       method: "POST",
       body: JSON.stringify(body)
     }),
   getSharedRecord: (token: string) =>
-    request<any>(`/v1/public/shared-history?token=${token}`)
+    request<any>(`/v1/public/shared-history`, {
+      method: "POST",
+      body: JSON.stringify({ token })
+    }),
+  requestShareVerification: (token: string) =>
+    request<void>(`/v1/public/shared-history/verify/request`, {
+      method: "POST",
+      body: JSON.stringify({ token })
+    }),
+  confirmShareVerification: (token: string, code: string) =>
+    request<void>(`/v1/public/shared-history/verify/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ token, code })
+    }),
+  getSharedStudyContent: async (token: string, attachmentId: string): Promise<Blob> => {
+    const response = await fetch(`${API_BASE_URL}/v1/public/shared-history/studies/${attachmentId}/content`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    if (!response.ok) throw new ApiClientError("No se pudo descargar el estudio.", response.status);
+    return response.blob();
+  },
+  listTemporaryShares: (clinicId: string, patientId: string) =>
+    request<TemporaryShareView[]>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares`),
+  revokeTemporaryShare: (clinicId: string, patientId: string, shareId: string) =>
+    request<void>(`/v1/clinics/${clinicId}/patients/${patientId}/temporary-shares/${shareId}`, {
+      method: "DELETE"
+    })
 };
 
 export const staffApi = {
@@ -751,6 +889,11 @@ export const staffApi = {
     request<StaffInvitationResponse>(`/v1/clinics/${clinicId}/staff/invitations`, {
       method: "POST",
       body: JSON.stringify(body)
+    }),
+  setInvitationCompensation: (clinicId: string, invitationId: string, body: StaffCompensationRequest | null) =>
+    request<void>(`/v1/clinics/${clinicId}/staff/onboarding/invitations/${invitationId}/compensation`, {
+      method: "PUT",
+      body: JSON.stringify(body ?? {})
     }),
   listInvitations: (clinicId: string) =>
     request<StaffInvitationResponse[]>(`/v1/clinics/${clinicId}/staff/invitations`),
@@ -827,6 +970,20 @@ export const staffApi = {
     }),
   listPayrollLines: (clinicId: string, periodId: string) =>
     request<StaffPayrollLineResponse[]>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines`),
+  generatePayrollLines: (clinicId: string, periodId: string, source: PayrollLineSource) =>
+    request<StaffPayrollLineResponse[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines/generate?source=${source}`,
+      { method: "POST" }
+    ),
+  previewPeriodCommissions: (clinicId: string, periodId: string) =>
+    request<CommissionPreviewEntry[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/commission-preview`
+    ),
+  applyPeriodCommissions: (clinicId: string, periodId: string) =>
+    request<StaffPayrollLineResponse[]>(
+      `/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/lines/apply-commissions`,
+      { method: "POST" }
+    ),
   closePayrollPeriod: (clinicId: string, periodId: string) =>
     request<StaffPayrollPeriodResponse>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/close`, {
       method: "POST"
@@ -834,6 +991,15 @@ export const staffApi = {
   payPayrollPeriod: (clinicId: string, periodId: string, body: PayrollPaymentRequest) =>
     request<StaffPayrollPeriodResponse>(`/v1/clinics/${clinicId}/staff/operations/payroll/periods/${periodId}/pay`, {
       method: "POST",
+      body: JSON.stringify(body)
+    }),
+  listStaffCompensation: (clinicId: string) =>
+    request<StaffCompensationResponse[]>(`/v1/clinics/${clinicId}/staff/compensation`),
+  getStaffCompensation: (clinicId: string, staffId: string) =>
+    request<StaffCompensationResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/compensation`),
+  updateStaffCompensation: (clinicId: string, staffId: string, body: StaffCompensationRequest) =>
+    request<StaffCompensationResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/compensation`, {
+      method: "PUT",
       body: JSON.stringify(body)
     })
 };
@@ -1050,6 +1216,38 @@ export interface StaffPayrollLineResponse {
   grossAmount: number;
   netAmount: number;
   notes?: string | null;
+}
+
+export type StaffPayFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+export type StaffPaymentMethod = "BANK_TRANSFER" | "CASH";
+export type PayrollLineSource = "BASE_COMPENSATION" | "PREVIOUS_PERIOD";
+
+export interface CommissionPreviewEntry {
+  staffId: string;
+  activityTotal: number;
+  currentCommission: number;
+}
+
+export interface StaffCompensationRequest {
+  baseSalary: number;
+  payFrequency: StaffPayFrequency;
+  paymentMethod: StaffPaymentMethod;
+  paymentAccountClabe?: string | null;
+  rfc?: string | null;
+  curp?: string | null;
+  nss?: string | null;
+}
+
+export interface StaffCompensationResponse {
+  staffId: string;
+  clinicId: string;
+  baseSalary: number;
+  payFrequency: StaffPayFrequency;
+  paymentMethod: StaffPaymentMethod;
+  paymentAccountClabe?: string | null;
+  rfc?: string | null;
+  curp?: string | null;
+  nss?: string | null;
 }
 
 export const accountingApi = {

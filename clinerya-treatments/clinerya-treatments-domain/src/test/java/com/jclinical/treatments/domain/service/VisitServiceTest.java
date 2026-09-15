@@ -1,6 +1,9 @@
 package com.jclinical.treatments.domain.service;
 
 import com.jclinical.core.events.DomainEventPublisherPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.treatments.domain.model.ItemProgressStatus;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
@@ -58,6 +61,9 @@ class VisitServiceTest {
     @Mock
     private DomainEventPublisherPort eventPublisher;
 
+    @Mock
+    private PatientAccessAuthorizationPort accessAuthorizationPort;
+
     private VisitService visitService;
 
     private UUID patientId;
@@ -65,6 +71,7 @@ class VisitServiceTest {
     private UUID quotationId;
     private UUID quotationItemId;
     private UUID materialId;
+    private UUID actingUserId;
 
     @BeforeEach
     void setUp() {
@@ -73,7 +80,8 @@ class VisitServiceTest {
                 quotationRepository,
                 patientValidator,
                 inventoryMaterialPort,
-                eventPublisher
+                eventPublisher,
+                accessAuthorizationPort
         );
 
         patientId = UUID.randomUUID();
@@ -81,6 +89,13 @@ class VisitServiceTest {
         quotationId = UUID.randomUUID();
         quotationItemId = UUID.randomUUID();
         materialId = UUID.randomUUID();
+        actingUserId = UUID.randomUUID();
+    }
+
+    /** El staff con acceso de escritura es el caso base de los tests existentes. */
+    private void givenWriteAccess() {
+        when(accessAuthorizationPort.resolveAccess(actingUserId, clinicId, patientId))
+                .thenReturn(new AccessDecision(AccessLevel.READ_WRITE, false));
     }
 
     @Test
@@ -109,6 +124,7 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
 
         QuotationItemMaterial estimatedMat = QuotationItemMaterial.builder()
                 .id(UUID.randomUUID())
@@ -143,7 +159,7 @@ class VisitServiceTest {
         when(visitRepository.save(any(Visit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        Visit registered = visitService.registerVisit(patientId, quotationId, clinicId, command);
+        Visit registered = visitService.registerVisit(patientId, quotationId, clinicId, actingUserId, command);
 
         // Assert
         assertNotNull(registered);
@@ -190,7 +206,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(patientId, quotationId, clinicId, actingUserId, command);
         });
 
         assertEquals("El paciente no existe en esta clínica.", exception.getMessage());
@@ -208,12 +224,13 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
         when(quotationRepository.findByIdAndPatientIdAndClinicId(quotationId, patientId, clinicId))
                 .thenReturn(Optional.empty());
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(patientId, quotationId, clinicId, actingUserId, command);
         });
 
         assertEquals("La cotización no existe para este paciente en esta clínica.", exception.getMessage());
@@ -231,6 +248,7 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
 
         Quotation quotation = Quotation.builder()
                 .id(quotationId)
@@ -245,7 +263,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(patientId, quotationId, clinicId, actingUserId, command);
         });
 
         assertEquals("Solo se pueden registrar sesiones clínicas para cotizaciones aceptadas.", exception.getMessage());
@@ -268,6 +286,7 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
 
         Quotation quotation = Quotation.builder()
                 .id(quotationId)
@@ -282,7 +301,7 @@ class VisitServiceTest {
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.registerVisit(patientId, quotationId, clinicId, command);
+            visitService.registerVisit(patientId, quotationId, clinicId, actingUserId, command);
         });
 
         assertTrue(exception.getMessage().contains("no pertenece a esta cotización."));
@@ -299,11 +318,12 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
         when(visitRepository.findByQuotationIdAndPatientIdAndClinicId(quotationId, patientId, clinicId))
                 .thenReturn(List.of(visit));
 
         // Act
-        List<Visit> result = visitService.getVisitsByQuotation(quotationId, patientId, clinicId);
+        List<Visit> result = visitService.getVisitsByQuotation(quotationId, patientId, clinicId, actingUserId);
 
         // Assert
         assertEquals(1, result.size());
@@ -321,11 +341,12 @@ class VisitServiceTest {
         );
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
         when(visitRepository.findByIdAndPatientIdAndClinicId(visitId, patientId, clinicId))
                 .thenReturn(Optional.of(visit));
 
         // Act
-        Visit result = visitService.getVisitDetails(visitId, patientId, clinicId);
+        Visit result = visitService.getVisitDetails(visitId, patientId, clinicId, actingUserId);
 
         // Assert
         assertNotNull(result);
@@ -338,12 +359,13 @@ class VisitServiceTest {
         UUID visitId = UUID.randomUUID();
 
         when(patientValidator.existsByIdAndClinicId(patientId, clinicId)).thenReturn(true);
+        givenWriteAccess();
         when(visitRepository.findByIdAndPatientIdAndClinicId(visitId, patientId, clinicId))
                 .thenReturn(Optional.empty());
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            visitService.getVisitDetails(visitId, patientId, clinicId);
+            visitService.getVisitDetails(visitId, patientId, clinicId, actingUserId);
         });
 
         assertEquals("La visita no existe.", exception.getMessage());

@@ -99,7 +99,7 @@ public class ExternalCalendarPollingScheduler {
             // Eventos cancelados: si existen activos en JClinical, los cancelamos
             existingOpt.ifPresent(existing -> {
                 if (existing.getStatus() != AppointmentStatus.CANCELLED && existing.getStatus() != AppointmentStatus.NO_SHOW) {
-                    appointmentsUseCase.transitionStatus(existing.getId(), fresh.getClinicId(), AppointmentStatus.CANCELLED);
+                    appointmentsUseCase.transitionStatus(existing.getId(), fresh.getClinicId(), AppointmentStatus.CANCELLED, null, null);
                     log.info("Cita en JClinical cancelada por cancelación de evento en Google: {}", existing.getId());
                 }
             });

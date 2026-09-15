@@ -13,6 +13,7 @@ import com.jclinical.users.domain.service.GetUserProfileService;
 import com.jclinical.users.domain.service.RegisterUserService;
 import com.jclinical.users.domain.service.ResendVerificationCodeService;
 import com.jclinical.users.domain.service.VerifyUserEmailService;
+import com.jclinical.users.domain.service.PasswordResetService;
 import com.jclinical.users.infra.adapters.in.web.dto.UserResponse;
 import com.jclinical.users.infra.adapters.out.UserEntity;
 import com.jclinical.users.infra.adapters.out.UserMapper;
@@ -48,6 +49,15 @@ public class UserDomainConfig {
     }
 
     @Bean
+    public PasswordResetService passwordResetService(
+            UserRepositoryPort userRepository,
+            PasswordHasherPort passwordHasher,
+            com.jclinical.users.domain.ports.out.EmailSenderPort emailSender,
+            @org.springframework.beans.factory.annotation.Value("${app.frontend-base-url}") String frontendBaseUrl) {
+        return new PasswordResetService(userRepository, passwordHasher, emailSender, frontendBaseUrl);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(GetUserProfileUseCase.class)
     public GetUserProfileUseCase getUserProfileUseCase(UserRepositoryPort userRepository) {
         return new GetUserProfileService(userRepository);
@@ -79,6 +89,9 @@ public class UserDomainConfig {
                         .active(domain.isActive())
                         .verificationToken(domain.getVerificationToken())
                         .verificationTokenExpiresAt(domain.getVerificationTokenExpiresAt())
+                        .passwordResetTokenHash(domain.getPasswordResetTokenHash())
+                        .passwordResetTokenExpiresAt(domain.getPasswordResetTokenExpiresAt())
+                        .platformAdmin(domain.isPlatformAdmin())
                         .build();
             }
 
@@ -104,6 +117,9 @@ public class UserDomainConfig {
                         .active(entity.isActive())
                         .verificationToken(entity.getVerificationToken())
                         .verificationTokenExpiresAt(entity.getVerificationTokenExpiresAt())
+                        .passwordResetTokenHash(entity.getPasswordResetTokenHash())
+                        .passwordResetTokenExpiresAt(entity.getPasswordResetTokenExpiresAt())
+                        .platformAdmin(entity.isPlatformAdmin())
                         .build();
             }
 

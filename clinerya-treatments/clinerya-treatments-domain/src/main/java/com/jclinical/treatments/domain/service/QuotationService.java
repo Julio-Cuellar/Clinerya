@@ -1,11 +1,16 @@
 package com.jclinical.treatments.domain.service;
 
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.treatments.domain.model.ItemProgressStatus;
 import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
 import com.jclinical.treatments.domain.model.QuotationItemMaterial;
 import com.jclinical.treatments.domain.model.QuotationStatus;
 import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase;
+import com.jclinical.treatments.domain.ports.in.QuotationLookupUseCase;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
@@ -18,30 +23,33 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class QuotationService implements ManageQuotationUseCase {
+public class QuotationService implements ManageQuotationUseCase, QuotationLookupUseCase {
 
     private final QuotationRepositoryPort quotationRepository;
     private final PatientValidatorPort patientValidator;
     private final InventoryMaterialPort inventoryMaterialPort;
+    private final PatientAccessAuthorizationPort accessAuthorizationPort;
 
     public QuotationService(
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
-            InventoryMaterialPort inventoryMaterialPort) {
+            InventoryMaterialPort inventoryMaterialPort,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
         this.quotationRepository = quotationRepository;
         this.patientValidator = patientValidator;
         this.inventoryMaterialPort = inventoryMaterialPort;
+        this.accessAuthorizationPort = accessAuthorizationPort;
     }
 
     @Override
-    public Quotation createQuotation(UUID patientId, UUID clinicId, CreateQuotationCommand command) {
-        validatePatient(patientId, clinicId);
+    public Quotation createQuotation(UUID patientId, UUID clinicId, UUID actingUserId, CreateQuotationCommand command) {
+        authorize(actingUserId, patientId, clinicId, true);
 
         Quotation quotation = Quotation.builder()
                 .id(UUID.randomUUID())
                 .clinicId(clinicId)
                 .patientId(patientId)
-                .createdByUserId(command.createdByUserId())
+                .createdByUserId(actingUserId)
                 .quotationDate(command.quotationDate() != null ? command.quotationDate() : LocalDate.now())
                 .status(QuotationStatus.DRAFT)
                 .notes(command.notes())
@@ -55,24 +63,24 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command) {
-        validatePatient(patientId, clinicId);
+    public Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, UpdateHeaderCommand command) {
+        authorize(actingUserId, patientId, clinicId, true);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.updateHeader(command.notes(), command.validUntil(), command.quotationDate());
         return quotationRepository.save(quotation);
     }
 
     @Override
-    public Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command) {
-        validatePatient(patientId, clinicId);
+    public Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, ReplaceItemsCommand command) {
+        authorize(actingUserId, patientId, clinicId, true);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.replaceItems(toItems(command.items(), clinicId));
         return quotationRepository.save(quotation);
     }
 
     @Override
-    public Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus) {
-        validatePatient(patientId, clinicId);
+    public Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, QuotationStatus targetStatus) {
+        authorize(actingUserId, patientId, clinicId, true);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
 
         switch (targetStatus) {
@@ -87,33 +95,57 @@ public class QuotationService implements ManageQuotationUseCase {
     }
 
     @Override
-    public Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus) {
-        validatePatient(patientId, clinicId);
+    public Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, UUID actingUserId, ItemProgressStatus targetStatus) {
+        authorize(actingUserId, patientId, clinicId, true);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         quotation.updateItemProgress(itemId, targetStatus);
         return quotationRepository.save(quotation);
     }
 
     @Override
-    public Optional<Quotation> getQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        validatePatient(patientId, clinicId);
+    public Optional<Quotation> getQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, patientId, clinicId, false);
         return quotationRepository.findByIdAndPatientIdAndClinicId(quotationId, patientId, clinicId);
     }
 
     @Override
-    public List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId) {
-        validatePatient(patientId, clinicId);
+    public List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, patientId, clinicId, false);
         return quotationRepository.findByPatientIdAndClinicIdOrderByCreatedAtDesc(patientId, clinicId);
     }
 
     @Override
-    public void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId) {
-        validatePatient(patientId, clinicId);
+    public void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId) {
+        authorize(actingUserId, patientId, clinicId, true);
         Quotation quotation = findOrThrow(quotationId, patientId, clinicId);
         if (quotation.getStatus() != QuotationStatus.DRAFT) {
             throw new IllegalStateException("Solo una cotización en borrador puede eliminarse.");
         }
         quotationRepository.deleteById(quotationId);
+    }
+
+    /**
+     * Lectura interna entre modulos (agenda, caja): no hay usuario en la peticion, asi que
+     * no se autoriza contra el expediente. No exponer desde un controlador.
+     */
+    @Override
+    public Optional<Quotation> findQuotationForSystem(UUID quotationId, UUID patientId, UUID clinicId) {
+        return quotationRepository.findByIdAndPatientIdAndClinicId(quotationId, patientId, clinicId);
+    }
+
+    /**
+     * Mismo patron que MedicalHistoryService: la autorizacion vive en el dominio, no en el
+     * controlador, para que un endpoint nuevo no pueda saltarsela por descuido.
+     */
+    private void authorize(UUID actingUserId, UUID patientId, UUID clinicId, boolean requireWrite) {
+        validatePatient(patientId, clinicId);
+        if (actingUserId == null) {
+            throw new ClinicAccessDeniedException("No tienes acceso a este expediente.");
+        }
+        AccessDecision decision = accessAuthorizationPort.resolveAccess(actingUserId, clinicId, patientId);
+        if (decision.level() == AccessLevel.NONE || (requireWrite && decision.level() != AccessLevel.READ_WRITE)) {
+            throw new ClinicAccessDeniedException("No tienes acceso a este expediente.");
+        }
     }
 
     private Quotation findOrThrow(UUID quotationId, UUID patientId, UUID clinicId) {

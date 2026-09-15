@@ -34,12 +34,40 @@ public class TemporaryRecordShareEntity {
     @Column(name = "email", nullable = false)
     private String email;
 
-    @Column(name = "token", nullable = false, unique = true)
-    private String token;
+    @Column(name = "token_hash", nullable = false, unique = true)
+    private String tokenHash;
+
+    @Column(name = "created_by_user_id")
+    private UUID createdByUserId;
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "revoked_at")
+    private LocalDateTime revokedAt;
+
+    @Column(name = "recipient_verified_at")
+    private LocalDateTime recipientVerifiedAt;
+
+    @Column(name = "last_accessed_at")
+    private LocalDateTime lastAccessedAt;
+
+    @Column(name = "access_count", nullable = false)
+    private int accessCount;
+
+    /** CSV de claves de SharedSection; ver V50. */
+    @Column(name = "shared_sections", nullable = false)
+    private String sharedSections;
+
+    @Column(name = "verification_code_hash")
+    private String verificationCodeHash;
+
+    @Column(name = "verification_code_expires_at")
+    private LocalDateTime verificationCodeExpiresAt;
+
+    @Column(name = "verification_attempts", nullable = false)
+    private int verificationAttempts;
 }

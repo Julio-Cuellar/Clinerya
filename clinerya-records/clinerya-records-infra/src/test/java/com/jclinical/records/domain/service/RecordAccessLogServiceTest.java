@@ -2,7 +2,7 @@ package com.jclinical.records.domain.service;
 
 import com.jclinical.records.domain.model.RecordAccessLog;
 import com.jclinical.records.domain.ports.in.ManageRecordAccessLogUseCase.AccessLogCursor;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogOutboxPort;
 import com.jclinical.records.domain.ports.out.RecordAccessLogRepositoryPort;

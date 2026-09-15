@@ -729,7 +729,6 @@ export function QuotationEditorScreen({
       } else {
         const created = await quotationsApi.create(patientId, {
           clinicId,
-          createdByUserId: sessionStore.getUser()?.id ?? "",
           quotationDate,
           notes: notes || undefined,
           validUntil: validUntil || undefined,

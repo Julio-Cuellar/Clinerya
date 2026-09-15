@@ -5,7 +5,7 @@ import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
 import com.jclinical.staff.domain.model.DoctorProfile;
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
@@ -14,6 +14,7 @@ import com.jclinical.staff.domain.ports.out.ClinicStaffInvitationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
+import com.jclinical.staff.domain.ports.out.StaffInvitationNotifierPort;
 
 import java.security.SecureRandom;
 import java.time.LocalDate;
@@ -35,17 +36,20 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     private final UserDirectoryPort userDirectory;
     private final ClinicStaffInvitationRepositoryPort invitationRepository;
     private final StaffPermissionOverrideRepositoryPort permissionOverrideRepository;
+    private final StaffInvitationNotifierPort invitationNotifier;
 
     public ClinicStaffService(ClinicStaffRepositoryPort clinicStaffRepository,
                                DoctorProfileRepositoryPort doctorProfileRepository,
                                UserDirectoryPort userDirectory,
                                ClinicStaffInvitationRepositoryPort invitationRepository,
-                               StaffPermissionOverrideRepositoryPort permissionOverrideRepository) {
+                               StaffPermissionOverrideRepositoryPort permissionOverrideRepository,
+                               StaffInvitationNotifierPort invitationNotifier) {
         this.clinicStaffRepository = clinicStaffRepository;
         this.doctorProfileRepository = doctorProfileRepository;
         this.userDirectory = userDirectory;
         this.invitationRepository = invitationRepository;
         this.permissionOverrideRepository = permissionOverrideRepository;
+        this.invitationNotifier = invitationNotifier;
     }
 
     @Override
@@ -139,8 +143,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         if (existing.isPresent()) {
             ClinicStaffInvitation activeInv = existing.get();
             if (!activeInv.isExpired()) {
-                System.out.println(">>>> [INVITACION-PERSONAL] Invitación activa reutilizada para '"
-                        + normalizedEmail + "': http://localhost:5173/confirm-staff?token=" + activeInv.getToken());
+                invitationNotifier.sendInvitation(normalizedEmail, activeInv.getRole(), activeInv.getToken(), activeInv.getExpiresAt());
                 return toInvitationSummary(activeInv);
             }
         }
@@ -160,8 +163,7 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
 
         invitationRepository.save(invitation);
 
-        System.out.println(">>>> [INVITACION-PERSONAL] Enlace generado para '"
-                + normalizedEmail + "': http://localhost:5173/confirm-staff?token=" + token);
+        invitationNotifier.sendInvitation(normalizedEmail, role, token, invitation.getExpiresAt());
 
         return toInvitationSummary(invitation);
     }

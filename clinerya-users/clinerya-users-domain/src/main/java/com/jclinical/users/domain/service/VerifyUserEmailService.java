@@ -27,9 +27,12 @@ public class VerifyUserEmailService implements VerifyUserEmailUseCase {
     }
 
     @Override
-    public boolean verifyEmail(String tokenValue) {
+    public boolean verifyEmail(String email, String tokenValue) {
         if (tokenValue == null || tokenValue.trim().isEmpty()) {
             throw new IllegalArgumentException("El token de verificación no puede ser vacío");
+        }
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("El correo es obligatorio para verificar la cuenta");
         }
 
         Optional<UserPreRegistration> preRegOpt = preRegistrationRepository.findByVerificationToken(tokenValue.trim().toUpperCase());
@@ -38,6 +41,12 @@ public class VerifyUserEmailService implements VerifyUserEmailUseCase {
         }
 
         UserPreRegistration preReg = preRegOpt.get();
+
+        // El codigo tiene que corresponder al correo indicado: un acierto al azar ya no
+        // sirve para activar el pre-registro de otra persona.
+        if (!preReg.getEmail().equalsIgnoreCase(email.trim())) {
+            return false;
+        }
         if (preReg.isExpired()) {
             throw new IllegalStateException("El token de verificación ha expirado (límite de 15 minutos)");
         }

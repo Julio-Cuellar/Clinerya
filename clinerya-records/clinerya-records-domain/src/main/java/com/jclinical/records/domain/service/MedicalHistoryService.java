@@ -4,13 +4,15 @@ import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.records.domain.model.MedicalHistory;
 import com.jclinical.records.domain.model.MedicalHistoryVersion;
 import com.jclinical.records.domain.ports.in.ManageMedicalHistoryUseCase;
+import com.jclinical.records.domain.model.MedicalHistoryTemplate;
 import com.jclinical.records.domain.ports.out.MedicalHistoryRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryTemplateRepositoryPort;
 import com.jclinical.records.domain.ports.out.MedicalHistoryVersionRepositoryPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessDecision;
-import com.jclinical.records.domain.ports.out.PatientAccessAuthorizationPort.AccessLevel;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
+import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessLevel;
 import com.jclinical.records.domain.ports.out.PatientValidatorPort;
+import com.jclinical.records.domain.ports.out.TemplateClinicalDataSyncPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,17 +26,20 @@ public class MedicalHistoryService implements ManageMedicalHistoryUseCase {
     private final PatientValidatorPort patientValidator;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
     private final MedicalHistoryVersionRepositoryPort versionRepository;
+    private final TemplateClinicalDataSyncPort clinicalDataSync;
 
     public MedicalHistoryService(MedicalHistoryRepositoryPort historyRepository,
                                  MedicalHistoryTemplateRepositoryPort templateRepository,
                                  PatientValidatorPort patientValidator,
                                  PatientAccessAuthorizationPort accessAuthorizationPort,
-                                 MedicalHistoryVersionRepositoryPort versionRepository) {
+                                 MedicalHistoryVersionRepositoryPort versionRepository,
+                                 TemplateClinicalDataSyncPort clinicalDataSync) {
         this.historyRepository = historyRepository;
         this.templateRepository = templateRepository;
         this.patientValidator = patientValidator;
         this.accessAuthorizationPort = accessAuthorizationPort;
         this.versionRepository = versionRepository;
+        this.clinicalDataSync = clinicalDataSync;
     }
 
     @Override
@@ -54,9 +59,8 @@ public class MedicalHistoryService implements ManageMedicalHistoryUseCase {
         authorize(requestingUserId, patientId, clinicId, true);
 
         // Validar que la plantilla existe y pertenece a esta clínica
-        if (!templateRepository.existsByIdAndClinicId(command.templateId(), clinicId)) {
-            throw new IllegalArgumentException("La plantilla de historia clínica no existe para esta clínica.");
-        }
+        MedicalHistoryTemplate template = templateRepository.findByIdAndClinicId(command.templateId(), clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("La plantilla de historia clínica no existe para esta clínica."));
 
         Optional<MedicalHistory> existingOpt = historyRepository.findByPatientIdAndTemplateIdAndClinicId(
                 patientId, command.templateId(), clinicId);
@@ -97,6 +101,11 @@ public class MedicalHistoryService implements ManageMedicalHistoryUseCase {
                 .createdAt(LocalDateTime.now())
                 .build();
         versionRepository.save(historyVersion);
+
+        // Volcar a datos clínicos tipados los campos marcados con clinicalMapping.
+        clinicalDataSync.sync(clinicId, patientId, template.getSchemaJson(), command.answersJson(),
+                requestingUserId,
+                command.changedByUserName() != null ? command.changedByUserName() : "Médico");
 
         return savedHistory;
     }

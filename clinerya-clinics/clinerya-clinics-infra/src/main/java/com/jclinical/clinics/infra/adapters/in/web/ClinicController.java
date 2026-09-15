@@ -7,12 +7,10 @@ import com.jclinical.clinics.infra.adapters.in.web.dto.CreateClinicRequest;
 import com.jclinical.clinics.infra.adapters.in.web.dto.UpdateClinicRequest;
 import com.jclinical.clinics.infra.adapters.out.ClinicMapper;
 import com.jclinical.clinics.infra.adapters.out.accounting.DefaultPettyCashProvisioner;
-import com.jclinical.users.domain.model.User;
-import com.jclinical.users.domain.ports.out.UserRepositoryPort;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,7 +22,7 @@ import java.util.UUID;
 public class ClinicController {
 
     private final ManageClinicUseCase manageClinicUseCase;
-    private final UserRepositoryPort userRepository;
+    private final CurrentUserResolver currentUserResolver;
     private final ClinicMapper clinicMapper;
     private final DefaultPettyCashProvisioner pettyCashProvisioner;
 
@@ -106,13 +104,6 @@ public class ClinicController {
     }
 
     private UUID getAuthenticatedUserId() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new IllegalStateException("Usuario no autenticado");
-        }
-        String email = authentication.getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-        return user.getId();
+        return currentUserResolver.getCurrentUserId();
     }
 }

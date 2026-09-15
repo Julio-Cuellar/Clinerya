@@ -1,7 +1,7 @@
 package com.jclinical.staff.domain.ports.in;
 
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 
 import java.time.LocalDateTime;

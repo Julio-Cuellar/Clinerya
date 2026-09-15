@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
@@ -24,7 +25,7 @@ public class HmacStateCodec implements StateCodecPort {
 
     private final SecretKeySpec keySpec;
 
-    public HmacStateCodec(@Value("${google.oauth.state-secret:***OAUTH_STATE_SECRET_DEFAULT_REMOVED***}") String secret) {
+    public HmacStateCodec(@Value("${google.oauth.state-secret}") String secret) {
         this.keySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }
 
@@ -46,7 +47,11 @@ public class HmacStateCodec implements StateCodecPort {
         String signature = state.substring(separatorIndex + 1);
         String payload = new String(Base64.getUrlDecoder().decode(encodedPayload), StandardCharsets.UTF_8);
 
-        if (!sign(payload).equals(signature)) {
+        // MessageDigest.isEqual compara en tiempo constante: String.equals corta en el
+        // primer byte distinto y filtra por temporizacion cuanto prefijo se acerto.
+        if (!MessageDigest.isEqual(
+                sign(payload).getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8))) {
             throw new IllegalArgumentException("La firma del parámetro state no es válida.");
         }
 

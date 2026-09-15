@@ -1,5 +1,8 @@
 package com.jclinical.app.web;
 
+import com.jclinical.core.security.PlatformAccessDeniedException;
+import com.jclinical.users.domain.model.User;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ import java.util.zip.GZIPOutputStream;
 public class SystemConfigController {
 
     private final SystemConfigRepository repository;
+    private final CurrentUserResolver currentUserResolver;
 
     @Value("${spring.datasource.url}")
     private String dbUrl;
@@ -42,8 +46,24 @@ public class SystemConfigController {
     @Value("${app.backup.pg-dump-path:/usr/bin/pg_dump}")
     private String pgDumpPath;
 
+    /**
+     * Estos endpoints operan sobre configuración global del tenant y sobre un respaldo que
+     * vuelca la base completa (todas las clínicas, todos los expedientes). No existe un
+     * ámbito de clínica que los acote, así que no los cubre ClinicAccessInterceptor:
+     * exigen permiso de plataforma explícito.
+     */
+    private User requirePlatformAdmin() {
+        User user = currentUserResolver.getCurrentUser();
+        if (!user.isPlatformAdmin()) {
+            throw new PlatformAccessDeniedException(
+                    "Se requieren permisos de administrador de plataforma para esta operacion.");
+        }
+        return user;
+    }
+
     @GetMapping("/{key}")
     public ResponseEntity<SystemConfigResponse> getConfig(@PathVariable String key) {
+        requirePlatformAdmin();
         return repository.findById(key)
                 .map(entity -> ResponseEntity.ok(new SystemConfigResponse(entity.getKey(), entity.getValue(), entity.getDescription())))
                 .orElse(ResponseEntity.notFound().build());
@@ -51,6 +71,8 @@ public class SystemConfigController {
 
     @PutMapping("/{key}")
     public ResponseEntity<SystemConfigResponse> updateConfig(@PathVariable String key, @RequestBody UpdateConfigRequest request) {
+        User actor = requirePlatformAdmin();
+        log.info("Actualizacion de configuracion global '{}' por '{}'", key, actor.getEmail());
         SystemConfigEntity entity = repository.findById(key)
                 .orElseGet(() -> {
                     SystemConfigEntity newEntity = new SystemConfigEntity();
@@ -68,6 +90,9 @@ public class SystemConfigController {
     @PostMapping("/backups/trigger")
     @SuppressWarnings("java:S4036")
     public void triggerBackup(HttpServletResponse response) {
+        // Fuera del try: el catch(Exception) de abajo convertiria el 403 en un 500 generico.
+        User actor = requirePlatformAdmin();
+        log.info("Respaldo manual solicitado por '{}' (id={})", actor.getEmail(), actor.getId());
         try {
             String cleanUrl = dbUrl.replace("jdbc:postgresql://", "");
             int slashIdx = cleanUrl.indexOf('/');

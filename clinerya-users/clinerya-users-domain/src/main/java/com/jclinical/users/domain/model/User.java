@@ -31,6 +31,14 @@ public class User {
     private boolean active;
     private String verificationToken;
     private LocalDateTime verificationTokenExpiresAt;
+    private String passwordResetTokenHash;
+    private LocalDateTime passwordResetTokenExpiresAt;
+    /**
+     * Permiso global al tenant (configuración del sistema, respaldos), distinto de
+     * {@code StaffPermission}, que siempre es por clínica. Se otorga manualmente en base
+     * de datos: ningún flujo de registro puede activarlo.
+     */
+    private boolean platformAdmin;
 
     // Métodos de negocio
     public void verifyEmail() {
@@ -84,5 +92,21 @@ public class User {
     public void changeTheme(Theme newTheme) {
         this.themePreference = newTheme;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void issuePasswordReset(String tokenHash, int expirationMinutes) {
+        this.passwordResetTokenHash = tokenHash;
+        this.passwordResetTokenExpiresAt = LocalDateTime.now().plusMinutes(expirationMinutes);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void resetPassword(String passwordHash) {
+        if (passwordResetTokenExpiresAt == null || LocalDateTime.now().isAfter(passwordResetTokenExpiresAt)) {
+            throw new IllegalStateException("El enlace de recuperación ha expirado.");
+        }
+        this.passwordHash = passwordHash;
+        this.passwordResetTokenHash = null;
+        this.passwordResetTokenExpiresAt = null;
+        resetFailedLoginAttempts();
     }
 }

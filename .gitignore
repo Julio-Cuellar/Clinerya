@@ -27,6 +27,7 @@ outputs/
 **/.claude/
 **/.codex-run/
 **/.codex-runlogs/
+**/.codex_video_review/
 
 # Docker secrets - NUNCA subir al repositorio
 .env

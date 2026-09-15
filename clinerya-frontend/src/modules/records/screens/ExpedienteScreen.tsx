@@ -6,22 +6,35 @@ import {
   IconClipboardList,
   IconFileText,
   IconFolderOpen,
+  IconHistory,
+  IconPill,
   IconSearch
 } from "@tabler/icons-react";
 import { APPOINTMENT_STATUS_LABELS, type AppointmentResponse } from "@modules/agenda/types";
 import { PAYMENT_METHOD_LABELS, type TicketResponse } from "@modules/cash/types";
-import { serializeAttachments } from "@modules/records/types";
+import { serializeAttachments, type AttachmentMeta, type ClinicalNoteResponse } from "@modules/records/types";
+import type { Prescription } from "@modules/records/prescriptionTypes";
 import { ITEM_PROGRESS_STATUS_LABELS, QUOTATION_STATUS_LABELS, type QuotationResponse } from "@modules/treatments/quotationTypes";
 import type { PatientResponse } from "@modules/patients/types";
 import { genderLabel } from "@modules/patients/constants/patientOptions";
 import { getAge } from "@shared/utils/getAge";
-import { agendaApi, attachmentsApi, getFriendlyError, quotationsApi, ticketsApi } from "@shared/api/api";
+import {
+  agendaApi,
+  attachmentsApi,
+  clinicalNotesApi,
+  getFriendlyError,
+  prescriptionsApi,
+  quotationsApi,
+  ticketsApi
+} from "@shared/api/api";
 import { FileFieldEditor } from "@shared/ui/FileFieldEditor";
 import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryPanel";
+import { PatientSummarySidebar } from "@modules/records/components/PatientSummarySidebar";
+import { PrescriptionSection } from "@modules/records/components/PrescriptionSection";
 import { TemplatesPanel } from "@modules/records/components/TemplatesPanel";
 
 type MainTab = "expedientes" | "plantillas";
-type RecordTab = "historia" | "tratamientos" | "citas" | "pagos" | "estudios";
+type RecordTab = "cronologia" | "historia" | "tratamientos" | "citas" | "recetas" | "pagos" | "estudios";
 
 const STUDIES_ELEMENT_ID = "patient_studies";
 const currencyFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
@@ -158,6 +171,229 @@ function PatientSelector({
   );
 }
 
+type TimelineKind = "cita" | "nota" | "receta" | "pago" | "estudio";
+
+interface TimelineEvent {
+  id: string;
+  kind: TimelineKind;
+  date: string;
+  title: string;
+  detail: string;
+  badge?: { label: string; tone: string };
+  target: RecordTab;
+}
+
+const TIMELINE_KIND_LABELS: Record<TimelineKind, string> = {
+  cita: "Cita",
+  nota: "Nota clinica",
+  receta: "Receta",
+  pago: "Pago",
+  estudio: "Estudio"
+};
+
+function noteSummary(note: ClinicalNoteResponse) {
+  const text = note.assessment || note.plan || note.subjective || note.objective || "";
+  return text.length > 120 ? `${text.slice(0, 117)}...` : text || "Sin contenido";
+}
+
+function CronologiaTab({
+  clinicId,
+  patient,
+  onNavigate
+}: {
+  clinicId: string;
+  patient: PatientResponse;
+  onNavigate: (tab: RecordTab) => void;
+}) {
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState<TimelineKind | "todos">("todos");
+
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    Promise.allSettled([
+      agendaApi.listByPatient(clinicId, patient.id),
+      clinicalNotesApi.listByPatient(patient.id, clinicId),
+      prescriptionsApi.listByPatient(clinicId, patient.id),
+      ticketsApi.listByPatient(clinicId, patient.id),
+      attachmentsApi.list(patient.id, clinicId, STUDIES_ELEMENT_ID)
+    ])
+      .then(([citas, notas, recetas, pagos, estudios]) => {
+        const merged: TimelineEvent[] = [];
+
+        if (citas.status === "fulfilled") {
+          for (const cita of citas.value as AppointmentResponse[]) {
+            merged.push({
+              id: `cita-${cita.id}`,
+              kind: "cita",
+              date: cita.scheduledStart,
+              title: cita.reason || "Consulta",
+              detail: cita.notes || "Sin notas",
+              badge: {
+                label: APPOINTMENT_STATUS_LABELS[cita.status],
+                tone: appointmentStatusClass(cita.status)
+              },
+              target: "citas"
+            });
+          }
+        }
+
+        if (notas.status === "fulfilled") {
+          for (const nota of notas.value as ClinicalNoteResponse[]) {
+            merged.push({
+              id: `nota-${nota.id}`,
+              kind: "nota",
+              date: nota.createdAt,
+              title: "Nota clinica",
+              detail: noteSummary(nota),
+              badge:
+                nota.status === "SIGNED"
+                  ? { label: "Firmada", tone: "success" }
+                  : { label: "Borrador", tone: "warning" },
+              target: "historia"
+            });
+          }
+        }
+
+        if (recetas.status === "fulfilled") {
+          for (const receta of recetas.value as Prescription[]) {
+            const meds = receta.items.map((item) => item.medicationName).filter(Boolean);
+            merged.push({
+              id: `receta-${receta.id}`,
+              kind: "receta",
+              date: receta.createdAt,
+              title: meds.length > 0 ? meds.join(", ") : "Receta",
+              detail: receta.notes || `${receta.items.length} medicamento(s)`,
+              target: "recetas"
+            });
+          }
+        }
+
+        if (pagos.status === "fulfilled") {
+          for (const ticket of pagos.value as TicketResponse[]) {
+            merged.push({
+              id: `pago-${ticket.id}`,
+              kind: "pago",
+              date: ticket.createdAt,
+              title: `Pago #${ticket.folio}`,
+              detail: ticket.concept || "Sin concepto",
+              badge: {
+                label: currencyFormatter.format(ticket.totalAmount),
+                tone: ticket.status === "ACTIVE" ? "success" : "neutral"
+              },
+              target: "pagos"
+            });
+          }
+        }
+
+        if (estudios.status === "fulfilled") {
+          for (const study of estudios.value as AttachmentMeta[]) {
+            merged.push({
+              id: `estudio-${study.id}`,
+              kind: "estudio",
+              date: study.createdAt,
+              title: study.originalFilename,
+              detail: "Documento de estudio",
+              target: "estudios"
+            });
+          }
+        }
+
+        merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setEvents(merged);
+
+        if (
+          citas.status === "rejected" &&
+          notas.status === "rejected" &&
+          recetas.status === "rejected" &&
+          pagos.status === "rejected" &&
+          estudios.status === "rejected"
+        ) {
+          setError("No se pudo cargar la cronologia del paciente.");
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [clinicId, patient.id]);
+
+  const visibleEvents = filter === "todos" ? events : events.filter((event) => event.kind === filter);
+
+  return (
+    <article className="panel full">
+      <div className="panel-heading">
+        <div>
+          <h2>Cronologia</h2>
+          <span className="panel-subtitle">Citas, notas, recetas, pagos y estudios ordenados por fecha.</span>
+        </div>
+        <span className="badge neutral">{visibleEvents.length}</span>
+      </div>
+
+      <div className="table-toolbar">
+        <label className="field">
+          <span>Filtrar por tipo</span>
+          <select value={filter} onChange={(event) => setFilter(event.target.value as TimelineKind | "todos")}>
+            <option value="todos">Todos los eventos</option>
+            <option value="cita">Citas</option>
+            <option value="nota">Notas clinicas</option>
+            <option value="receta">Recetas</option>
+            <option value="pago">Pagos</option>
+            <option value="estudio">Estudios</option>
+          </select>
+        </label>
+      </div>
+
+      {loading && (
+        <div className="clinic-list">
+          <div className="clinic-row">
+            <strong>Cargando cronologia...</strong>
+          </div>
+        </div>
+      )}
+      {error && <p className="alert error">{error}</p>}
+
+      {!loading && !error && visibleEvents.length === 0 && (
+        <div className="clinic-list">
+          <div className="clinic-row">
+            <strong>Sin eventos registrados</strong>
+            <span>A medida que se agenden citas, se firmen notas o se emitan recetas apareceran aqui.</span>
+          </div>
+        </div>
+      )}
+
+      {!loading && visibleEvents.length > 0 && (
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Detalle</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEvents.map((event) => (
+                <tr key={event.id} onClick={() => onNavigate(event.target)}>
+                  <td>{formatDateTime(event.date)}</td>
+                  <td>
+                    <span className="badge neutral">{TIMELINE_KIND_LABELS[event.kind]}</span>
+                  </td>
+                  <td>
+                    <strong>{event.title}</strong>
+                    <span className="table-subtext">{event.detail}</span>
+                  </td>
+                  <td>{event.badge && <span className={`badge ${event.badge.tone}`}>{event.badge.label}</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function TreatmentsTab({ clinicId, patient }: { clinicId: string; patient: PatientResponse }) {
   const [quotations, setQuotations] = useState<QuotationResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,20 +483,15 @@ function AppointmentsTab({ clinicId, patient }: { clinicId: string; patient: Pat
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const from = new Date();
-    from.setFullYear(from.getFullYear() - 2);
-    const to = new Date();
-    to.setFullYear(to.getFullYear() + 2);
-
     setLoading(true);
     setError("");
     agendaApi
-      .listByRange(clinicId, from.toISOString(), to.toISOString())
+      .listByPatient(clinicId, patient.id)
       .then((list) =>
         setAppointments(
-          list
-            .filter((appointment) => appointment.patientId === patient.id)
-            .sort((a, b) => new Date(b.scheduledStart).getTime() - new Date(a.scheduledStart).getTime())
+          [...list].sort(
+            (a, b) => new Date(b.scheduledStart).getTime() - new Date(a.scheduledStart).getTime()
+          )
         )
       )
       .catch((caught) => setError(getFriendlyError(caught)))
@@ -471,13 +702,15 @@ function PatientRecord({
   patient: PatientResponse;
   onBack: () => void;
 }) {
-  const [tab, setTab] = useState<RecordTab>("historia");
+  const [tab, setTab] = useState<RecordTab>("cronologia");
   const age = getAge(patient.dateOfBirth);
 
   const tabs: Array<{ key: RecordTab; label: string; Icon: typeof IconFileText }> = [
+    { key: "cronologia", label: "Cronologia", Icon: IconHistory },
     { key: "historia", label: "Historia clinica", Icon: IconFileText },
     { key: "tratamientos", label: "Tratamientos", Icon: IconClipboardList },
     { key: "citas", label: "Citas", Icon: IconCalendarEvent },
+    { key: "recetas", label: "Recetas", Icon: IconPill },
     { key: "pagos", label: "Pagos", Icon: IconCash },
     { key: "estudios", label: "Estudios", Icon: IconFolderOpen }
   ];
@@ -514,13 +747,28 @@ function PatientRecord({
         </div>
       </article>
 
-      {tab === "historia" && (
-        <PatientHistoryPanel clinicId={clinicId} patient={patient} onChangePatient={onBack} />
-      )}
-      {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "pagos" && <PaymentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "estudios" && <StudiesTab clinicId={clinicId} patient={patient} />}
+      <div className="expediente-body">
+        <PatientSummarySidebar clinicId={clinicId} patientId={patient.id} />
+
+        <div className="expediente-tab-content">
+          {tab === "cronologia" && (
+            <CronologiaTab clinicId={clinicId} patient={patient} onNavigate={setTab} />
+          )}
+          {tab === "historia" && (
+            <PatientHistoryPanel
+              clinicId={clinicId}
+              patient={patient}
+              onChangePatient={onBack}
+              showClinicalHeader={false}
+            />
+          )}
+          {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "recetas" && <PrescriptionSection clinicId={clinicId} patient={patient} />}
+          {tab === "pagos" && <PaymentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "estudios" && <StudiesTab clinicId={clinicId} patient={patient} />}
+        </div>
+      </div>
     </>
   );
 }

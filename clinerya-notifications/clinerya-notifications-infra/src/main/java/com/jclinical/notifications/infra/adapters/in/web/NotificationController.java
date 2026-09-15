@@ -4,6 +4,7 @@ import com.jclinical.notifications.domain.model.Notification;
 import com.jclinical.notifications.domain.ports.in.ManageNotificationsUseCase;
 import com.jclinical.notifications.infra.adapters.in.web.dto.NotificationListResponse;
 import com.jclinical.notifications.infra.adapters.in.web.dto.NotificationResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,13 +22,15 @@ import java.util.UUID;
 public class NotificationController {
 
     private final ManageNotificationsUseCase notificationsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<NotificationListResponse> list(
             @PathVariable UUID clinicId,
             @RequestParam(defaultValue = "false") boolean unreadOnly,
             @RequestParam(defaultValue = "50") int limit) {
-        ManageNotificationsUseCase.NotificationList result = notificationsUseCase.list(clinicId, unreadOnly, limit);
+        ManageNotificationsUseCase.NotificationList result = notificationsUseCase.list(
+                clinicId, currentUserResolver.getCurrentUserId(), unreadOnly, limit);
         return ResponseEntity.ok(new NotificationListResponse(
                 result.items().stream().map(this::toResponse).toList(),
                 result.unreadCount()
@@ -38,12 +41,13 @@ public class NotificationController {
     public ResponseEntity<NotificationResponse> markRead(
             @PathVariable UUID clinicId,
             @PathVariable UUID notificationId) {
-        return ResponseEntity.ok(toResponse(notificationsUseCase.markRead(clinicId, notificationId)));
+        return ResponseEntity.ok(toResponse(
+                notificationsUseCase.markRead(clinicId, currentUserResolver.getCurrentUserId(), notificationId)));
     }
 
     @PostMapping("/read-all")
     public ResponseEntity<Void> markAllRead(@PathVariable UUID clinicId) {
-        notificationsUseCase.markAllRead(clinicId);
+        notificationsUseCase.markAllRead(clinicId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.noContent().build();
     }
 

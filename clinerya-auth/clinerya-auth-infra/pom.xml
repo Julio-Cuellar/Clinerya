@@ -36,6 +36,13 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Blacklist de tokens persistente (core.revoked_tokens): en memoria se perdia
+             en cada reinicio y no se compartiria entre instancias. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
         <!-- JJWT para tokens -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

@@ -35,6 +35,7 @@ import com.jclinical.patients.domain.model.MaritalStatus;
 import com.jclinical.patients.domain.model.Patient;
 import com.jclinical.patients.domain.ports.in.RegisterPatientUseCase;
 import com.jclinical.records.domain.model.ClinicalNote;
+import com.jclinical.records.domain.model.DiagnosisKind;
 import com.jclinical.records.domain.model.MedicalHistoryTemplate;
 import com.jclinical.records.domain.model.NoteStatus;
 import com.jclinical.records.domain.ports.in.ManageClinicalNoteUseCase;
@@ -185,14 +186,14 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 .orElseThrow(() -> new IllegalStateException("No se encontro el perfil medico de la cuenta showcase."));
 
         seedSchedule(clinicId);
-        BankAccount operatingBank = seedAccounting(clinicId);
-        InventoryFixture inventory = seedInventoryAndPurchasing(clinicId);
+        BankAccount operatingBank = seedAccounting(user.getId(), clinicId);
+        InventoryFixture inventory = seedInventoryAndPurchasing(user.getId(), clinicId);
         PatientFixture patients = seedPatients(clinicId);
         seedPersonnel(clinicId);
         seedRecords(clinicId, user, staffId, patients);
         TreatmentFixture treatments = seedTreatments(clinicId, user, staffId, patients, inventory);
         seedAgenda(clinicId, staffId, patients, treatments);
-        seedCash(clinicId, staffId, operatingBank, patients, treatments);
+        seedCash(clinicId, user.getId(), staffId, operatingBank, patients, treatments);
 
         log.info(">>>> [SHOWCASE-SEED] Muestra integral creada: 3 pacientes, expediente versionado, 2 estudios, "
                 + "4 tratamientos, 3 citas, inventario, proveedores, compras, caja y contabilidad.");
@@ -204,7 +205,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 email, password, fullName, clinicName));
         UserPreRegistration preRegistration = preRegistrationRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("No se encontro el pre-registro showcase."));
-        verifyUserEmailUseCase.verifyEmail(preRegistration.getVerificationToken());
+        verifyUserEmailUseCase.verifyEmail(email, preRegistration.getVerificationToken());
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("No se encontro el usuario showcase verificado."));
     }
@@ -223,8 +224,9 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
         clinicScheduleUseCase.updateSchedule(clinicId, schedule);
     }
 
-    private BankAccount seedAccounting(UUID clinicId) {
+    private BankAccount seedAccounting(UUID actingUserId, UUID clinicId) {
         OpeningBalanceSetup setup = openingBalancesUseCase.configureOpeningBalances(
+                actingUserId,
                 clinicId,
                 new ManageOpeningBalancesUseCase.ConfigureOpeningBalancesCommand(
                         LocalDate.now().minusDays(90),
@@ -245,58 +247,58 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 .orElseThrow(() -> new IllegalStateException("No se creo la cuenta bancaria operativa."));
     }
 
-    private InventoryFixture seedInventoryAndPurchasing(UUID clinicId) {
-        Material gloves = createMaterial(clinicId, "Guantes de nitrilo talla M", "Desechables", "DES-001",
+    private InventoryFixture seedInventoryAndPurchasing(UUID actingUserId, UUID clinicId) {
+        Material gloves = createMaterial(actingUserId, clinicId, "Guantes de nitrilo talla M", "Desechables", "DES-001",
                 "Ambiderm", "Guante de exploracion sin latex", "par", "Caja 100", money("100"),
                 money("0.95"), money("200"), false, null, false);
-        registerMovement(clinicId, gloves.getId(), MovementType.PURCHASE_ENTRY, null, money("4"), null, null,
+        registerMovement(actingUserId, clinicId, gloves.getId(), MovementType.PURCHASE_ENTRY, null, money("4"), null, null,
                 "Existencia inicial: 4 cajas");
 
-        Material lidocaine = createMaterial(clinicId, "Lidocaina 2% con epinefrina", "Anestesicos", "ANE-010",
+        Material lidocaine = createMaterial(actingUserId, clinicId, "Lidocaina 2% con epinefrina", "Anestesicos", "ANE-010",
                 "Septodont", "Cartucho para anestesia local", "cartucho", null, null,
                 money("7.20"), money("30"), false, null, true);
-        registerMovement(clinicId, lidocaine.getId(), MovementType.PURCHASE_ENTRY, money("60"), null,
+        registerMovement(actingUserId, clinicId, lidocaine.getId(), MovementType.PURCHASE_ENTRY, money("60"), null,
                 "LIDO-2606", LocalDate.now().plusMonths(11), "Existencia inicial por lote");
 
-        Material resin = createMaterial(clinicId, "Resina fotocurable A2", "Restaurativos", "RES-A2",
+        Material resin = createMaterial(actingUserId, clinicId, "Resina fotocurable A2", "Restaurativos", "RES-A2",
                 "3M", "Resina universal tono A2", "jeringa", null, null,
                 money("420"), money("5"), false, null, true);
-        registerMovement(clinicId, resin.getId(), MovementType.PURCHASE_ENTRY, money("12"), null,
+        registerMovement(actingUserId, clinicId, resin.getId(), MovementType.PURCHASE_ENTRY, money("12"), null,
                 "RES-A2-26", LocalDate.now().plusMonths(16), "Existencia inicial por lote");
 
-        Material needles = createMaterial(clinicId, "Aguja dental corta 30G", "Anestesicos", "AGU-30G",
+        Material needles = createMaterial(actingUserId, clinicId, "Aguja dental corta 30G", "Anestesicos", "AGU-30G",
                 "Terumo", "Aguja esteril desechable", "pieza", "Caja 100", money("100"),
                 money("1.80"), money("100"), false, null, false);
-        registerMovement(clinicId, needles.getId(), MovementType.PURCHASE_ENTRY, null, money("2"), null, null,
+        registerMovement(actingUserId, clinicId, needles.getId(), MovementType.PURCHASE_ENTRY, null, money("2"), null, null,
                 "Existencia inicial: 2 cajas");
 
-        Material masks = createMaterial(clinicId, "Cubrebocas tricapa", "Desechables", "DES-020",
+        Material masks = createMaterial(actingUserId, clinicId, "Cubrebocas tricapa", "Desechables", "DES-020",
                 "SafeMask", "Cubrebocas desechable de tres capas", "pieza", "Caja 50", money("50"),
                 money("0.60"), money("200"), true, money("3.00"), false);
-        registerMovement(clinicId, masks.getId(), MovementType.PURCHASE_ENTRY, null, money("6"), null, null,
+        registerMovement(actingUserId, clinicId, masks.getId(), MovementType.PURCHASE_ENTRY, null, money("6"), null, null,
                 "Existencia inicial: 6 cajas");
-        registerMovement(clinicId, masks.getId(), MovementType.ADJUSTMENT_OUT, money("5"), null, null, null,
+        registerMovement(actingUserId, clinicId, masks.getId(), MovementType.ADJUSTMENT_OUT, money("5"), null, null, null,
                 "Merma documentada por empaque danado");
 
-        Supplier dentalDepot = purchasingUseCase.createSupplier(clinicId,
+        Supplier dentalDepot = purchasingUseCase.createSupplier(actingUserId, clinicId,
                 new ManagePurchasingUseCase.CreateSupplierCommand(
                         "Dental Depot Puebla", "Laura Gomez", "222 410 8820", "ventas@dentaldepot.example",
                         "DDP190101AA1", "Entrega martes y jueves"));
-        Supplier odontomed = purchasingUseCase.createSupplier(clinicId,
+        Supplier odontomed = purchasingUseCase.createSupplier(actingUserId, clinicId,
                 new ManagePurchasingUseCase.CreateSupplierCommand(
                         "Distribuidora Odontomed", "Carlos Rivera", "222 903 1460", "pedidos@odontomed.example",
                         "ODO180420BC2", "Credito autorizado a 30 dias"));
 
-        purchasingUseCase.addSupplierMaterial(clinicId, dentalDepot.getId(),
+        purchasingUseCase.addSupplierMaterial(actingUserId, clinicId, dentalDepot.getId(),
                 new ManagePurchasingUseCase.AddSupplierMaterialCommand(gloves.getId(), money("0.90")));
-        purchasingUseCase.addSupplierMaterial(clinicId, dentalDepot.getId(),
+        purchasingUseCase.addSupplierMaterial(actingUserId, clinicId, dentalDepot.getId(),
                 new ManagePurchasingUseCase.AddSupplierMaterialCommand(lidocaine.getId(), money("6.95")));
-        purchasingUseCase.addSupplierMaterial(clinicId, odontomed.getId(),
+        purchasingUseCase.addSupplierMaterial(actingUserId, clinicId, odontomed.getId(),
                 new ManagePurchasingUseCase.AddSupplierMaterialCommand(resin.getId(), money("405")));
-        purchasingUseCase.addSupplierMaterial(clinicId, odontomed.getId(),
+        purchasingUseCase.addSupplierMaterial(actingUserId, clinicId, odontomed.getId(),
                 new ManagePurchasingUseCase.AddSupplierMaterialCommand(masks.getId(), money("0.55")));
 
-        PurchaseOrder receivedOrder = purchasingUseCase.createPurchaseOrder(clinicId,
+        PurchaseOrder receivedOrder = purchasingUseCase.createPurchaseOrder(actingUserId, clinicId,
                 new ManagePurchasingUseCase.CreatePurchaseOrderCommand(
                         dentalDepot.getId(), LocalDate.now().minusDays(12), LocalDate.now().minusDays(8),
                         "Reposicion mensual de anestesia y desechables",
@@ -305,8 +307,8 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                 new ManagePurchasingUseCase.CreatePurchaseOrderLineCommand(gloves.getId(), money("200"), money("0.90")),
                                 new ManagePurchasingUseCase.CreatePurchaseOrderLineCommand(lidocaine.getId(), money("40"), money("6.95"))
                         )));
-        purchasingUseCase.markPurchaseOrderOrdered(clinicId, receivedOrder.getId());
-        purchasingUseCase.receivePurchaseOrder(clinicId, receivedOrder.getId(),
+        purchasingUseCase.markPurchaseOrderOrdered(actingUserId, clinicId, receivedOrder.getId());
+        purchasingUseCase.receivePurchaseOrder(actingUserId, clinicId, receivedOrder.getId(),
                 new ManagePurchasingUseCase.ReceivePurchaseOrderCommand(
                         LocalDateTime.now().minusDays(8),
                         "Mercancia recibida completa y validada",
@@ -318,7 +320,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                         "LIDO-2607", LocalDate.now().plusMonths(14))
                         )));
 
-        PurchaseOrder pendingOrder = purchasingUseCase.createPurchaseOrder(clinicId,
+        PurchaseOrder pendingOrder = purchasingUseCase.createPurchaseOrder(actingUserId, clinicId,
                 new ManagePurchasingUseCase.CreatePurchaseOrderCommand(
                         odontomed.getId(), LocalDate.now(), LocalDate.now().plusDays(4),
                         "Pedido en camino para tratamientos restaurativos",
@@ -327,7 +329,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                 new ManagePurchasingUseCase.CreatePurchaseOrderLineCommand(resin.getId(), money("6"), money("405")),
                                 new ManagePurchasingUseCase.CreatePurchaseOrderLineCommand(masks.getId(), money("250"), money("0.55"))
                         )));
-        purchasingUseCase.markPurchaseOrderOrdered(clinicId, pendingOrder.getId());
+        purchasingUseCase.markPurchaseOrderOrdered(actingUserId, clinicId, pendingOrder.getId());
 
         return new InventoryFixture(gloves, lidocaine, resin, needles, masks);
     }
@@ -368,6 +370,10 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                         "Historia clinica odontologica (NOM-013)",
                         "Plantilla dental integral con odontograma, consentimientos y contrato de servicios.",
                         buildOdontologySchema()));
+        // Ninguno de los campos de estas dos plantillas tiene clinicalMapping:
+        // no hay ninguna tabla alergia/padecimiento/medicamento en ellas, solo
+        // texto libre (p.ej. "medicacionGeriatrica" mezcla medicamentos y
+        // enfermedades cronicas en un parrafo, no una fila por medicamento).
         templateUseCase.createTemplate(clinicId,
                 new ManageHistoryTemplateUseCase.CreateTemplateCommand(
                         "Historia clinica odontopediatrica",
@@ -415,7 +421,8 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 user.getId());
         clinicalNoteUseCase.signClinicalNote(
                 note.getId(), patients.primary().getId(), clinicId, user.getId(),
-                new ManageClinicalNoteUseCase.SignNoteCommand(fullName, IP_ADDRESS, USER_AGENT));
+                new ManageClinicalNoteUseCase.SignNoteCommand(fullName, IP_ADDRESS, USER_AGENT,
+                        List.of(new ManageClinicalNoteUseCase.DiagnosisEntry("K04.0", DiagnosisKind.PRIMARY))));
 
         clinicalNoteUseCase.createClinicalNote(
                 patients.pediatric().getId(), clinicId, staffId,
@@ -450,12 +457,12 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
             UUID staffId,
             PatientFixture patients,
             InventoryFixture inventory) {
-        TreatmentCatalogItem cleaning = catalogUseCase.createCatalogItem(clinicId,
+        TreatmentCatalogItem cleaning = catalogUseCase.createCatalogItem(user.getId(), clinicId,
                 new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                         "Limpieza dental y profilaxis", "PREVENTIVE", "Limpieza con ultrasonido y pulido.",
                         money("650"), 45,
                         List.of(new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(inventory.gloves().getId(), BigDecimal.ONE))));
-        TreatmentCatalogItem filling = catalogUseCase.createCatalogItem(clinicId,
+        TreatmentCatalogItem filling = catalogUseCase.createCatalogItem(user.getId(), clinicId,
                 new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                         "Resina molar", "RESTORATIVE", "Restauracion fotocurable en molar.",
                         money("1200"), 50,
@@ -463,7 +470,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                 new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(inventory.gloves().getId(), BigDecimal.ONE),
                                 new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(inventory.resin().getId(), money("0.20"))
                         )));
-        TreatmentCatalogItem rootCanal = catalogUseCase.createCatalogItem(clinicId,
+        TreatmentCatalogItem rootCanal = catalogUseCase.createCatalogItem(user.getId(), clinicId,
                 new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                         "Endodoncia molar", "ENDODONTICS", "Tratamiento de conductos en pieza molar.",
                         money("3200"), 90,
@@ -472,15 +479,15 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                 new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(inventory.lidocaine().getId(), money("2")),
                                 new ManageTreatmentCatalogUseCase.CatalogMaterialCommand(inventory.needles().getId(), BigDecimal.ONE)
                         )));
-        TreatmentCatalogItem consultation = catalogUseCase.createCatalogItem(clinicId,
+        TreatmentCatalogItem consultation = catalogUseCase.createCatalogItem(user.getId(), clinicId,
                 new ManageTreatmentCatalogUseCase.CreateCatalogItemCommand(
                         "Consulta de valoracion", "DIAGNOSTIC", "Valoracion clinica y plan inicial.",
                         money("500"), 30, List.of()));
 
         Quotation primaryQuote = quotationUseCase.createQuotation(
-                patients.primary().getId(), clinicId,
+                patients.primary().getId(), clinicId, user.getId(),
                 new ManageQuotationUseCase.CreateQuotationCommand(
-                        user.getId(), LocalDate.now().minusDays(7),
+                        LocalDate.now().minusDays(7),
                         "Plan integral por etapas. Incluye control posterior.", LocalDate.now().plusDays(23),
                         List.of(
                                 quotationItem(cleaning, null, inventory.gloves(), BigDecimal.ONE),
@@ -489,26 +496,26 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                         inventory.gloves(), money("2"), inventory.lidocaine(), money("2"),
                                         inventory.needles(), BigDecimal.ONE)
                         )));
-        quotationUseCase.transitionStatus(primaryQuote.getId(), patients.primary().getId(), clinicId, QuotationStatus.SENT);
+        quotationUseCase.transitionStatus(primaryQuote.getId(), patients.primary().getId(), clinicId, user.getId(), QuotationStatus.SENT);
         primaryQuote = quotationUseCase.transitionStatus(
-                primaryQuote.getId(), patients.primary().getId(), clinicId, QuotationStatus.ACCEPTED);
+                primaryQuote.getId(), patients.primary().getId(), clinicId, user.getId(), QuotationStatus.ACCEPTED);
 
         Quotation pediatricQuote = quotationUseCase.createQuotation(
-                patients.pediatric().getId(), clinicId,
+                patients.pediatric().getId(), clinicId, user.getId(),
                 new ManageQuotationUseCase.CreateQuotationCommand(
-                        user.getId(), LocalDate.now(), "Valoracion y prevencion pediatrica.", LocalDate.now().plusDays(30),
+                        LocalDate.now(), "Valoracion y prevencion pediatrica.", LocalDate.now().plusDays(30),
                         List.of(new ManageQuotationUseCase.QuotationItemCommand(
                                 consultation.getId(), consultation.getName(), null, consultation.getDefaultPrice(), List.of(), BigDecimal.ZERO))));
-        quotationUseCase.transitionStatus(pediatricQuote.getId(), patients.pediatric().getId(), clinicId, QuotationStatus.SENT);
+        quotationUseCase.transitionStatus(pediatricQuote.getId(), patients.pediatric().getId(), clinicId, user.getId(), QuotationStatus.SENT);
 
         quotationUseCase.createQuotation(
-                patients.geriatric().getId(), clinicId,
+                patients.geriatric().getId(), clinicId, user.getId(),
                 new ManageQuotationUseCase.CreateQuotationCommand(
-                        user.getId(), LocalDate.now(), "Borrador pendiente de revisar con familiar responsable.", LocalDate.now().plusDays(30),
+                        LocalDate.now(), "Borrador pendiente de revisar con familiar responsable.", LocalDate.now().plusDays(30),
                         List.of(quotationItem(cleaning, null, inventory.gloves(), BigDecimal.ONE))));
 
         visitsUseCase.registerVisit(
-                patients.primary().getId(), primaryQuote.getId(), clinicId,
+                patients.primary().getId(), primaryQuote.getId(), clinicId, user.getId(),
                 new ManageVisitsUseCase.RegisterVisitCommand(
                         LocalDate.now().minusDays(4), staffId, "Profilaxis completada sin incidencias.",
                         List.of(new ManageVisitsUseCase.RegisterVisitLineItemCommand(
@@ -516,7 +523,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                 List.of(new ManageVisitsUseCase.RegisterVisitMaterialUsageCommand(
                                         inventory.gloves().getId(), inventory.gloves().getName(), BigDecimal.ONE))))));
         quotationUseCase.updateItemProgress(
-                primaryQuote.getId(), primaryQuote.getItems().get(0).getId(), patients.primary().getId(), clinicId,
+                primaryQuote.getId(), primaryQuote.getItems().get(0).getId(), patients.primary().getId(), clinicId, user.getId(),
                 ItemProgressStatus.COMPLETED);
 
         return new TreatmentFixture(primaryQuote, pediatricQuote);
@@ -554,16 +561,17 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
 
     private void seedCash(
             UUID clinicId,
+            UUID actingUserId,
             UUID staffId,
             BankAccount operatingBank,
             PatientFixture patients,
             TreatmentFixture treatments) {
-        cashSessionUseCase.openSession(clinicId,
+        cashSessionUseCase.openSession(actingUserId, clinicId,
                 new ManageCashSessionUseCase.OpenSessionCommand(staffId, money("1500")));
         BigDecimal quoteTotal = treatments.primaryQuote().grandTotal();
         BigDecimal cashAmount = money("1200");
         BigDecimal transferAmount = quoteTotal.subtract(cashAmount);
-        ticketsUseCase.registerTicket(clinicId,
+        ticketsUseCase.registerTicket(actingUserId, clinicId,
                 new ManageTicketsUseCase.RegisterTicketCommand(
                         patients.primary().getId(), treatments.primaryQuote().getId(),
                         "Liquidacion de plan integral odontologico", staffId,
@@ -573,15 +581,15 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                                         PaymentMethod.TRANSFER, transferAmount, "SPEI-DEMO-1842", operatingBank.getId())
                         ),
                         BigDecimal.ZERO, null, null));
-        cashExpensesUseCase.registerExpense(clinicId,
+        cashExpensesUseCase.registerExpense(actingUserId, clinicId,
                 new ManageCashExpensesUseCase.RegisterExpenseCommand(
                         "Papeleria y articulos de limpieza", money("150"), staffId));
-        cashSessionUseCase.closeSession(clinicId,
+        cashSessionUseCase.closeSession(actingUserId, clinicId,
                 new ManageCashSessionUseCase.CloseSessionCommand(staffId, money("2570")));
 
-        cashSessionUseCase.openSession(clinicId,
+        cashSessionUseCase.openSession(actingUserId, clinicId,
                 new ManageCashSessionUseCase.OpenSessionCommand(staffId, money("1000")));
-        ticketsUseCase.registerTicket(clinicId,
+        ticketsUseCase.registerTicket(actingUserId, clinicId,
                 new ManageTicketsUseCase.RegisterTicketCommand(
                         patients.pediatric().getId(), null, "Consulta de valoracion odontopediatrica", staffId,
                         List.of(new ManageTicketsUseCase.PaymentLineCommand(
@@ -590,6 +598,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
     }
 
     private Material createMaterial(
+            UUID actingUserId,
             UUID clinicId,
             String name,
             String category,
@@ -604,12 +613,13 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
             boolean saleEnabled,
             BigDecimal salePrice,
             boolean tracksBatches) {
-        return materialUseCase.createMaterial(clinicId, new ManageMaterialUseCase.CreateMaterialCommand(
+        return materialUseCase.createMaterial(actingUserId, clinicId, new ManageMaterialUseCase.CreateMaterialCommand(
                 name, category, code, brand, description, unit, presentation, quantityPerPresentation,
                 unitCost, minimumStock, saleEnabled, salePrice, tracksBatches));
     }
 
     private void registerMovement(
+            UUID actingUserId,
             UUID clinicId,
             UUID materialId,
             MovementType type,
@@ -622,9 +632,9 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 new ManageInventoryMovementUseCase.RegisterMovementCommand(
                         type, quantity, presentationQuantity, null, notes, lotNumber, expirationDate, null);
         switch (type) {
-            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(clinicId, materialId, command);
-            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(clinicId, materialId, command);
-            case SALE_EXIT -> movementUseCase.registerSaleExit(clinicId, materialId, command);
+            case PURCHASE_ENTRY -> movementUseCase.registerPurchaseEntry(actingUserId, clinicId, materialId, command);
+            case ADJUSTMENT_IN, ADJUSTMENT_OUT -> movementUseCase.registerAdjustment(actingUserId, clinicId, materialId, command);
+            case SALE_EXIT -> movementUseCase.registerSaleExit(actingUserId, clinicId, materialId, command);
             case USAGE_EXIT -> throw new IllegalArgumentException("Las salidas por uso requieren una visita clinica.");
         }
     }
@@ -719,6 +729,20 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
     }
 
     private String buildOdontologySchema() {
+        // "alergias" es la unica tabla de esta plantilla cuyas filas son
+        // incondicionalmente ciertas (cada fila = una alergia). El resto de las
+        // tablas de antecedentes/habitos/sistemas son checklists con columna
+        // "Si/No": el adaptador de sincronizacion no filtra por esa columna, asi
+        // que mapearlas a CONDITION volcaria tambien las filas contestadas "No"
+        // como si fueran padecimientos activos del paciente.
+        Map<String, Object> alergias = tableField("alergias", "ficha_identificacion", "Alergias", 16, 296, 868, 140,
+                List.of("Alergeno", "Tipo de reaccion"));
+        alergias.put("clinicalMapping", Map.of(
+                "target", "ALLERGY",
+                "primary", 0,
+                "secondary", 1,
+                "defaultCategory", "OTHER"));
+
         List<Map<String, Object>> identification = List.of(
                 field("nombre", "ficha_identificacion", "Nombre completo", "text", 16, 16, 430, 56),
                 selectField("sexo", "ficha_identificacion", "Sexo", 466, 16, 418, 56, List.of("Masculino", "Femenino")),
@@ -729,8 +753,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 field("ocupacion", "ficha_identificacion", "Ocupacion", "text", 16, 226, 280, 56),
                 field("estadoCivil", "ficha_identificacion", "Estado civil", "text", 316, 226, 280, 56),
                 field("tipoSangreRh", "ficha_identificacion", "Tipo de sangre y RH", "text", 616, 226, 268, 56),
-                tableField("alergias", "ficha_identificacion", "Alergias", 16, 296, 868, 140,
-                        List.of("Alergeno", "Tipo de reaccion"))
+                alergias
         );
         List<Map<String, Object>> history = List.of(
                 tableField("antecedentesHeredofamiliaresDental", null, "Antecedentes heredofamiliares", 16, 16, 868, 170,

@@ -18,6 +18,8 @@ import com.jclinical.treatments.domain.ports.out.VisitRepositoryPort;
 import com.jclinical.treatments.domain.service.QuotationService;
 import com.jclinical.treatments.domain.service.TreatmentCatalogService;
 import com.jclinical.treatments.domain.service.VisitService;
+import com.jclinical.core.security.PatientAccessAuthorizationPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationEntity;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationItemEntity;
 import com.jclinical.treatments.infra.adapters.out.persistence.QuotationItemMapper;
@@ -45,16 +47,18 @@ public class TreatmentsDomainConfig {
     @Bean
     public TreatmentCatalogService treatmentCatalogService(
             TreatmentCatalogRepositoryPort catalogRepository,
-            InventoryMaterialPort inventoryMaterialPort) {
-        return new TreatmentCatalogService(catalogRepository, inventoryMaterialPort);
+            InventoryMaterialPort inventoryMaterialPort,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new TreatmentCatalogService(catalogRepository, inventoryMaterialPort, permissionChecker);
     }
 
     @Bean
     public QuotationService quotationService(
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
-            InventoryMaterialPort inventoryMaterialPort) {
-        return new QuotationService(quotationRepository, patientValidator, inventoryMaterialPort);
+            InventoryMaterialPort inventoryMaterialPort,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
+        return new QuotationService(quotationRepository, patientValidator, inventoryMaterialPort, accessAuthorizationPort);
     }
 
     @Bean
@@ -303,8 +307,10 @@ public class TreatmentsDomainConfig {
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
             InventoryMaterialPort inventoryMaterialPort,
-            com.jclinical.core.events.DomainEventPublisherPort eventPublisher) {
-        return new VisitService(visitRepository, quotationRepository, patientValidator, inventoryMaterialPort, eventPublisher);
+            com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
+            PatientAccessAuthorizationPort accessAuthorizationPort) {
+        return new VisitService(visitRepository, quotationRepository, patientValidator, inventoryMaterialPort,
+                eventPublisher, accessAuthorizationPort);
     }
 
     @Bean

@@ -14,6 +14,7 @@ import com.jclinical.cash.infra.adapters.in.web.dto.QuotationBalanceResponse;
 import com.jclinical.cash.infra.adapters.in.web.dto.RegisterTicketRequest;
 import com.jclinical.cash.infra.adapters.in.web.dto.TicketResponse;
 import com.jclinical.cash.infra.adapters.in.web.dto.VoidTicketRequest;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,7 @@ public class TicketController {
 
     private final ManageTicketsUseCase ticketsUseCase;
     private final ManagePendingAppointmentChargesUseCase pendingAppointmentChargesUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping("")
     public ResponseEntity<TicketResponse> registerTicket(
@@ -57,7 +59,7 @@ public class TicketController {
                 request.discountAuthorizedByStaffId(),
                 request.discountReason()
         );
-        Ticket ticket = ticketsUseCase.registerTicket(clinicId, command);
+        Ticket ticket = ticketsUseCase.registerTicket(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(ticket));
     }
 
@@ -65,7 +67,7 @@ public class TicketController {
     public ResponseEntity<TicketResponse> getTicket(
             @PathVariable UUID clinicId,
             @PathVariable UUID ticketId) {
-        Ticket ticket = ticketsUseCase.getTicket(ticketId, clinicId);
+        Ticket ticket = ticketsUseCase.getTicket(currentUserResolver.getCurrentUserId(), ticketId, clinicId);
         return ResponseEntity.ok(toResponse(ticket));
     }
 
@@ -74,7 +76,8 @@ public class TicketController {
             @PathVariable UUID clinicId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
-        List<TicketResponse> responses = ticketsUseCase.listByClinicRange(clinicId, from, to).stream()
+        List<TicketResponse> responses = ticketsUseCase
+                .listByClinicRange(currentUserResolver.getCurrentUserId(), clinicId, from, to).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -84,7 +87,8 @@ public class TicketController {
     public ResponseEntity<List<TicketResponse>> listBySession(
             @PathVariable UUID clinicId,
             @PathVariable UUID cashSessionId) {
-        List<TicketResponse> responses = ticketsUseCase.listBySession(cashSessionId, clinicId).stream()
+        List<TicketResponse> responses = ticketsUseCase
+                .listBySession(currentUserResolver.getCurrentUserId(), cashSessionId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -94,7 +98,8 @@ public class TicketController {
     public ResponseEntity<List<TicketResponse>> listByQuotation(
             @PathVariable UUID clinicId,
             @PathVariable UUID quotationId) {
-        List<TicketResponse> responses = ticketsUseCase.listByQuotation(quotationId, clinicId).stream()
+        List<TicketResponse> responses = ticketsUseCase
+                .listByQuotation(currentUserResolver.getCurrentUserId(), quotationId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -104,7 +109,8 @@ public class TicketController {
     public ResponseEntity<List<TicketResponse>> listByPatient(
             @PathVariable UUID clinicId,
             @PathVariable UUID patientId) {
-        List<TicketResponse> responses = ticketsUseCase.listByPatient(patientId, clinicId).stream()
+        List<TicketResponse> responses = ticketsUseCase
+                .listByPatient(currentUserResolver.getCurrentUserId(), patientId, clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -114,7 +120,7 @@ public class TicketController {
     public ResponseEntity<List<PendingAppointmentChargeResponse>> listPendingAppointmentCharges(
             @PathVariable UUID clinicId) {
         List<PendingAppointmentChargeResponse> responses = pendingAppointmentChargesUseCase
-                .listPendingCharges(clinicId)
+                .listPendingCharges(currentUserResolver.getCurrentUserId(), clinicId)
                 .stream()
                 .map(charge -> new PendingAppointmentChargeResponse(
                         charge.appointmentId(),
@@ -135,7 +141,7 @@ public class TicketController {
             @PathVariable UUID ticketId,
             @RequestBody VoidTicketRequest request) {
         VoidTicketCommand command = new VoidTicketCommand(request.staffId(), request.reason());
-        Ticket ticket = ticketsUseCase.voidTicket(ticketId, clinicId, command);
+        Ticket ticket = ticketsUseCase.voidTicket(currentUserResolver.getCurrentUserId(), ticketId, clinicId, command);
         return ResponseEntity.ok(toResponse(ticket));
     }
 
@@ -144,7 +150,8 @@ public class TicketController {
             @PathVariable UUID clinicId,
             @PathVariable UUID quotationId,
             @RequestParam UUID patientId) {
-        QuotationBalance balance = ticketsUseCase.getQuotationBalance(quotationId, patientId, clinicId);
+        QuotationBalance balance = ticketsUseCase.getQuotationBalance(
+                currentUserResolver.getCurrentUserId(), quotationId, patientId, clinicId);
         return ResponseEntity.ok(new QuotationBalanceResponse(
                 balance.quotationId(), balance.grandTotal(), balance.paidAmount(), balance.remainingBalance()));
     }

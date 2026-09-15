@@ -6,6 +6,7 @@ import com.jclinical.accounting.domain.ports.in.ManageJournalUseCase;
 import com.jclinical.accounting.infra.adapters.in.web.dto.JournalEntryResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.JournalLineResponse;
 import com.jclinical.accounting.infra.adapters.in.web.dto.JournalQueryResponse;
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,10 +28,12 @@ import java.time.LocalDate;
 public class JournalEntryController {
 
     private final ManageJournalUseCase journalUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     public ResponseEntity<List<JournalEntryResponse>> listByClinic(@PathVariable UUID clinicId) {
-        List<JournalEntryResponse> responses = journalUseCase.listByClinic(clinicId).stream()
+        List<JournalEntryResponse> responses = journalUseCase
+                .listByClinic(currentUserResolver.getCurrentUserId(), clinicId).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -46,7 +49,7 @@ public class JournalEntryController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(JournalQueryResponse.from(
-                journalUseCase.queryByClinic(clinicId, from, to, search, sourceEventType, page, size)));
+                journalUseCase.queryByClinic(currentUserResolver.getCurrentUserId(), clinicId, from, to, search, sourceEventType, page, size)));
     }
 
     @PostMapping
@@ -66,7 +69,7 @@ public class JournalEntryController {
                 .lines(lines)
                 .build();
 
-        JournalEntry created = journalUseCase.createManualEntry(clinicId, entry);
+        JournalEntry created = journalUseCase.createManualEntry(currentUserResolver.getCurrentUserId(), clinicId, entry);
         return ResponseEntity.ok(toResponse(created));
     }
 

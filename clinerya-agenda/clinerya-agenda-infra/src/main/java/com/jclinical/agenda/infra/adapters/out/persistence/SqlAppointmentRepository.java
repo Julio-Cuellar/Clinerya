@@ -50,6 +50,12 @@ public class SqlAppointmentRepository implements AppointmentRepositoryPort {
     }
 
     @Override
+    public List<Appointment> findByPatientIdAndClinicId(UUID patientId, UUID clinicId) {
+        return springRepository.findByPatientIdAndClinicIdOrderByScheduledStartDesc(patientId, clinicId)
+                .stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
     public List<Appointment> findCompletedByClinicId(UUID clinicId) {
         return springRepository.findByClinicIdAndStatusOrderByUpdatedAtDesc(clinicId, AppointmentStatus.COMPLETED)
                 .stream()

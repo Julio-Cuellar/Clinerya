@@ -17,6 +17,7 @@ import com.jclinical.inventory.domain.service.InventoryMovementService;
 import com.jclinical.inventory.domain.service.MaterialReservationService;
 import com.jclinical.inventory.domain.service.MaterialService;
 import com.jclinical.inventory.domain.service.PurchasingService;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryBatchEntity;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryBatchMapper;
 import com.jclinical.inventory.infra.adapters.out.persistence.InventoryMovementEntity;
@@ -33,8 +34,9 @@ import org.springframework.context.annotation.Configuration;
 public class InventoryDomainConfig {
 
     @Bean
-    public MaterialService materialService(MaterialRepositoryPort materialRepository) {
-        return new MaterialService(materialRepository);
+    public MaterialService materialService(MaterialRepositoryPort materialRepository,
+                                           StaffPermissionCheckerPort permissionChecker) {
+        return new MaterialService(materialRepository, permissionChecker);
     }
 
     @Bean
@@ -42,16 +44,20 @@ public class InventoryDomainConfig {
             MaterialRepositoryPort materialRepository,
             InventoryMovementRepositoryPort movementRepository,
             InventoryBatchRepositoryPort batchRepository,
-            com.jclinical.core.events.DomainEventPublisherPort eventPublisher) {
-        return new InventoryMovementService(materialRepository, movementRepository, batchRepository, eventPublisher);
+            com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new InventoryMovementService(
+                materialRepository, movementRepository, batchRepository, eventPublisher, permissionChecker);
     }
 
     @Bean
     public MaterialReservationService materialReservationService(
             MaterialRepositoryPort materialRepository,
             MaterialReservationRepositoryPort reservationRepository,
-            MaterialReservationQueryPort reservationQuery) {
-        return new MaterialReservationService(materialRepository, reservationRepository, reservationQuery);
+            MaterialReservationQueryPort reservationQuery,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new MaterialReservationService(
+                materialRepository, reservationRepository, reservationQuery, permissionChecker);
     }
 
     @Bean
@@ -62,7 +68,8 @@ public class InventoryDomainConfig {
             PurchaseReceiptRepositoryPort purchaseReceiptRepository,
             MaterialRepositoryPort materialRepository,
             InventoryMovementService inventoryMovementService,
-            com.jclinical.core.events.DomainEventPublisherPort eventPublisher) {
+            com.jclinical.core.events.DomainEventPublisherPort eventPublisher,
+            StaffPermissionCheckerPort permissionChecker) {
         return new PurchasingService(
                 supplierRepository,
                 supplierMaterialRepository,
@@ -70,7 +77,8 @@ public class InventoryDomainConfig {
                 purchaseReceiptRepository,
                 materialRepository,
                 inventoryMovementService,
-                eventPublisher
+                eventPublisher,
+                permissionChecker
         );
     }
 

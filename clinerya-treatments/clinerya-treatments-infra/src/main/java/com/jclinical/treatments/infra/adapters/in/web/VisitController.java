@@ -1,5 +1,6 @@
 package com.jclinical.treatments.infra.adapters.in.web;
 
+import com.jclinical.users.infra.security.CurrentUserResolver;
 import com.jclinical.treatments.domain.model.Visit;
 import com.jclinical.treatments.domain.model.VisitLineItem;
 import com.jclinical.treatments.domain.model.VisitMaterialUsage;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class VisitController {
 
     private final ManageVisitsUseCase visitsUseCase;
+    private final CurrentUserResolver currentUserResolver;
 
     @PostMapping
     public ResponseEntity<VisitResponse> registerVisit(
@@ -41,7 +43,7 @@ public class VisitController {
                 request.notes(),
                 toLineItemCommands(request.items())
         );
-        Visit visit = visitsUseCase.registerVisit(patientId, quotationId, request.clinicId(), command);
+        Visit visit = visitsUseCase.registerVisit(patientId, quotationId, request.clinicId(), currentUserResolver.getCurrentUserId(), command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(visit));
     }
 
@@ -50,7 +52,7 @@ public class VisitController {
             @PathVariable UUID patientId,
             @PathVariable UUID quotationId,
             @RequestParam UUID clinicId) {
-        List<VisitResponse> responses = visitsUseCase.getVisitsByQuotation(quotationId, patientId, clinicId).stream()
+        List<VisitResponse> responses = visitsUseCase.getVisitsByQuotation(quotationId, patientId, clinicId, currentUserResolver.getCurrentUserId()).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(responses);
@@ -62,7 +64,7 @@ public class VisitController {
             @PathVariable UUID quotationId,
             @PathVariable UUID visitId,
             @RequestParam UUID clinicId) {
-        Visit visit = visitsUseCase.getVisitDetails(visitId, patientId, clinicId);
+        Visit visit = visitsUseCase.getVisitDetails(visitId, patientId, clinicId, currentUserResolver.getCurrentUserId());
         return ResponseEntity.ok(toResponse(visit));
     }
 

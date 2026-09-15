@@ -47,7 +47,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
         try {
-            boolean isTokenProviderValid = jwtTokenProvider.validateToken(token);
+            boolean isTokenProviderValid = jwtTokenProvider.validateAccessToken(token);
             boolean isUseCaseValid = validateTokenUseCase.validate(token);
 
             if (isTokenProviderValid && isUseCaseValid) {

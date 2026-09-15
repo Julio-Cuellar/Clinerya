@@ -56,4 +56,96 @@ public class ConfigurableEmailSender implements EmailSenderPort {
                 + "Si no solicitaste esta cuenta, puedes ignorar este mensaje.\n\n"
                 + "Clinerya";
     }
+
+    @Override
+    public void sendStaffInvitation(String email, String role, String invitationUrl, LocalDateTime expiresAt) {
+        if (!emailEnabled) {
+            log.info("Invitacion de personal no enviada porque el correo esta deshabilitado para '{}'.", email);
+            return;
+        }
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(email);
+        message.setSubject("Invitacion para unirte a Clinerya");
+        message.setText(buildStaffInvitationBody(role, invitationUrl, expiresAt));
+
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo enviar la invitacion de personal a '{}'.", email, exception);
+            throw new IllegalStateException("No se pudo enviar la invitacion por correo. Intenta nuevamente.", exception);
+        }
+    }
+
+    @Override
+    public void sendPasswordReset(String email, String fullName, String resetUrl, LocalDateTime expiresAt) {
+        if (!emailEnabled) {
+            log.info("Recuperacion de contrasena no enviada porque el correo esta deshabilitado para '{}'.", email);
+            return;
+        }
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(email);
+        message.setSubject("Restablece tu contrasena de Clinerya");
+        message.setText(buildPasswordResetBody(fullName, resetUrl, expiresAt));
+
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo enviar la recuperacion de contrasena a '{}'.", email, exception);
+            throw new IllegalStateException("No se pudo enviar el correo de recuperación. Intenta nuevamente.", exception);
+        }
+    }
+
+    private String buildStaffInvitationBody(String role, String invitationUrl, LocalDateTime expiresAt) {
+        return "Has sido invitado a unirte a una clinica en Clinerya con el rol de " + role + ".\n\n"
+                + "Acepta tu invitacion aqui:\n"
+                + invitationUrl + "\n\n"
+                + "El enlace vence el " + expiresAt.format(EXPIRATION_FORMAT) + ".\n"
+                + "Si no esperabas esta invitacion, puedes ignorar este correo.\n\n"
+                + "Clinerya";
+    }
+
+    private String buildPasswordResetBody(String fullName, String resetUrl, LocalDateTime expiresAt) {
+        return "Hola " + fullName + ",\n\n"
+                + "Solicitaste restablecer tu contrasena de Clinerya.\n\n"
+                + "Crea una nueva contrasena aqui:\n"
+                + resetUrl + "\n\n"
+                + "El enlace vence el " + expiresAt.format(EXPIRATION_FORMAT) + ".\n"
+                + "Si no solicitaste este cambio, puedes ignorar este correo.\n\n"
+                + "Clinerya";
+    }
+
+    @Override
+    public void sendShareRecipientVerificationCode(String email, String code, LocalDateTime expiresAt) {
+        if (!emailEnabled) {
+            log.info(">>>> [VERIFICACION-ENLACE-DEV] Código para '{}' (válido hasta {}): {}",
+                    email, expiresAt.format(EXPIRATION_FORMAT), code);
+            return;
+        }
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromAddress);
+        message.setTo(email);
+        message.setSubject("Código para consultar tu expediente compartido");
+        message.setText(buildShareVerificationBody(code, expiresAt));
+
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("No se pudo enviar el código de verificación de enlace compartido a '{}'.", email, exception);
+            throw new IllegalStateException("No se pudo enviar el código de verificación. Intenta nuevamente.", exception);
+        }
+    }
+
+    private String buildShareVerificationBody(String code, LocalDateTime expiresAt) {
+        return "Hola,\n\n"
+                + "Para consultar el expediente clínico que compartieron contigo, ingresa este código:\n\n"
+                + "    " + code + "\n\n"
+                + "El código vence el " + expiresAt.format(EXPIRATION_FORMAT) + ".\n"
+                + "Si no esperabas esta consulta, puedes ignorar este correo.\n\n"
+                + "Clinerya";
+    }
 }

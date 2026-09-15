@@ -3,7 +3,7 @@ package com.jclinical.staff.domain.service;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorProfile;
-import com.jclinical.staff.domain.model.StaffPermission;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.staff.domain.model.StaffPermissionOverride;
 import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.model.StaffRole;
@@ -15,6 +15,7 @@ import com.jclinical.staff.domain.ports.out.ClinicStaffInvitationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.ports.out.StaffPermissionOverrideRepositoryPort;
+import com.jclinical.staff.domain.ports.out.StaffInvitationNotifierPort;
 import com.jclinical.staff.domain.ports.out.UserDirectoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ class ClinicStaffServiceTest {
     private final InMemoryUserDirectory userDirectory = new InMemoryUserDirectory();
     private final InMemoryInvitationRepository invitationRepository = new InMemoryInvitationRepository();
     private final InMemoryPermissionOverrideRepository permissionRepository = new InMemoryPermissionOverrideRepository();
+    private final StaffInvitationNotifierPort invitationNotifier = (email, role, token, expiresAt) -> { };
     private ClinicStaffService service;
 
     @BeforeEach
@@ -47,7 +49,8 @@ class ClinicStaffServiceTest {
                 doctorProfileRepository,
                 userDirectory,
                 invitationRepository,
-                permissionRepository);
+                permissionRepository,
+                invitationNotifier);
     }
 
     @Test

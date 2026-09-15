@@ -12,21 +12,21 @@ import java.util.UUID;
 
 public interface ManageQuotationUseCase {
 
-    Quotation createQuotation(UUID patientId, UUID clinicId, CreateQuotationCommand command);
+    Quotation createQuotation(UUID patientId, UUID clinicId, UUID actingUserId, CreateQuotationCommand command);
 
-    Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UpdateHeaderCommand command);
+    Quotation updateQuotationHeader(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, UpdateHeaderCommand command);
 
-    Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, ReplaceItemsCommand command);
+    Quotation replaceQuotationItems(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, ReplaceItemsCommand command);
 
-    Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, QuotationStatus targetStatus);
+    Quotation transitionStatus(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId, QuotationStatus targetStatus);
 
-    Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, ItemProgressStatus targetStatus);
+    Quotation updateItemProgress(UUID quotationId, UUID itemId, UUID patientId, UUID clinicId, UUID actingUserId, ItemProgressStatus targetStatus);
 
-    Optional<Quotation> getQuotation(UUID quotationId, UUID patientId, UUID clinicId);
+    Optional<Quotation> getQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId);
 
-    List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId);
+    List<Quotation> getQuotationsByPatient(UUID patientId, UUID clinicId, UUID actingUserId);
 
-    void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId);
+    void deleteQuotation(UUID quotationId, UUID patientId, UUID clinicId, UUID actingUserId);
 
     record MaterialLineCommand(
         UUID materialId,
@@ -45,7 +45,6 @@ public interface ManageQuotationUseCase {
     ) {}
 
     record CreateQuotationCommand(
-        UUID createdByUserId,
         LocalDate quotationDate,
         String notes,
         LocalDate validUntil,

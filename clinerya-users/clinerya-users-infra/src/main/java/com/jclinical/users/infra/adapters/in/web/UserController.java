@@ -5,6 +5,7 @@ import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
 import com.jclinical.staff.domain.model.DoctorProfile;
 import com.jclinical.staff.domain.model.StaffRole;
+import com.jclinical.staff.domain.ports.in.ManageStaffOnboardingUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffInvitationRepositoryPort;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
@@ -16,6 +17,7 @@ import com.jclinical.users.domain.ports.in.ResendVerificationCodeUseCase;
 import com.jclinical.users.domain.ports.in.VerifyUserEmailUseCase;
 import com.jclinical.users.domain.ports.out.PasswordHasherPort;
 import com.jclinical.users.domain.ports.out.UserRepositoryPort;
+import com.jclinical.users.domain.service.PasswordResetService;
 import com.jclinical.users.infra.adapters.in.web.dto.RegisterUserRequest;
 import com.jclinical.users.infra.adapters.in.web.dto.ResendVerificationCodeRequest;
 import com.jclinical.users.infra.adapters.in.web.dto.UserResponse;
@@ -46,6 +48,8 @@ public class UserController {
     private final ClinicStaffRepositoryPort clinicStaffRepository;
     private final DoctorProfileRepositoryPort doctorProfileRepository;
     private final PasswordHasherPort passwordHasher;
+    private final PasswordResetService passwordResetService;
+    private final ManageStaffOnboardingUseCase staffOnboardingUseCase;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@RequestBody RegisterUserRequest request) {
@@ -64,7 +68,7 @@ public class UserController {
 
     @PostMapping("/verify-email")
     public ResponseEntity<Map<String, String>> verifyEmail(@RequestBody VerifyEmailRequest request) {
-        boolean verified = verifyUserEmailUseCase.verifyEmail(request.token());
+        boolean verified = verifyUserEmailUseCase.verifyEmail(request.email(), request.token());
         if (verified) {
             return ResponseEntity.ok(Map.of("message", "Correo verificado exitosamente y cuenta activada"));
         } else {
@@ -78,6 +82,19 @@ public class UserController {
         resendVerificationCodeUseCase.resendVerificationCode(request.email());
         return ResponseEntity.ok(Map.of(
                 "message", "Si existe un registro pendiente para ese correo, enviaremos un nuevo código de verificación."));
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<Map<String, String>> requestPasswordReset(@RequestBody PasswordResetRequest request) {
+        passwordResetService.requestReset(request.email());
+        return ResponseEntity.ok(Map.of(
+                "message", "Si existe una cuenta con ese correo, enviaremos un enlace de recuperación."));
+    }
+
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<Map<String, String>> confirmPasswordReset(@RequestBody PasswordResetConfirmRequest request) {
+        passwordResetService.resetPassword(request.token(), request.newPassword());
+        return ResponseEntity.ok(Map.of("message", "Contraseña actualizada correctamente."));
     }
 
     @PostMapping("/register-staff")
@@ -136,6 +153,9 @@ public class UserController {
                 .build();
 
         clinicStaffRepository.save(staff);
+
+        // 4b. Copiar la compensacion capturada al invitar (si la hubo)
+        staffOnboardingUseCase.applyInvitationCompensation(invitation.getId(), staff.getId(), invitation.getClinicId());
 
         // 5. Si el rol es DOCTOR, crear perfil de doctor
         if (invitation.getRole() == StaffRole.DOCTOR) {
@@ -214,6 +234,10 @@ public class UserController {
     public record UpdateThemeRequest(
             String theme
     ) {}
+
+    public record PasswordResetRequest(String email) {}
+
+    public record PasswordResetConfirmRequest(String token, String newPassword) {}
 
     public record RegisterStaffInvitationRequest(
             String token,

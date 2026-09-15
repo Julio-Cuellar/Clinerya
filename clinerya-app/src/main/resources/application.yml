@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${MEDICLOUD_DB_URL:jdbc:postgresql://localhost:5432/medicloud}
     username: ${MEDICLOUD_DB_USERNAME:postgres}
-    password: ${MEDICLOUD_DB_PASSWORD:root}
+    password: ${MEDICLOUD_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
@@ -44,8 +44,11 @@ spring:
 
 
 jwt:
-  # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
   secret: ${JWT_SECRET}
+  # 30 min. El frontend renueva solo con el refresh token al recibir un 401, asi que una
+  # vigencia corta no se nota en uso normal y acota la ventana de un token robado.
+  expiration: ${JWT_EXPIRATION_MS:1800000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION_MS:604800000}
 
 app:
   frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
@@ -57,6 +60,9 @@ app:
     directory: ${APP_FILE_UPLOAD_DIRECTORY:./uploads}
   backup:
     pg-dump-path: ${APP_BACKUP_PG_DUMP_PATH:/usr/bin/pg_dump}
+  # Los seeds crean cuentas activas con contrasena conocida y publicada en este archivo.
+  # Por eso el default es false: solo se habilitan de forma explicita en local/demo,
+  # nunca por omision al arrancar fuera de docker-compose.
   dev-seed:
     enabled: ${APP_DEV_SEED_ENABLED:false}
     email: ${APP_DEV_SEED_EMAIL:demo@medicloud.local}
@@ -103,15 +109,27 @@ logging:
 
 medicloud:
   security:
+    # Proxies que anaden su salto a X-Forwarded-For (Caddy o nginx delante del backend).
+    # Lo usa RateLimitingFilter para saber que entrada de la cabecera es de fiar.
+    trusted-proxy-count: ${APP_TRUSTED_PROXY_COUNT:1}
     # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
+    # Un default aqui significaria cifrar datos clinicos con una llave publicada en el
+    # repositorio. Para desarrollo local usa application-local.yml (SPRING_PROFILES_ACTIVE=local).
+    # OJO: cambiar este valor rompe el descifrado de las columnas ENC_GCM: existentes.
     encryption-key: ${MEDICLOUD_ENCRYPTION_KEY}
+    # Directorio (fuera de /app/uploads, e idealmente respaldado) donde FieldCipher
+    # persiste .field-key cuando el contenedor no monta /run/secrets/machine_id.
+    # Debe montarse como volumen dedicado en produccion.
+    key-store-dir: ${MEDICLOUD_KEY_STORE_DIR:/app/secrets}
+    # Cookie del refresh token: Secure exige HTTPS. Solo se desactiva en application-local.yml
+    # (desarrollo local sin TLS); produccion siempre corre detras de Caddy con TLS.
+    secure-cookies: ${MEDICLOUD_SECURE_COOKIES:true}
 
 google:
   oauth:
     client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
     client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
     redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:8082/api/v1/integrations/google-calendar/callback}
-    # Sin fallback a proposito: si falta la variable, la aplicacion NO debe arrancar.
     state-secret: ${GOOGLE_OAUTH_STATE_SECRET}
   calendar:
     default-timezone: ${GOOGLE_CALENDAR_DEFAULT_TIMEZONE:America/Mexico_City}

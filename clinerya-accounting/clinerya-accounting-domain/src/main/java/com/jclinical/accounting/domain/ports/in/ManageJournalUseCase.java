@@ -39,9 +39,10 @@ public interface ManageJournalUseCase {
      */
     Optional<JournalEntry> recordSupplyWasted(MermaCaducidadEvent event);
 
-    List<JournalEntry> listByClinic(UUID clinicId);
+    List<JournalEntry> listByClinic(UUID actingUserId, UUID clinicId);
 
     JournalQueryResult queryByClinic(
+            UUID actingUserId,
             UUID clinicId,
             LocalDate from,
             LocalDate to,
@@ -50,7 +51,7 @@ public interface ManageJournalUseCase {
             int page,
             int size);
 
-    JournalEntry createManualEntry(UUID clinicId, JournalEntry entry);
+    JournalEntry createManualEntry(UUID actingUserId, UUID clinicId, JournalEntry entry);
 
     Optional<JournalEntry> recordCashExpenseRegistered(CashExpenseRegisteredEvent event);
 

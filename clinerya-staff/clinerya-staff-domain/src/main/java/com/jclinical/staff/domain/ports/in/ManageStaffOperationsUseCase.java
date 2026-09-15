@@ -16,29 +16,62 @@ public interface ManageStaffOperationsUseCase {
 
     AttendanceSummary clockOut(UUID clinicId, UUID attendanceId, LocalDateTime clockOutAt, String notes);
 
-    List<AttendanceSummary> listAttendance(UUID clinicId, UUID staffId, LocalDate from, LocalDate to);
+    List<AttendanceSummary> listAttendance(UUID clinicId, UUID actingUserId, UUID staffId, LocalDate from, LocalDate to);
 
-    ActivitySummary recordActivity(UUID clinicId, UUID staffId, StaffActivityType type, String referenceType,
-                                   UUID referenceId, String description, BigDecimal amount, LocalDateTime occurredAt);
+    ActivitySummary recordActivity(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
+                                   String referenceType, UUID referenceId, String description, BigDecimal amount,
+                                   LocalDateTime occurredAt);
 
-    List<ActivitySummary> listActivities(UUID clinicId, UUID staffId, StaffActivityType type,
+    List<ActivitySummary> listActivities(UUID clinicId, UUID actingUserId, UUID staffId, StaffActivityType type,
                                          LocalDateTime from, LocalDateTime to);
 
-    PayrollPeriodSummary createPayrollPeriod(UUID clinicId, String name, LocalDate periodStart, LocalDate periodEnd);
+    PayrollPeriodSummary createPayrollPeriod(UUID clinicId, UUID actingUserId, String name, LocalDate periodStart,
+                                            LocalDate periodEnd);
 
     List<PayrollPeriodSummary> listPayrollPeriods(UUID clinicId);
 
-    PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID periodId, UUID staffId, BigDecimal baseSalary,
-                                         BigDecimal commissionAmount, BigDecimal bonusAmount,
+    PayrollLineSummary upsertPayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId,
+                                         BigDecimal baseSalary, BigDecimal commissionAmount, BigDecimal bonusAmount,
                                          BigDecimal deductionAmount, String notes);
 
-    PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID periodId, UUID staffId);
+    PayrollPeriodSummary deletePayrollLine(UUID clinicId, UUID actingUserId, UUID periodId, UUID staffId);
 
     List<PayrollLineSummary> listPayrollLines(UUID clinicId, UUID periodId);
 
-    PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID periodId);
+    /**
+     * Crea lineas para el personal activo que aun no tiene una en el periodo (no
+     * sobrescribe las existentes). BASE_COMPENSATION usa el sueldo base de cada
+     * empleado; PREVIOUS_PERIOD copia los montos del ultimo periodo cerrado.
+     */
+    List<PayrollLineSummary> generatePayrollLines(UUID clinicId, UUID actingUserId, UUID periodId, PayrollLineSource source);
 
-    PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID periodId, UUID bankAccountId, LocalDate paymentDate);
+    /**
+     * Suma de la actividad registrada por cada empleado dentro del rango del
+     * periodo, junto con la comision que ya tiene su linea (si existe).
+     */
+    List<CommissionPreviewEntry> previewPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId);
+
+    /**
+     * Vuelca la suma de actividad del periodo en el campo comision de la linea de
+     * cada empleado que tenga actividad y linea capturada. Recalcula totales.
+     */
+    List<PayrollLineSummary> applyPeriodCommissions(UUID clinicId, UUID actingUserId, UUID periodId);
+
+    PayrollPeriodSummary closePayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId);
+
+    PayrollPeriodSummary payPayrollPeriod(UUID clinicId, UUID actingUserId, UUID periodId, UUID bankAccountId,
+                                          LocalDate paymentDate);
+
+    enum PayrollLineSource {
+        BASE_COMPENSATION,
+        PREVIOUS_PERIOD
+    }
+
+    record CommissionPreviewEntry(
+            UUID staffId,
+            BigDecimal activityTotal,
+            BigDecimal currentCommission
+    ) {}
 
     record AttendanceSummary(
             UUID id,

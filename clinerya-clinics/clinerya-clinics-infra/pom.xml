@@ -24,6 +24,12 @@
             <artifactId>clinerya-clinics-domain</artifactId>
         </dependency>
 
+        <!-- Resolución del usuario autenticado para el control de acceso en los controladores -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.jclinical</groupId>
             <artifactId>clinerya-staff-domain</artifactId>
@@ -33,6 +39,12 @@
         <dependency>
             <groupId>com.jclinical</groupId>
             <artifactId>clinerya-users-domain</artifactId>
+        </dependency>
+
+        <!-- Dependencia del modulo de usuarios (CurrentUserResolver, para el actor autenticado) -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-users-infra</artifactId>
         </dependency>
 
         <dependency>
