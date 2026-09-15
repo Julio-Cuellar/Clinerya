@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { IconDeviceFloppy, IconFileTypePdf, IconX, IconHistory, IconGitCompare } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconChevronLeft,
+  IconChevronRight,
+  IconDeviceFloppy,
+  IconFileTypePdf,
+  IconX,
+  IconHistory,
+  IconGitCompare
+} from "@tabler/icons-react";
 import { CANVAS_WIDTH, CONSENT_FIELD_IDS, DEFAULT_CONSENT_TEXT, NOM_SECTIONS, ensureConsentPage } from "@modules/records/constants/nomHistoryTemplate";
 import { APP_INFO_CONSENT_FIELD_IDS, DEFAULT_APP_INFO_CONSENT_TEXT, ODONTOLOGY_FIELD_IDS, ODONTOLOGY_TEMPLATE_DEFAULT_ANSWERS } from "@modules/records/constants/nomOdontologyTemplate";
 import { exportPagesToPdf, type PdfExportRange } from "@modules/records/lib/pdfExport";
@@ -411,9 +420,16 @@ export function HistoryFormModal({
               <IconFileTypePdf size={16} aria-hidden="true" />
               {exporting ? "Generando PDF..." : "Exportar PDF"}
             </button>
-            <button className="icon-btn" type="button" aria-label="Cerrar" onClick={handleRequestClose}>
-              <IconX size={18} />
-            </button>
+            {embedded ? (
+              <button className="btn secondary" type="button" onClick={handleRequestClose}>
+                <IconArrowLeft size={16} aria-hidden="true" />
+                Volver
+              </button>
+            ) : (
+              <button className="icon-btn" type="button" aria-label="Cerrar" onClick={handleRequestClose}>
+                <IconX size={18} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -439,14 +455,38 @@ export function HistoryFormModal({
         )}
 
         {schema.pages.length > 1 && (
-          <div className="canvas-page-tabs">
-            {schema.pages.map((page, index) => (
-              <div key={page.id} className={`canvas-page-tab ${index === pageIndex ? "active" : ""}`}>
-                <button type="button" onClick={() => setPageIndex(index)}>
-                  Pagina {index + 1}
-                </button>
-              </div>
-            ))}
+          <div className="history-form-stepper">
+            <div className="history-form-stepper-head">
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Pagina anterior"
+                disabled={pageIndex === 0}
+                onClick={() => setPageIndex((index) => Math.max(0, index - 1))}
+              >
+                <IconChevronLeft size={16} aria-hidden="true" />
+              </button>
+              <span className="history-form-stepper-label">
+                Pagina {pageIndex + 1} de {schema.pages.length}
+              </span>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Pagina siguiente"
+                disabled={pageIndex === schema.pages.length - 1}
+                onClick={() => setPageIndex((index) => Math.min(schema.pages.length - 1, index + 1))}
+              >
+                <IconChevronRight size={16} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="history-form-stepper-track">
+              {schema.pages.map((page, index) => (
+                <span
+                  key={page.id}
+                  className={`history-form-stepper-segment ${index <= pageIndex ? "filled" : ""}`}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -720,10 +760,10 @@ export function HistoryFormModal({
 
     if (embedded) {
       return (
-        <div style={{ width: "100%", marginTop: "16px" }}>
+        <>
           {content}
           {modals}
-        </div>
+        </>
       );
     }
 

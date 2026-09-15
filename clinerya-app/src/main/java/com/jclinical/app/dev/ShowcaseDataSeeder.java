@@ -370,6 +370,10 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                         "Historia clinica odontologica (NOM-013)",
                         "Plantilla dental integral con odontograma, consentimientos y contrato de servicios.",
                         buildOdontologySchema()));
+        // Ninguno de los campos de estas dos plantillas tiene clinicalMapping:
+        // no hay ninguna tabla alergia/padecimiento/medicamento en ellas, solo
+        // texto libre (p.ej. "medicacionGeriatrica" mezcla medicamentos y
+        // enfermedades cronicas en un parrafo, no una fila por medicamento).
         templateUseCase.createTemplate(clinicId,
                 new ManageHistoryTemplateUseCase.CreateTemplateCommand(
                         "Historia clinica odontopediatrica",
@@ -725,6 +729,20 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
     }
 
     private String buildOdontologySchema() {
+        // "alergias" es la unica tabla de esta plantilla cuyas filas son
+        // incondicionalmente ciertas (cada fila = una alergia). El resto de las
+        // tablas de antecedentes/habitos/sistemas son checklists con columna
+        // "Si/No": el adaptador de sincronizacion no filtra por esa columna, asi
+        // que mapearlas a CONDITION volcaria tambien las filas contestadas "No"
+        // como si fueran padecimientos activos del paciente.
+        Map<String, Object> alergias = tableField("alergias", "ficha_identificacion", "Alergias", 16, 296, 868, 140,
+                List.of("Alergeno", "Tipo de reaccion"));
+        alergias.put("clinicalMapping", Map.of(
+                "target", "ALLERGY",
+                "primary", 0,
+                "secondary", 1,
+                "defaultCategory", "OTHER"));
+
         List<Map<String, Object>> identification = List.of(
                 field("nombre", "ficha_identificacion", "Nombre completo", "text", 16, 16, 430, 56),
                 selectField("sexo", "ficha_identificacion", "Sexo", 466, 16, 418, 56, List.of("Masculino", "Femenino")),
@@ -735,8 +753,7 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 field("ocupacion", "ficha_identificacion", "Ocupacion", "text", 16, 226, 280, 56),
                 field("estadoCivil", "ficha_identificacion", "Estado civil", "text", 316, 226, 280, 56),
                 field("tipoSangreRh", "ficha_identificacion", "Tipo de sangre y RH", "text", 616, 226, 268, 56),
-                tableField("alergias", "ficha_identificacion", "Alergias", 16, 296, 868, 140,
-                        List.of("Alergeno", "Tipo de reaccion"))
+                alergias
         );
         List<Map<String, Object>> history = List.of(
                 tableField("antecedentesHeredofamiliaresDental", null, "Antecedentes heredofamiliares", 16, 16, 868, 170,

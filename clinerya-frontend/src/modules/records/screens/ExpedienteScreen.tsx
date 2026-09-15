@@ -29,7 +29,7 @@ import {
 } from "@shared/api/api";
 import { FileFieldEditor } from "@shared/ui/FileFieldEditor";
 import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryPanel";
-import { PatientClinicalHeader } from "@modules/records/components/PatientClinicalHeader";
+import { PatientSummarySidebar } from "@modules/records/components/PatientSummarySidebar";
 import { PrescriptionSection } from "@modules/records/components/PrescriptionSection";
 import { TemplatesPanel } from "@modules/records/components/TemplatesPanel";
 
@@ -747,28 +747,28 @@ function PatientRecord({
         </div>
       </article>
 
-      <PatientClinicalHeader clinicId={clinicId} patientId={patient.id} />
+      <div className="expediente-body">
+        <PatientSummarySidebar clinicId={clinicId} patientId={patient.id} />
 
-      {tab === "cronologia" && (
-        <CronologiaTab clinicId={clinicId} patient={patient} onNavigate={setTab} />
-      )}
-      {tab === "historia" && (
-        <PatientHistoryPanel
-          clinicId={clinicId}
-          patient={patient}
-          onChangePatient={onBack}
-          showClinicalHeader={false}
-        />
-      )}
-      {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "recetas" && (
-        <div style={{ gridColumn: "1 / -1" }}>
-          <PrescriptionSection clinicId={clinicId} patient={patient} />
+        <div className="expediente-tab-content">
+          {tab === "cronologia" && (
+            <CronologiaTab clinicId={clinicId} patient={patient} onNavigate={setTab} />
+          )}
+          {tab === "historia" && (
+            <PatientHistoryPanel
+              clinicId={clinicId}
+              patient={patient}
+              onChangePatient={onBack}
+              showClinicalHeader={false}
+            />
+          )}
+          {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "recetas" && <PrescriptionSection clinicId={clinicId} patient={patient} />}
+          {tab === "pagos" && <PaymentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "estudios" && <StudiesTab clinicId={clinicId} patient={patient} />}
         </div>
-      )}
-      {tab === "pagos" && <PaymentsTab clinicId={clinicId} patient={patient} />}
-      {tab === "estudios" && <StudiesTab clinicId={clinicId} patient={patient} />}
+      </div>
     </>
   );
 }

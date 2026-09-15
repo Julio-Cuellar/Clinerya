@@ -83,6 +83,23 @@ export function PatientHistoryPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId, patient.id]);
 
+  if (activeTemplate) {
+    return (
+      <HistoryFormModal
+        patient={patient}
+        clinicId={clinicId}
+        template={activeTemplate}
+        embedded
+        onClose={() => setActiveTemplate(null)}
+        onSaved={() => {
+          setActiveTemplate(null);
+          load();
+        }}
+        readOnly={historyReadOnly}
+      />
+    );
+  }
+
   return (
     <article className="panel full">
       <div className="panel-heading">
@@ -248,20 +265,6 @@ export function PatientHistoryPanel({
         canWriteNotes={canWriteNotes}
         defaultDoctorId={defaultDoctorId}
       />
-
-      {activeTemplate && (
-        <HistoryFormModal
-          patient={patient}
-          clinicId={clinicId}
-          template={activeTemplate}
-          onClose={() => setActiveTemplate(null)}
-          onSaved={() => {
-            setActiveTemplate(null);
-            load();
-          }}
-          readOnly={historyReadOnly}
-        />
-      )}
 
       {inviteOpen && (
         <InviteExternalAccessModal
