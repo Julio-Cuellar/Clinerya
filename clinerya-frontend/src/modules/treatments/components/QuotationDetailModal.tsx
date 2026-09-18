@@ -4,6 +4,7 @@ import { getFriendlyError, quotationsApi, visitsApi } from "@shared/api/api";
 import { clinicToHeaderInfo, exportQuotationToPdf } from "@modules/treatments/lib/quotationPdfExport";
 import {
   ITEM_PROGRESS_STATUS_LABELS,
+  QUOTATION_STATUS_BADGES,
   QUOTATION_STATUS_LABELS,
   type ItemProgressStatus,
   type QuotationResponse,
@@ -12,6 +13,7 @@ import {
 } from "@modules/treatments/quotationTypes";
 import type { ClinicResponse } from "@modules/clinics/types";
 import type { PatientResponse } from "@modules/patients/types";
+import { getClinicProfileFor } from "@shared/utils/clinicProfile";
 import { RegisterVisitModal } from "@modules/treatments/components/RegisterVisitModal";
 import { VisitDetailsModal } from "@modules/treatments/components/VisitDetailsModal";
 
@@ -37,6 +39,7 @@ export function QuotationDetailModal({
   onChanged: (updated: QuotationResponse) => void;
   onEdit: () => void;
 }) {
+  const profile = getClinicProfileFor(clinic);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [visits, setVisits] = useState<VisitResponse[]>([]);
@@ -87,7 +90,8 @@ export function QuotationDetailModal({
       await exportQuotationToPdf({
         quotation,
         patient,
-        clinicInfo: clinic ? clinicToHeaderInfo(clinic) : undefined
+        clinicInfo: clinic ? clinicToHeaderInfo(clinic) : undefined,
+        profile
       });
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -110,7 +114,9 @@ export function QuotationDetailModal({
         <div className="clinic-list">
           <div className="clinic-row">
             <strong>Estado</strong>
-            <span className="badge warning">{QUOTATION_STATUS_LABELS[quotation.status]}</span>
+            <span className={`badge ${QUOTATION_STATUS_BADGES[quotation.status]}`}>
+              {QUOTATION_STATUS_LABELS[quotation.status]}
+            </span>
           </div>
           {quotation.validUntil && (
             <div className="clinic-row">
@@ -131,8 +137,8 @@ export function QuotationDetailModal({
             <thead>
               <tr>
                 <th>Descripción</th>
-                <th>Diente</th>
-                <th>Mano de obra</th>
+                {profile.showsClinicalLocator && <th>{profile.locatorColumnLabel}</th>}
+                <th>{profile.laborLabel}</th>
                 <th>Materiales</th>
                 <th>Desc. %</th>
                 <th>Progreso</th>
@@ -143,7 +149,7 @@ export function QuotationDetailModal({
               {quotation.items.map((item) => (
                 <tr key={item.id}>
                   <td>{item.description}</td>
-                  <td>{item.toothNumber ?? "—"}</td>
+                  {profile.showsClinicalLocator && <td>{item.toothNumber ?? "—"}</td>}
                   <td>{currencyFormatter.format(item.laborCharge)}</td>
                   <td>
                     {item.materials.length === 0 ? (
@@ -293,6 +299,7 @@ export function QuotationDetailModal({
           patientId={patientId}
           clinicId={clinicId}
           quotation={quotation}
+          profile={profile}
           onClose={() => setShowRegisterVisit(false)}
           onSaved={() => {
             setShowRegisterVisit(false);
@@ -309,6 +316,7 @@ export function QuotationDetailModal({
         <VisitDetailsModal
           quotation={quotation}
           visit={selectedVisit}
+          profile={profile}
           onClose={() => setSelectedVisit(null)}
         />
       )}

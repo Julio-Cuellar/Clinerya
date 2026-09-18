@@ -3,11 +3,13 @@ import { IconDeviceFloppy, IconPlus, IconTrash, IconX } from "@tabler/icons-reac
 import { visitsApi, materialsApi, getFriendlyError } from "@shared/api/api";
 import type { QuotationResponse, CreateVisitRequest } from "@modules/treatments/quotationTypes";
 import type { MaterialResponse } from "@modules/inventory/types";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 interface RegisterVisitModalProps {
   patientId: string;
   quotation: QuotationResponse;
   clinicId: string;
+  profile?: ClinicProfile;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -29,6 +31,7 @@ export function RegisterVisitModal({
   patientId,
   quotation,
   clinicId,
+  profile = DEFAULT_CLINIC_PROFILE,
   onClose,
   onSaved
 }: RegisterVisitModalProps) {
@@ -244,7 +247,10 @@ export function RegisterVisitModal({
                         htmlFor={`chk-${item.quotationItemId}`} 
                         style={{ fontWeight: 600, fontSize: '13px', cursor: 'pointer', margin: 0 }}
                       >
-                        {item.description} {originalItem?.toothNumber ? `(Pieza ${originalItem.toothNumber})` : ''}
+                        {item.description}{' '}
+                        {profile.showsClinicalLocator && originalItem?.toothNumber
+                          ? `(${profile.locatorItemPrefix} ${originalItem.toothNumber})`
+                          : ''}
                       </label>
                     </div>
 

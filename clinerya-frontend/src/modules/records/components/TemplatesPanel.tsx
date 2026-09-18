@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconDental, IconPlus, IconSearch, IconWand } from "@tabler/icons-react";
-import { buildNomStarterPages } from "@modules/records/constants/nomHistoryTemplate";
-import { buildNomOdontologyStarterPages } from "@modules/records/constants/nomOdontologyTemplate";
+import { buildRecommendedTemplate } from "@modules/records/lib/recommendedTemplates";
 import { getFriendlyError, historyTemplatesApi } from "@shared/api/api";
-import { parseSchema, serializeSchema, type HistoryTemplateResponse } from "@modules/records/types";
+import { parseSchema, type HistoryTemplateResponse } from "@modules/records/types";
 import { TemplateModal } from "@modules/records/components/TemplateModal";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
-export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; hasClinic: boolean }) {
+export function TemplatesPanel({
+  clinicId,
+  hasClinic,
+  profile = DEFAULT_CLINIC_PROFILE
+}: {
+  clinicId?: string;
+  hasClinic: boolean;
+  profile?: ClinicProfile;
+}) {
+  const recommendsOdontology = profile.recommendedHistoryTemplate === "NOM_013";
   const [templates, setTemplates] = useState<HistoryTemplateResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -45,15 +54,7 @@ export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; has
     setBusyId("recommended");
     setError("");
     try {
-      const schema = {
-        kind: "historia_clinica" as const,
-        pages: buildNomStarterPages()
-      };
-      const created = await historyTemplatesApi.create(clinicId, {
-        name: "Historia clínica general (NOM-004)",
-        description: "Plantilla base sugerida por la NOM-004-SSA3-2012, editable a criterio de la clínica.",
-        schemaJson: serializeSchema(schema)
-      });
+      const created = await historyTemplatesApi.create(clinicId, buildRecommendedTemplate("NOM_004"));
       setTemplates((prev) => [...prev, created]);
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -67,16 +68,7 @@ export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; has
     setBusyId("recommended-odontologia");
     setError("");
     try {
-      const schema = {
-        kind: "historia_clinica" as const,
-        pages: buildNomOdontologyStarterPages()
-      };
-      const created = await historyTemplatesApi.create(clinicId, {
-        name: "Historia clínica odontológica (NOM-013)",
-        description:
-          "Plantilla base para consultorios dentales basada en el formato del cliente. Incluye antecedentes, interrogatorio por sistemas, odontograma, indice CPOD, consentimiento de tratamiento, contrato de servicios y consentimiento de uso de la app.",
-        schemaJson: serializeSchema(schema)
-      });
+      const created = await historyTemplatesApi.create(clinicId, buildRecommendedTemplate("NOM_013"));
       setTemplates((prev) => [...prev, created]);
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -117,7 +109,9 @@ export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; has
           {!hasHistoriaClinica && hasClinic && (
             <button className="btn secondary" type="button" disabled={busyId === "recommended"} onClick={handleUseRecommended}>
               <IconWand size={16} aria-hidden="true" />
-              {busyId === "recommended" ? "Creando..." : "Usar plantilla NOM-004 recomendada"}
+              {busyId === "recommended"
+                ? "Creando..."
+                : `Usar plantilla NOM-004${recommendsOdontology ? "" : " recomendada"}`}
             </button>
           )}
           {!hasHistoriaClinica && hasClinic && (
@@ -128,7 +122,9 @@ export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; has
               onClick={handleUseOdontologyRecommended}
             >
               <IconDental size={16} aria-hidden="true" />
-              {busyId === "recommended-odontologia" ? "Creando..." : "Usar plantilla NOM-013 (Odontología) recomendada"}
+              {busyId === "recommended-odontologia"
+                ? "Creando..."
+                : `Usar plantilla NOM-013 (Odontología)${recommendsOdontology ? " recomendada" : ""}`}
             </button>
           )}
           <button className="btn primary" type="button" disabled={!hasClinic} onClick={() => setCreating(true)}>
@@ -166,7 +162,9 @@ export function TemplatesPanel({ clinicId, hasClinic }: { clinicId?: string; has
         <div className="clinic-list">
           <div className="clinic-row">
             <strong>Sin plantillas registradas</strong>
-            <span>Usa la plantilla NOM-004 recomendada o crea una nueva</span>
+            <span>
+              Usa la plantilla {recommendsOdontology ? "NOM-013 (Odontología)" : "NOM-004"} recomendada o crea una nueva
+            </span>
           </div>
         </div>
       )}

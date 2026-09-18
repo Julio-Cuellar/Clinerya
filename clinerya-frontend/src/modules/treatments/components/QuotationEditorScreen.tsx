@@ -37,6 +37,7 @@ import type { MaterialLineRequest, QuotationItemRequest, QuotationResponse } fro
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
 import type { MaterialResponse } from "@modules/inventory/types";
 import type { PatientResponse } from "@modules/patients/types";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 import type { ClinicResponse } from "@modules/clinics/types";
 import { FileFieldEditor } from "@shared/ui/FileFieldEditor";
 import { TableFieldEditor } from "@shared/ui/TableFieldEditor";
@@ -552,6 +553,7 @@ export function QuotationEditorScreen({
   patient,
   quotation,
   catalogItems,
+  profile = DEFAULT_CLINIC_PROFILE,
   onClose,
   onSaved
 }: {
@@ -560,6 +562,7 @@ export function QuotationEditorScreen({
   patient: PatientResponse;
   quotation?: QuotationResponse;
   catalogItems: TreatmentCatalogItemResponse[];
+  profile?: ClinicProfile;
   onClose: () => void;
   onSaved: (quotation: QuotationResponse) => void;
 }) {
@@ -709,7 +712,9 @@ export function QuotationEditorScreen({
       return {
         catalogItemId: item.catalogItemId || undefined,
         description: item.description,
-        toothNumber: item.toothNumber ? Number(item.toothNumber) : undefined,
+        // Un perfil sin localizador clínico no manda diente aunque la partida lo traiga de antes:
+        // reenviarlo dejaría la cotización fuera de lo que el perfil de la clínica acepta.
+        toothNumber: profile.showsClinicalLocator && item.toothNumber ? Number(item.toothNumber) : undefined,
         laborCharge: Number(item.laborCharge) || 0,
         materials: materialLines,
         discountPercentage: item.discountPercentage ? Number(item.discountPercentage) : undefined
@@ -808,14 +813,16 @@ export function QuotationEditorScreen({
                       ))}
                     </select>
                   </label>
-                  <label className="field">
-                    <span>Diente (opcional, FDI)</span>
-                    <input
-                      type="number"
-                      value={item.toothNumber}
-                      onChange={(event) => updateItem(item.key, { toothNumber: event.target.value })}
-                    />
-                  </label>
+                  {profile.showsClinicalLocator && (
+                    <label className="field">
+                      <span>{profile.locatorFieldLabel}</span>
+                      <input
+                        type="number"
+                        value={item.toothNumber}
+                        onChange={(event) => updateItem(item.key, { toothNumber: event.target.value })}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <label className="field field-full">
@@ -830,7 +837,7 @@ export function QuotationEditorScreen({
 
                 <div className="quotation-modal-row">
                   <label className="field">
-                    <span>Mano de obra</span>
+                    <span>{profile.laborLabel}</span>
                     <input
                       type="number"
                       min={0}

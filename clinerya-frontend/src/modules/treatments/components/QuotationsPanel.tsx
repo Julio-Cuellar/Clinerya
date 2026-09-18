@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { IconArrowLeft, IconPlus } from "@tabler/icons-react";
 import { getFriendlyError, quotationsApi, treatmentCatalogApi } from "@shared/api/api";
-import { QUOTATION_STATUS_LABELS, type QuotationResponse } from "@modules/treatments/quotationTypes";
+import {
+  QUOTATION_STATUS_BADGES,
+  QUOTATION_STATUS_LABELS,
+  type QuotationResponse
+} from "@modules/treatments/quotationTypes";
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
 import type { ClinicResponse } from "@modules/clinics/types";
+import { getClinicProfileFor } from "@shared/utils/clinicProfile";
 import type { PatientResponse } from "@modules/patients/types";
 import { QuotationEditorScreen } from "@modules/treatments/components/QuotationEditorScreen";
 import { QuotationDetailModal } from "@modules/treatments/components/QuotationDetailModal";
@@ -54,6 +59,7 @@ export function QuotationsPanel({
         patient={patient}
         quotation={editing ?? undefined}
         catalogItems={catalogItems}
+        profile={getClinicProfileFor(clinic)}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -118,12 +124,7 @@ export function QuotationsPanel({
             </thead>
             <tbody>
               {quotations.map((quotation) => {
-                const statusBadge =
-                  quotation.status === "ACCEPTED"
-                    ? "success"
-                    : quotation.status === "REJECTED" || quotation.status === "EXPIRED"
-                      ? "neutral"
-                      : "warning";
+                const statusBadge = QUOTATION_STATUS_BADGES[quotation.status];
                 return (
                   <tr key={quotation.id} onClick={() => setViewing(quotation)}>
                     <td>{quotation.quotationDate}</td>

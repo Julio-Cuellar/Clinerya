@@ -14,7 +14,12 @@ import { APPOINTMENT_STATUS_LABELS, type AppointmentResponse } from "@modules/ag
 import { PAYMENT_METHOD_LABELS, type TicketResponse } from "@modules/cash/types";
 import { serializeAttachments, type AttachmentMeta, type ClinicalNoteResponse } from "@modules/records/types";
 import type { Prescription } from "@modules/records/prescriptionTypes";
-import { ITEM_PROGRESS_STATUS_LABELS, QUOTATION_STATUS_LABELS, type QuotationResponse } from "@modules/treatments/quotationTypes";
+import {
+  ITEM_PROGRESS_STATUS_LABELS,
+  QUOTATION_STATUS_BADGES,
+  QUOTATION_STATUS_LABELS,
+  type QuotationResponse
+} from "@modules/treatments/quotationTypes";
 import type { PatientResponse } from "@modules/patients/types";
 import { genderLabel } from "@modules/patients/constants/patientOptions";
 import { getAge } from "@shared/utils/getAge";
@@ -32,6 +37,8 @@ import { PatientHistoryPanel } from "@modules/records/components/PatientHistoryP
 import { PatientSummarySidebar } from "@modules/records/components/PatientSummarySidebar";
 import { PrescriptionSection } from "@modules/records/components/PrescriptionSection";
 import { TemplatesPanel } from "@modules/records/components/TemplatesPanel";
+import type { ClinicResponse } from "@modules/clinics/types";
+import { DEFAULT_CLINIC_PROFILE, getClinicProfileFor, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 type MainTab = "expedientes" | "plantillas";
 type RecordTab = "cronologia" | "historia" | "tratamientos" | "citas" | "recetas" | "pagos" | "estudios";
@@ -48,12 +55,6 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   });
-}
-
-function quoteStatusBadge(status: QuotationResponse["status"]) {
-  if (status === "ACCEPTED") return "success";
-  if (status === "REJECTED" || status === "EXPIRED") return "neutral";
-  return "warning";
 }
 
 function appointmentStatusClass(status: AppointmentResponse["status"]) {
@@ -394,7 +395,15 @@ function CronologiaTab({
   );
 }
 
-function TreatmentsTab({ clinicId, patient }: { clinicId: string; patient: PatientResponse }) {
+function TreatmentsTab({
+  clinicId,
+  patient,
+  profile = DEFAULT_CLINIC_PROFILE
+}: {
+  clinicId: string;
+  patient: PatientResponse;
+  profile?: ClinicProfile;
+}) {
   const [quotations, setQuotations] = useState<QuotationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -445,7 +454,7 @@ function TreatmentsTab({ clinicId, patient }: { clinicId: string; patient: Patie
             <thead>
               <tr>
                 <th>Tratamiento</th>
-                <th>Diente</th>
+                {profile.showsClinicalLocator && <th>{profile.locatorColumnLabel}</th>}
                 <th>Cotizacion</th>
                 <th>Avance</th>
                 <th>Total</th>
@@ -458,9 +467,9 @@ function TreatmentsTab({ clinicId, patient }: { clinicId: string; patient: Patie
                     <strong>{item.description}</strong>
                     <span className="table-subtext">{quotation.notes || "Sin notas"}</span>
                   </td>
-                  <td>{item.toothNumber ?? "General"}</td>
+                  {profile.showsClinicalLocator && <td>{item.toothNumber ?? "General"}</td>}
                   <td>
-                    <span className={`badge ${quoteStatusBadge(quotation.status)}`}>
+                    <span className={`badge ${QUOTATION_STATUS_BADGES[quotation.status]}`}>
                       {QUOTATION_STATUS_LABELS[quotation.status]}
                     </span>
                     <span className="table-subtext">{quotation.quotationDate}</span>
@@ -696,10 +705,12 @@ function StudiesTab({ clinicId, patient }: { clinicId: string; patient: PatientR
 function PatientRecord({
   clinicId,
   patient,
+  profile,
   onBack
 }: {
   clinicId: string;
   patient: PatientResponse;
+  profile: ClinicProfile;
   onBack: () => void;
 }) {
   const [tab, setTab] = useState<RecordTab>("cronologia");
@@ -762,7 +773,7 @@ function PatientRecord({
               showClinicalHeader={false}
             />
           )}
-          {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} />}
+          {tab === "tratamientos" && <TreatmentsTab clinicId={clinicId} patient={patient} profile={profile} />}
           {tab === "citas" && <AppointmentsTab clinicId={clinicId} patient={patient} />}
           {tab === "recetas" && <PrescriptionSection clinicId={clinicId} patient={patient} />}
           {tab === "pagos" && <PaymentsTab clinicId={clinicId} patient={patient} />}
@@ -775,13 +786,16 @@ function PatientRecord({
 
 export function ExpedienteScreen({
   clinicId,
+  clinic,
   hasClinic,
   patients
 }: {
   clinicId?: string;
+  clinic?: ClinicResponse;
   hasClinic: boolean;
   patients: PatientResponse[];
 }) {
+  const profile = getClinicProfileFor(clinic);
   const [mainTab, setMainTab] = useState<MainTab>("expedientes");
   const [selectedPatient, setSelectedPatient] = useState<PatientResponse | null>(null);
   const [search, setSearch] = useState("");
@@ -805,10 +819,15 @@ export function ExpedienteScreen({
         </button>
       </div>
 
-      {mainTab === "plantillas" && <TemplatesPanel clinicId={clinicId} hasClinic={hasClinic} />}
+      {mainTab === "plantillas" && <TemplatesPanel clinicId={clinicId} hasClinic={hasClinic} profile={profile} />}
 
       {mainTab === "expedientes" && selectedPatient && clinicId && (
-        <PatientRecord clinicId={clinicId} patient={selectedPatient} onBack={() => setSelectedPatient(null)} />
+        <PatientRecord
+          clinicId={clinicId}
+          patient={selectedPatient}
+          profile={profile}
+          onBack={() => setSelectedPatient(null)}
+        />
       )}
 
       {mainTab === "expedientes" && (!selectedPatient || !clinicId) && (

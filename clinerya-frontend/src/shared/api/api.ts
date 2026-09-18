@@ -11,7 +11,8 @@ import type {
   ClinicResponse,
   ClinicRoomStaffAssignmentResponse,
   CreateClinicRequest,
-  UpdateClinicRequest
+  UpdateClinicRequest,
+  UpdateClinicSpecialtyRequest
 } from "@modules/clinics/types";
 import type { PatientResponse, RegisterPatientRequest, UpdatePatientRequest } from "@modules/patients/types";
 import type {
@@ -44,6 +45,7 @@ import type {
 import type { IssuePrescriptionRequest, Prescription } from "@modules/records/prescriptionTypes";
 import type {
   CreateTreatmentCatalogItemRequest,
+  SeedCatalogResponse,
   TreatmentCatalogItemResponse,
   UpdateTreatmentCatalogItemRequest
 } from "@modules/treatments/types";
@@ -250,7 +252,12 @@ export const clinicsApi = {
   create: (body: CreateClinicRequest) =>
     request<ClinicResponse>("/v1/clinics", { method: "POST", body: JSON.stringify(body) }),
   update: (clinicId: string, body: UpdateClinicRequest) =>
-    request<ClinicResponse>(`/v1/clinics/${clinicId}`, { method: "PUT", body: JSON.stringify(body) })
+    request<ClinicResponse>(`/v1/clinics/${clinicId}`, { method: "PUT", body: JSON.stringify(body) }),
+  updateSpecialty: (clinicId: string, body: UpdateClinicSpecialtyRequest) =>
+    request<ClinicResponse>(`/v1/clinics/${clinicId}/specialty`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    })
 };
 
 export const patientsApi = {
@@ -458,7 +465,9 @@ export const treatmentCatalogApi = {
       body: JSON.stringify(body)
     }),
   remove: (clinicId: string, itemId: string) =>
-    request<void>(`/v1/clinics/${clinicId}/treatment-catalog/${itemId}`, { method: "DELETE" })
+    request<void>(`/v1/clinics/${clinicId}/treatment-catalog/${itemId}`, { method: "DELETE" }),
+  seed: (clinicId: string) =>
+    request<SeedCatalogResponse>(`/v1/clinics/${clinicId}/treatment-catalog/seed`, { method: "POST" })
 };
 
 export const quotationsApi = {

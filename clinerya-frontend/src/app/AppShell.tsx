@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { IconLogout, IconMenu2, IconMoon, IconPlus, IconShieldLock, IconSun } from "@tabler/icons-react";
 import { NotificationCenter } from "@modules/notifications/components/NotificationCenter";
 import { ClinicModal } from "@modules/clinics/components/ClinicModal";
+import { ClinicOnboardingBanner } from "@modules/clinics/components/ClinicOnboardingBanner";
+import { ClinicOnboardingScreen } from "@modules/clinics/screens/ClinicOnboardingScreen";
+import {
+  dismissOnboarding,
+  getClinicOnboardingState,
+  isOnboardingDismissed
+} from "@modules/clinics/lib/clinicOnboarding";
+import { treatmentCatalogApi } from "@shared/api/api";
 import { ModuleWelcomeScreen } from "@shared/layout/ModuleWelcomeScreen";
 import { PatientModal } from "@modules/patients/components/PatientModal";
 import { PatientsPanel } from "@modules/patients/components/PatientsPanel";
@@ -79,6 +87,9 @@ export function AppShell({
   const [pendingCajaCount, setPendingCajaCount] = useState(0);
   const [carePatient, setCarePatient] = useState<PatientResponse | null>(null);
   const [careAppointment, setCareAppointment] = useState<AppointmentResponse | undefined>(undefined);
+  const [catalogItemCount, setCatalogItemCount] = useState<number | undefined>(undefined);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   const handleStartCare = (patient: PatientResponse, appointment?: AppointmentResponse) => {
     setCarePatient(patient);
@@ -97,6 +108,8 @@ export function AppShell({
   const activeClinicId = clinics[0]?.id ?? user.clinics?.[0]?.id;
   const activeClinic = clinics[0]?.name ?? user.clinics?.[0]?.name;
   const activeWelcomeStorageKey = activeClinicId ? getModuleWelcomeStorageKey(user.id, activeClinicId, active) : null;
+  const activeClinicRecord = clinics[0];
+  const onboardingState = getClinicOnboardingState(activeClinicRecord, catalogItemCount);
   const shouldShowModuleWelcome =
     active !== "dashboard" && active !== "contabilidad" && active !== "configuracion" && active !== "consultorios" && activeWelcomeStorageKey !== null && !localStorage.getItem(activeWelcomeStorageKey);
 
@@ -200,6 +213,37 @@ export function AppShell({
     setStatus(clinicModal?.mode === "create" ? "Clínica creada correctamente." : "Datos de la clínica actualizados.");
   };
 
+  useEffect(() => {
+    if (!activeClinicId) {
+      setCatalogItemCount(undefined);
+      return;
+    }
+    setOnboardingDismissed(isOnboardingDismissed(user.id, activeClinicId));
+    treatmentCatalogApi
+      .list(activeClinicId)
+      .then((items) => setCatalogItemCount(items.length))
+      .catch(() => setCatalogItemCount(undefined));
+  }, [activeClinicId, user.id]);
+
+  // Navegar a otro modulo sale del asistente: dejarlo montado haria que apretar "Agenda" siguiera
+  // mostrando el alta guiada.
+  useEffect(() => {
+    setOnboardingOpen(false);
+  }, [active]);
+
+  const handleDismissOnboarding = () => {
+    if (activeClinicId) {
+      dismissOnboarding(user.id, activeClinicId);
+    }
+    setOnboardingDismissed(true);
+  };
+
+  // Ajustes edita su propia copia de la clinica; sin esto el resto de la app (vocabulario del
+  // modulo de tratamientos, por ejemplo) se quedaria con los datos viejos hasta recargar.
+  const handleClinicUpdated = (updated: ClinicResponse) => {
+    setClinics((prev) => prev.map((clinic) => (clinic.id === updated.id ? updated : clinic)));
+  };
+
   const completeModuleWelcome = () => {
     if (activeWelcomeStorageKey) {
       localStorage.setItem(activeWelcomeStorageKey, "seen");
@@ -211,6 +255,16 @@ export function AppShell({
   const userRole = activeClinicSummary?.role ?? "DOCTOR";
   const userPermissions = activeClinicSummary?.permissions;
   const allowedModules = getAllowedModulesForUser(userRole, userPermissions);
+  // El alta guiada escribe datos de la clinica, su especialidad y el catalogo. Quien no puede
+  // hacer nada de eso no deberia ver el aviso: lo unico que conseguiria es una fila de 403.
+  const canConfigureClinic =
+    activeClinicRecord?.ownerUserId === user.id || userRole === "CLINIC_ADMIN" || userRole === "ADMIN";
+  const showOnboardingBanner =
+    onboardingState.pending &&
+    canConfigureClinic &&
+    !onboardingOpen &&
+    !onboardingDismissed &&
+    Boolean(activeClinicRecord);
 
   useEffect(() => {
     if (!allowedModules.has(active)) {
@@ -281,6 +335,22 @@ export function AppShell({
             Esta función está optimizada para pantallas más grandes. Por favor, usa una tablet o computadora.
           </div>
         )}
+        {showOnboardingBanner && (
+          <ClinicOnboardingBanner
+            state={onboardingState}
+            onContinue={() => setOnboardingOpen(true)}
+            onDismiss={handleDismissOnboarding}
+          />
+        )}
+        {onboardingOpen && activeClinicRecord ? (
+          <ClinicOnboardingScreen
+            clinic={activeClinicRecord}
+            catalogItemCount={catalogItemCount}
+            onClinicUpdated={handleClinicUpdated}
+            onCatalogSeeded={setCatalogItemCount}
+            onClose={() => setOnboardingOpen(false)}
+          />
+        ) : (
         <div key={active} className="fade-in-slide">
           {active === "dashboard" ? (
             <DashboardScreen
@@ -370,7 +440,12 @@ export function AppShell({
               }
             />
           ) : active === "expediente" ? (
-            <ExpedienteScreen clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} patients={patients} />
+            <ExpedienteScreen
+              clinicId={activeClinicId}
+              clinic={clinics[0]}
+              hasClinic={Boolean(activeClinicId)}
+              patients={patients}
+            />
           ) : active === "tratamientos" ? (
             <TratamientosScreen
               clinicId={activeClinicId}
@@ -393,6 +468,7 @@ export function AppShell({
         ) : active === "configuracion" ? (
           <SettingsScreen
             clinicId={activeClinicId}
+            onClinicUpdated={handleClinicUpdated}
             userId={user.id}
             user={user}
             theme={theme}
@@ -482,6 +558,7 @@ export function AppShell({
           </section>
         )}
         </div>
+        )}
 
         {status && <p className="alert success">{status}</p>}
         {error && <p className="alert error">{error}</p>}

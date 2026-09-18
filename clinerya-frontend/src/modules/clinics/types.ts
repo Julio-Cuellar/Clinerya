@@ -1,3 +1,12 @@
+export type ClinicSpecialty =
+  | "SIN_CONFIGURAR"
+  | "ODONTOLOGIA"
+  | "MEDICINA_GENERAL"
+  | "NUTRICION"
+  | "FISIOTERAPIA"
+  | "OFTALMOLOGIA"
+  | "OTRA";
+
 export interface ClinicResponse {
   id: string;
   organizationId?: string;
@@ -15,6 +24,7 @@ export interface ClinicResponse {
   email?: string;
   logoUrl?: string;
   timezone?: string;
+  specialty?: ClinicSpecialty;
   privacyNoticeUrl?: string;
   cofeprisPermitNumber?: string;
   responsibleDoctorName?: string;
@@ -22,6 +32,10 @@ export interface ClinicResponse {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpdateClinicSpecialtyRequest {
+  specialty: ClinicSpecialty;
 }
 
 export interface CreateClinicRequest {

@@ -24,6 +24,12 @@ export interface TreatmentCatalogItemResponse {
   updatedAt: string;
 }
 
+export interface SeedCatalogResponse {
+  created: number;
+  skipped: number;
+  items: TreatmentCatalogItemResponse[];
+}
+
 export interface CreateTreatmentCatalogItemRequest {
   name: string;
   category?: string;
