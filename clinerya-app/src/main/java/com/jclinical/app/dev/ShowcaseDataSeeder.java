@@ -20,6 +20,7 @@ import com.jclinical.clinics.domain.model.Clinic;
 import com.jclinical.staff.domain.model.StaffRole;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
+import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.model.MovementType;
 import com.jclinical.inventory.domain.model.PurchaseOrder;
@@ -157,6 +158,10 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No se aprovisiono la clinica de la cuenta showcase."));
         UUID clinicId = clinic.getId();
+
+        // Las clinicas nacen en SIN_CONFIGURAR y ambas siembras son demos odontologicas:
+        // sin declarar el perfil, las partidas con numero de diente serian rechazadas.
+        clinicUseCase.updateSpecialty(user.getId(), clinicId, ClinicSpecialty.ODONTOLOGIA);
 
         clinicUseCase.updateClinic(
                 user.getId(),

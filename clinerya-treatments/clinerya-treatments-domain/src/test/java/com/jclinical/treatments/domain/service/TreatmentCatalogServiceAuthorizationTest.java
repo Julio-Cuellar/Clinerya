@@ -40,6 +40,9 @@ class TreatmentCatalogServiceAuthorizationTest {
     @Mock
     private StaffPermissionCheckerPort permissionChecker;
 
+    @Mock
+    private com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort clinicSpecialtyPort;
+
     private TreatmentCatalogService service;
 
     private UUID clinicId;
@@ -49,7 +52,8 @@ class TreatmentCatalogServiceAuthorizationTest {
     void setUp() {
         clinicId = UUID.randomUUID();
         actingUserId = UUID.randomUUID();
-        service = new TreatmentCatalogService(catalogRepository, inventoryMaterialPort, permissionChecker);
+        service = new TreatmentCatalogService(
+                catalogRepository, inventoryMaterialPort, permissionChecker, clinicSpecialtyPort);
     }
 
     @Test

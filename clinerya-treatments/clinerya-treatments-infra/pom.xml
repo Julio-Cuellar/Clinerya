@@ -49,6 +49,12 @@
             <artifactId>clinerya-inventory-domain</artifactId>
         </dependency>
 
+        <!-- Dependencia del módulo de dominio de clínicas (para leer el perfil de especialidad) -->
+        <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-clinics-domain</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

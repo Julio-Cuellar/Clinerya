@@ -2,32 +2,89 @@ package com.jclinical.treatments.domain.service;
 
 import com.jclinical.treatments.domain.model.TreatmentCatalogItem;
 import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
+import com.jclinical.treatments.domain.model.TreatmentCatalogSeeds;
+import com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort;
 import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.TreatmentCatalogRepositoryPort;
+import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.StaffPermission;
 import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
 
     private final TreatmentCatalogRepositoryPort catalogRepository;
     private final InventoryMaterialPort inventoryMaterialPort;
     private final StaffPermissionCheckerPort permissionChecker;
+    private final ClinicSpecialtyPort clinicSpecialtyPort;
 
     public TreatmentCatalogService(TreatmentCatalogRepositoryPort catalogRepository,
                                    InventoryMaterialPort inventoryMaterialPort,
-                                   StaffPermissionCheckerPort permissionChecker) {
+                                   StaffPermissionCheckerPort permissionChecker,
+                                   ClinicSpecialtyPort clinicSpecialtyPort) {
         this.catalogRepository = catalogRepository;
         this.inventoryMaterialPort = inventoryMaterialPort;
         this.permissionChecker = permissionChecker;
+        this.clinicSpecialtyPort = clinicSpecialtyPort;
+    }
+
+    @Override
+    public SeedResult seedCatalogForSpecialty(UUID actingUserId, UUID clinicId) {
+        requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
+                "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
+
+        ClinicSpecialty specialty = clinicSpecialtyPort.findByClinicId(clinicId)
+                .orElse(ClinicSpecialty.SIN_CONFIGURAR);
+        List<TreatmentCatalogSeeds.SeedItem> seeds = TreatmentCatalogSeeds.forSpecialty(specialty);
+        if (seeds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No hay un catálogo sugerido para la especialidad de esta clínica.");
+        }
+
+        // Clave natural: el nombre del servicio dentro de la clínica. Se comparan también los
+        // inactivos, porque volver a crear algo que el médico dio de baja seria peor que omitirlo.
+        Set<String> existing = catalogRepository.findByClinicId(clinicId, true).stream()
+                .map(item -> normalize(item.getName()))
+                .collect(Collectors.toSet());
+
+        List<TreatmentCatalogItem> created = new ArrayList<>();
+        int skipped = 0;
+        for (TreatmentCatalogSeeds.SeedItem seed : seeds) {
+            if (!existing.add(normalize(seed.name()))) {
+                skipped++;
+                continue;
+            }
+            created.add(catalogRepository.save(TreatmentCatalogItem.builder()
+                    .id(UUID.randomUUID())
+                    .clinicId(clinicId)
+                    .name(seed.name())
+                    .category(seed.category())
+                    .defaultPrice(seed.defaultPrice())
+                    .estimatedDurationMinutes(seed.estimatedDurationMinutes())
+                    .materials(List.of())
+                    .active(true)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build()));
+        }
+
+        return new SeedResult(created.size(), skipped, created);
+    }
+
+    private String normalize(String name) {
+        return name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
     }
 
     @Override
