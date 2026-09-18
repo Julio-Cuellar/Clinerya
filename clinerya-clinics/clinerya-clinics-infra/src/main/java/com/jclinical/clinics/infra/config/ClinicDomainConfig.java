@@ -40,8 +40,10 @@ public class ClinicDomainConfig {
     public ManageClinicUseCase manageClinicUseCase(
             ClinicRepositoryPort clinicRepository,
             ClinicStaffRepositoryPort clinicStaffRepository,
-            DoctorProfileRepositoryPort doctorProfileRepository) {
-        return new ManageClinicService(clinicRepository, clinicStaffRepository, doctorProfileRepository);
+            DoctorProfileRepositoryPort doctorProfileRepository,
+            com.jclinical.core.security.StaffPermissionCheckerPort permissionChecker) {
+        return new ManageClinicService(
+                clinicRepository, clinicStaffRepository, doctorProfileRepository, permissionChecker);
     }
 
     @Bean
@@ -181,6 +183,7 @@ public class ClinicDomainConfig {
                         .email(domain.getEmail())
                         .logoUrl(domain.getLogoUrl())
                         .timezone(domain.getTimezone())
+                        .specialty(domain.getSpecialty())
                         .privacyNoticeUrl(domain.getPrivacyNoticeUrl())
                         .cofeprisPermitNumber(domain.getCofeprisPermitNumber())
                         .responsibleDoctorName(domain.getResponsibleDoctorName())
@@ -216,6 +219,7 @@ public class ClinicDomainConfig {
                         .email(entity.getEmail())
                         .logoUrl(entity.getLogoUrl())
                         .timezone(entity.getTimezone())
+                        .specialty(entity.getSpecialty())
                         .privacyNoticeUrl(entity.getPrivacyNoticeUrl())
                         .cofeprisPermitNumber(entity.getCofeprisPermitNumber())
                         .responsibleDoctorName(entity.getResponsibleDoctorName())
@@ -251,6 +255,7 @@ public class ClinicDomainConfig {
                         domain.getEmail(),
                         domain.getLogoUrl(),
                         domain.getTimezone(),
+                        domain.getSpecialty(),
                         domain.getPrivacyNoticeUrl(),
                         domain.getCofeprisPermitNumber(),
                         domain.getResponsibleDoctorName(),

@@ -4,6 +4,10 @@ import com.jclinical.clinics.domain.model.*;
 import com.jclinical.clinics.domain.ports.in.GetClinicSettingsUseCase;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
 import com.jclinical.clinics.domain.ports.out.ClinicRepositoryPort;
+import com.jclinical.core.domain.ClinicSpecialty;
+import com.jclinical.core.security.ClinicAccessDeniedException;
+import com.jclinical.core.security.StaffPermission;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.model.ClinicStaff;
@@ -22,13 +26,16 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
     private final ClinicRepositoryPort clinicRepository;
     private final ClinicStaffRepositoryPort clinicStaffRepository;
     private final DoctorProfileRepositoryPort doctorProfileRepository;
+    private final StaffPermissionCheckerPort permissionChecker;
 
     public ManageClinicService(ClinicRepositoryPort clinicRepository,
                                ClinicStaffRepositoryPort clinicStaffRepository,
-                               DoctorProfileRepositoryPort doctorProfileRepository) {
+                               DoctorProfileRepositoryPort doctorProfileRepository,
+                               StaffPermissionCheckerPort permissionChecker) {
         this.clinicRepository = clinicRepository;
         this.clinicStaffRepository = clinicStaffRepository;
         this.doctorProfileRepository = doctorProfileRepository;
+        this.permissionChecker = permissionChecker;
     }
 
     @Override
@@ -61,6 +68,7 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
                 .name(name.trim())
                 .email(email != null ? email.trim() : null)
                 .timezone(timezone != null ? timezone.trim() : "America/Mexico_City")
+                .specialty(ClinicSpecialty.SIN_CONFIGURAR)
                 .legalName(legalName != null ? legalName.trim() : null)
                 .rfc(rfc != null ? rfc.trim() : null)
                 .taxRegimeCode(taxRegimeCode != null ? taxRegimeCode.trim() : null)
@@ -172,6 +180,26 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
     }
 
     @Override
+    public Clinic updateSpecialty(UUID actingUserId, UUID clinicId, ClinicSpecialty specialty) {
+        if (specialty == null) {
+            throw new IllegalArgumentException("La especialidad de la clínica es obligatoria.");
+        }
+
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("Clínica no encontrada"));
+
+        boolean isOwner = clinic.getOwnerUserId().equals(actingUserId);
+        if (!isOwner && !permissionChecker.hasPermission(clinicId, actingUserId, StaffPermission.MANAGE_CLINIC)) {
+            throw new ClinicAccessDeniedException(
+                    "No tienes permiso para cambiar la especialidad de esta clínica.");
+        }
+
+        clinic.setSpecialty(specialty);
+        clinic.setUpdatedAt(LocalDateTime.now());
+        return clinicRepository.save(clinic);
+    }
+
+    @Override
     public Clinic getClinic(UUID ownerUserId, UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("Clínica no encontrada"));
@@ -214,6 +242,7 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
         return clinicRepository.findById(clinicId)
                 .map(clinic -> new ClinicSettings(
                         clinic.getId(),
-                        clinic.getMaterialReservationLeadDays() != null ? clinic.getMaterialReservationLeadDays() : 3));
+                        clinic.getMaterialReservationLeadDays() != null ? clinic.getMaterialReservationLeadDays() : 3,
+                        clinic.getSpecialty() != null ? clinic.getSpecialty() : ClinicSpecialty.SIN_CONFIGURAR));
     }
 }

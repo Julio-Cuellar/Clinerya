@@ -5,6 +5,7 @@ import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
 import com.jclinical.clinics.infra.adapters.in.web.dto.ClinicResponse;
 import com.jclinical.clinics.infra.adapters.in.web.dto.CreateClinicRequest;
 import com.jclinical.clinics.infra.adapters.in.web.dto.UpdateClinicRequest;
+import com.jclinical.clinics.infra.adapters.in.web.dto.UpdateClinicSpecialtyRequest;
 import com.jclinical.clinics.infra.adapters.out.ClinicMapper;
 import com.jclinical.clinics.infra.adapters.out.accounting.DefaultPettyCashProvisioner;
 import com.jclinical.users.infra.security.CurrentUserResolver;
@@ -83,6 +84,15 @@ public class ClinicController {
                 request.materialReservationLeadDays()
         );
 
+        return ResponseEntity.ok(clinicMapper.toResponse(clinic));
+    }
+
+    @PutMapping("/{clinicId}/specialty")
+    public ResponseEntity<ClinicResponse> updateSpecialty(
+            @PathVariable UUID clinicId,
+            @RequestBody UpdateClinicSpecialtyRequest request) {
+        UUID actingUserId = getAuthenticatedUserId();
+        Clinic clinic = manageClinicUseCase.updateSpecialty(actingUserId, clinicId, request.specialty());
         return ResponseEntity.ok(clinicMapper.toResponse(clinic));
     }
 
