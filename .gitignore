@@ -58,3 +58,6 @@ nginx.conf
 postman/
 scripts/
 clinerya-users-collection.json
+
+# Clon local del plugin ECC (no pertenece al proyecto)
+ECC/
