@@ -1,5 +1,6 @@
 package com.jclinical.treatments.domain.service;
 
+import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.PatientAccessAuthorizationPort;
 import com.jclinical.core.security.PatientAccessAuthorizationPort.AccessDecision;
@@ -11,6 +12,7 @@ import com.jclinical.treatments.domain.model.QuotationItemMaterial;
 import com.jclinical.treatments.domain.model.QuotationStatus;
 import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase;
 import com.jclinical.treatments.domain.ports.in.QuotationLookupUseCase;
+import com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
@@ -29,16 +31,19 @@ public class QuotationService implements ManageQuotationUseCase, QuotationLookup
     private final PatientValidatorPort patientValidator;
     private final InventoryMaterialPort inventoryMaterialPort;
     private final PatientAccessAuthorizationPort accessAuthorizationPort;
+    private final ClinicSpecialtyPort clinicSpecialtyPort;
 
     public QuotationService(
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
             InventoryMaterialPort inventoryMaterialPort,
-            PatientAccessAuthorizationPort accessAuthorizationPort) {
+            PatientAccessAuthorizationPort accessAuthorizationPort,
+            ClinicSpecialtyPort clinicSpecialtyPort) {
         this.quotationRepository = quotationRepository;
         this.patientValidator = patientValidator;
         this.inventoryMaterialPort = inventoryMaterialPort;
         this.accessAuthorizationPort = accessAuthorizationPort;
+        this.clinicSpecialtyPort = clinicSpecialtyPort;
     }
 
     @Override
@@ -160,11 +165,14 @@ public class QuotationService implements ManageQuotationUseCase, QuotationLookup
     }
 
     private List<QuotationItem> toItems(List<QuotationItemCommand> commands, UUID clinicId) {
-        return commands.stream().map(command -> toItem(command, clinicId)).toList();
+        // El perfil se resuelve una sola vez por cotizacion, no una por partida.
+        ClinicSpecialty specialty = clinicSpecialtyPort.findByClinicId(clinicId)
+                .orElse(ClinicSpecialty.SIN_CONFIGURAR);
+        return commands.stream().map(command -> toItem(command, clinicId, specialty)).toList();
     }
 
-    private QuotationItem toItem(QuotationItemCommand command, UUID clinicId) {
-        validateItem(command);
+    private QuotationItem toItem(QuotationItemCommand command, UUID clinicId, ClinicSpecialty specialty) {
+        validateItem(command, specialty);
         return QuotationItem.builder()
                 .id(UUID.randomUUID())
                 .catalogItemId(command.catalogItemId())
@@ -217,7 +225,7 @@ public class QuotationService implements ManageQuotationUseCase, QuotationLookup
                 .build();
     }
 
-    private void validateItem(QuotationItemCommand command) {
+    private void validateItem(QuotationItemCommand command, ClinicSpecialty specialty) {
         if (command.description() == null || command.description().isBlank()) {
             throw new IllegalArgumentException("La descripción de la partida es obligatoria.");
         }
@@ -228,8 +236,15 @@ public class QuotationService implements ManageQuotationUseCase, QuotationLookup
         if (discount != null && (discount.signum() < 0 || discount.compareTo(BigDecimal.valueOf(100)) > 0)) {
             throw new IllegalArgumentException("El descuento debe estar entre 0 y 100.");
         }
-        if (command.toothNumber() != null && !isValidFdiTooth(command.toothNumber())) {
-            throw new IllegalArgumentException("El número de diente no es una notación FDI válida.");
+        if (command.toothNumber() != null) {
+            if (!specialty.usaLocalizadorDental()) {
+                throw new IllegalArgumentException(
+                        "Esta clínica no registra número de diente en sus partidas. "
+                                + "Indica la zona en la descripción del concepto.");
+            }
+            if (!isValidFdiTooth(command.toothNumber())) {
+                throw new IllegalArgumentException("El número de diente no es una notación FDI válida.");
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.jclinical.clinics.domain.model;
 
+import com.jclinical.core.domain.ClinicSpecialty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -31,6 +32,8 @@ public class Clinic {
     private String email;
     private String logoUrl;
     private String timezone;
+    @Builder.Default
+    private ClinicSpecialty specialty = ClinicSpecialty.SIN_CONFIGURAR;
     private String privacyNoticeUrl;
     private String cofeprisPermitNumber;
     private String responsibleDoctorName;

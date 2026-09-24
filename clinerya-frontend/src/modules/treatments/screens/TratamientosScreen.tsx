@@ -4,6 +4,7 @@ import { QuotationsPanel } from "@modules/treatments/components/QuotationsPanel"
 import { TreatmentCatalogPanel } from "@modules/treatments/components/TreatmentCatalogPanel";
 import type { ClinicResponse } from "@modules/clinics/types";
 import type { PatientResponse } from "@modules/patients/types";
+import { getClinicProfileFor } from "@shared/utils/clinicProfile";
 
 type Tab = "catalogo" | "cotizaciones";
 
@@ -18,6 +19,7 @@ export function TratamientosScreen({
   hasClinic: boolean;
   patients: PatientResponse[];
 }) {
+  const profile = getClinicProfileFor(clinic);
   const [tab, setTab] = useState<Tab>("catalogo");
   const [selectedPatient, setSelectedPatient] = useState<PatientResponse | null>(null);
   const [search, setSearch] = useState("");
@@ -45,7 +47,7 @@ export function TratamientosScreen({
         </button>
       </div>
 
-      {tab === "catalogo" && <TreatmentCatalogPanel clinicId={clinicId} hasClinic={hasClinic} />}
+      {tab === "catalogo" && <TreatmentCatalogPanel clinicId={clinicId} hasClinic={hasClinic} profile={profile} />}
 
       {tab === "cotizaciones" &&
         (selectedPatient && clinicId ? (

@@ -2,6 +2,7 @@ package com.jclinical.app.dev;
 
 import com.jclinical.clinics.domain.model.Clinic;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
+import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.model.MovementType;
 import com.jclinical.inventory.domain.ports.in.ManageInventoryMovementUseCase;
@@ -100,6 +101,10 @@ public class DevDataSeeder implements ApplicationRunner {
         }
 
         UUID clinicId = clinics.get(0).getId();
+
+        // Las clinicas nacen en SIN_CONFIGURAR y ambas siembras son demos odontologicas:
+        // sin declarar el perfil, las partidas con numero de diente serian rechazadas.
+        clinicUseCase.updateSpecialty(user.getId(), clinicId, ClinicSpecialty.ODONTOLOGIA);
         
         // 1. Siembra de Inventario
         List<Material> materials = seedInventory(user.getId(), clinicId);

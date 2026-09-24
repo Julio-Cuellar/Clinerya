@@ -4,6 +4,7 @@ import { getFriendlyError, materialsApi, treatmentCatalogApi } from "@shared/api
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
 import type { MaterialResponse } from "@modules/inventory/types";
 import { Field } from "@shared/ui/Field";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 interface EditableMaterialLine {
   key: string;
@@ -22,11 +23,13 @@ function emptyMaterialLine(): EditableMaterialLine {
 export function TreatmentCatalogModal({
   clinicId,
   item,
+  profile = DEFAULT_CLINIC_PROFILE,
   onClose,
   onSaved
 }: {
   clinicId: string;
   item?: TreatmentCatalogItemResponse;
+  profile?: ClinicProfile;
   onClose: () => void;
   onSaved: (item: TreatmentCatalogItemResponse) => void;
 }) {
@@ -116,7 +119,7 @@ export function TreatmentCatalogModal({
           <Field name="category" label="Categoría" defaultValue={item?.category} placeholder="Preventiva, Restaurativa, Cirugía..." />
           <Field
             name="defaultPrice"
-            label="Precio de mano de obra"
+            label={profile.laborPriceLabel}
             type="number"
             defaultValue={item ? String(item.defaultPrice) : undefined}
             required

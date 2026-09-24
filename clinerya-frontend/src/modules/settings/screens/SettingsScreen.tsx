@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { getFriendlyError, integrationsApi, staffApi, authApi, systemConfigsApi } from "@shared/api/api";
 import { ClinicConfigurationPanel } from "@modules/clinics/components/ClinicConfigurationPanel";
+import type { ClinicResponse } from "@modules/clinics/types";
 import type { UserProfile } from "@modules/auth/types";
 import type { Theme } from "@modules/settings/themeTypes";
 
@@ -36,6 +37,7 @@ const PALETTES: PaletteOption[] = [
 
 export function SettingsScreen({
   clinicId,
+  onClinicUpdated,
   userId,
   user,
   theme,
@@ -44,6 +46,7 @@ export function SettingsScreen({
   setColorPalette
 }: {
   clinicId?: string;
+  onClinicUpdated?: (clinic: ClinicResponse) => void;
   userId: string;
   user: UserProfile;
   theme: Theme;
@@ -363,7 +366,7 @@ export function SettingsScreen({
                     <span>{user.clinics?.[0]?.name ?? "Sin clínica activa"}</span>
                   </div>
 
-                  <ClinicConfigurationPanel clinicId={clinicId} />
+                  <ClinicConfigurationPanel clinicId={clinicId} onClinicUpdated={onClinicUpdated} />
 
                   <div className="panel" style={{ padding: "16px", background: "var(--color-card)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -1,5 +1,7 @@
 package com.jclinical.clinics.infra.adapters.in.web.dto;
 
+import com.jclinical.core.domain.ClinicSpecialty;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -20,6 +22,7 @@ public record ClinicResponse(
     String email,
     String logoUrl,
     String timezone,
+    ClinicSpecialty specialty,
     String privacyNoticeUrl,
     String cofeprisPermitNumber,
     String responsibleDoctorName,

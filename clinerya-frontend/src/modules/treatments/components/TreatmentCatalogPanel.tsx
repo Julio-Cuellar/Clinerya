@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { IconPlus, IconSearch } from "@tabler/icons-react";
+import { IconInfoCircle, IconPlus, IconSearch, IconWand } from "@tabler/icons-react";
 import { getFriendlyError, treatmentCatalogApi } from "@shared/api/api";
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
 import { TreatmentCatalogModal } from "@modules/treatments/components/TreatmentCatalogModal";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
-export function TreatmentCatalogPanel({ clinicId, hasClinic }: { clinicId?: string; hasClinic: boolean }) {
+export function TreatmentCatalogPanel({
+  clinicId,
+  hasClinic,
+  profile = DEFAULT_CLINIC_PROFILE
+}: {
+  clinicId?: string;
+  hasClinic: boolean;
+  profile?: ClinicProfile;
+}) {
   const [items, setItems] = useState<TreatmentCatalogItemResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -14,6 +23,21 @@ export function TreatmentCatalogPanel({ clinicId, hasClinic }: { clinicId?: stri
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TreatmentCatalogItemResponse | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+
+  const handleSeed = async () => {
+    if (!clinicId) return;
+    setSeeding(true);
+    setError("");
+    try {
+      const result = await treatmentCatalogApi.seed(clinicId);
+      setItems(result.items);
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const load = () => {
     if (!clinicId) return;
@@ -110,11 +134,34 @@ export function TreatmentCatalogPanel({ clinicId, hasClinic }: { clinicId?: stri
         </div>
       )}
       {hasClinic && !loading && items.length === 0 && (
-        <div className="clinic-list">
-          <div className="clinic-row">
-            <strong>Sin servicios registrados</strong>
-            <span>Crea el primer servicio o tratamiento de tu catálogo</span>
-          </div>
+        <div className="catalog-empty-state">
+          <strong>Empieza tu catálogo de servicios</strong>
+          {profile.hasSuggestedCatalog ? (
+            <>
+              <p>
+                Podemos crear el catálogo sugerido para {profile.label.toLowerCase()} y lo ajustas desde
+                aquí, o lo armas tú desde cero.
+              </p>
+              <p className="catalog-empty-note">
+                <IconInfoCircle size={16} aria-hidden="true" />
+                Los precios son de referencia. Ajústalos a tu clínica antes de cotizar.
+              </p>
+              <div className="catalog-empty-actions">
+                <button className="btn primary" type="button" disabled={seeding} onClick={handleSeed}>
+                  <IconWand size={16} aria-hidden="true" />
+                  {seeding ? "Creando..." : `Usar catálogo de ${profile.label.toLowerCase()}`}
+                </button>
+                <button className="btn" type="button" onClick={() => setCreating(true)}>
+                  Empezar en blanco
+                </button>
+              </div>
+            </>
+          ) : (
+            <p>
+              Crea el primer servicio o tratamiento de tu catálogo. Si eliges una especialidad en la
+              configuración de la clínica, podemos sugerirte un catálogo de arranque.
+            </p>
+          )}
         </div>
       )}
 
@@ -179,6 +226,7 @@ export function TreatmentCatalogPanel({ clinicId, hasClinic }: { clinicId?: stri
       {creating && clinicId && (
         <TreatmentCatalogModal
           clinicId={clinicId}
+          profile={profile}
           onClose={() => setCreating(false)}
           onSaved={(created) => {
             setItems((prev) => [...prev, created]);
@@ -191,6 +239,7 @@ export function TreatmentCatalogPanel({ clinicId, hasClinic }: { clinicId?: stri
         <TreatmentCatalogModal
           clinicId={clinicId}
           item={editing}
+          profile={profile}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));

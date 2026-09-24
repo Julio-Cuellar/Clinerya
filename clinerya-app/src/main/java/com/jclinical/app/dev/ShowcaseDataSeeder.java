@@ -18,8 +18,11 @@ import com.jclinical.cash.domain.ports.in.ManageCashSessionUseCase;
 import com.jclinical.cash.domain.ports.in.ManageTicketsUseCase;
 import com.jclinical.clinics.domain.model.Clinic;
 import com.jclinical.staff.domain.model.StaffRole;
+import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
+import com.jclinical.core.domain.ClinicSpecialty;
+import com.jclinical.core.security.StaffPermission;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.model.MovementType;
 import com.jclinical.inventory.domain.model.PurchaseOrder;
@@ -86,6 +89,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,6 +162,10 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 .orElseThrow(() -> new IllegalStateException("No se aprovisiono la clinica de la cuenta showcase."));
         UUID clinicId = clinic.getId();
 
+        // Las clinicas nacen en SIN_CONFIGURAR y ambas siembras son demos odontologicas:
+        // sin declarar el perfil, las partidas con numero de diente serian rechazadas.
+        clinicUseCase.updateSpecialty(user.getId(), clinicId, ClinicSpecialty.ODONTOLOGIA);
+
         clinicUseCase.updateClinic(
                 user.getId(),
                 clinicId,
@@ -184,6 +192,8 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
         UUID staffId = clinicStaffUseCase.getActiveStaffByUserAndClinic(user.getId(), clinicId)
                 .map(ManageClinicStaffUseCase.StaffSummary::staffId)
                 .orElseThrow(() -> new IllegalStateException("No se encontro el perfil medico de la cuenta showcase."));
+
+        promoteShowcaseOwnerToDoctor(clinicId, staffId);
 
         seedSchedule(clinicId);
         BankAccount operatingBank = seedAccounting(user.getId(), clinicId);
@@ -357,6 +367,27 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 emergency("Lucia Hernandez", "Hija", "2225553190")));
 
         return new PatientFixture(primary, pediatric, geriatric);
+    }
+
+    /**
+     * La cuenta showcase es "Dra. Elena Martinez": una doctora que ademas es dueña de su clinica.
+     * El alta la registra como {@code CLINIC_ADMIN}, pero la agenda solo acepta citas cuyo staff
+     * tenga rol {@code DOCTOR} (ver AgendaStaffValidatorAdapter), asi que sin esto el seeder no
+     * puede crear ni una sola cita y la aplicacion no arranca.
+     *
+     * <p>El rol es un unico valor, no una lista: pasarla a DOCTOR le quita los permisos que solo
+     * trae CLINIC_ADMIN —entre ellos {@code MANAGE_CASH_CUTS} y {@code MANAGE_EXPENSES}, que
+     * {@code seedCash} necesita mas abajo—, asi que cambiar el rol a secas solo mueve el fallo de
+     * la agenda a la caja. Por eso se le devuelve el conjunto completo mediante overrides, que es
+     * justamente el mecanismo que el producto ofrece para "este rol, mas estos permisos extra".
+     */
+    private void promoteShowcaseOwnerToDoctor(UUID clinicId, UUID staffId) {
+        clinicStaffUseCase.updateStaff(clinicId, staffId, StaffRole.DOCTOR);
+        clinicStaffUseCase.updatePermissions(clinicId, staffId,
+                EnumSet.allOf(StaffPermission.class).stream()
+                        .map(permission -> new ManageClinicStaffUseCase.PermissionChange(
+                                permission, StaffPermissionOverrideState.GRANTED))
+                        .toList());
     }
 
     private void seedPersonnel(UUID clinicId) {
@@ -535,11 +566,17 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
             PatientFixture patients,
             TreatmentFixture treatments) {
         LocalDate pastDate = clinicDay(LocalDate.now(), -1);
+        // Esta cita es historia: la muestra necesita una cita ya COMPLETADA para que el
+        // expediente, los reportes y la caja tengan de donde colgar. El dominio prohibe agendar
+        // en el pasado (validateFutureStart) y el unico interruptor que tiene para saltarselo es
+        // externalImport, que ademas apaga el chequeo de horario de atencion y el de traslapes
+        // -irrelevantes al insertar historia-. La bandera NO se persiste: el Appointment guardado
+        // queda identico a cualquier otro, no se marca como importado de un calendario externo.
         Appointment completed = appointmentsUseCase.createAppointment(clinicId,
                 new ManageAppointmentsUseCase.CreateAppointmentCommand(
-                        patients.primary().getId(), staffId, null, null,
+                        patients.primary().getId(), staffId, null, null, null, List.of(),
                         pastDate.atTime(10, 0), pastDate.atTime(10, 45),
-                        "Profilaxis dental", "Cita completada de demostracion"));
+                        "Profilaxis dental", "Cita completada de demostracion", true));
         appointmentsUseCase.transitionStatus(completed.getId(), clinicId, AppointmentStatus.COMPLETED);
 
         LocalDate treatmentDate = clinicDay(LocalDate.now(), 1);

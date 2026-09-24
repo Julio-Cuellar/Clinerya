@@ -8,6 +8,8 @@ import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationStatus;
 import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase.CreateQuotationCommand;
 import com.jclinical.treatments.domain.ports.in.ManageQuotationUseCase.UpdateHeaderCommand;
+import com.jclinical.core.domain.ClinicSpecialty;
+import com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
 import com.jclinical.treatments.domain.ports.out.QuotationRepositoryPort;
@@ -53,6 +55,9 @@ class QuotationServiceAuthorizationTest {
     @Mock
     private PatientAccessAuthorizationPort accessAuthorizationPort;
 
+    @Mock
+    private ClinicSpecialtyPort clinicSpecialtyPort;
+
     private QuotationService service;
 
     private UUID patientId;
@@ -63,7 +68,8 @@ class QuotationServiceAuthorizationTest {
     @BeforeEach
     void setUp() {
         service = new QuotationService(
-                quotationRepository, patientValidator, inventoryMaterialPort, accessAuthorizationPort);
+                quotationRepository, patientValidator, inventoryMaterialPort, accessAuthorizationPort,
+                clinicSpecialtyPort);
         patientId = UUID.randomUUID();
         clinicId = UUID.randomUUID();
         quotationId = UUID.randomUUID();

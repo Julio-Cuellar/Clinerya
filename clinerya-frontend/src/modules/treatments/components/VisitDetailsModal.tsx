@@ -1,15 +1,18 @@
 import { IconX } from "@tabler/icons-react";
 import type { QuotationResponse, VisitResponse } from "@modules/treatments/quotationTypes";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 interface VisitDetailsModalProps {
   quotation: QuotationResponse;
   visit: VisitResponse;
+  profile?: ClinicProfile;
   onClose: () => void;
 }
 
 export function VisitDetailsModal({
   quotation,
   visit,
+  profile = DEFAULT_CLINIC_PROFILE,
   onClose
 }: VisitDetailsModalProps) {
   return (
@@ -70,7 +73,10 @@ export function VisitDetailsModal({
                     }}
                   >
                     <h4 style={{ fontWeight: 600, fontSize: '13px', margin: '0 0 10px 0' }}>
-                      {qItem?.description || "Tratamiento"} {qItem?.toothNumber ? `(Pieza ${qItem.toothNumber})` : ''}
+                      {qItem?.description || "Tratamiento"}{' '}
+                      {profile.showsClinicalLocator && qItem?.toothNumber
+                        ? `(${profile.locatorItemPrefix} ${qItem.toothNumber})`
+                        : ''}
                     </h4>
 
                     <table className="data-table no-row-click" style={{ fontSize: '12px' }}>

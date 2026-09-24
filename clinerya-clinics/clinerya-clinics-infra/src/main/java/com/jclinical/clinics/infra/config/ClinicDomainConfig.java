@@ -23,6 +23,7 @@ import com.jclinical.clinics.infra.adapters.in.web.dto.ClinicRoomResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration
 public class ClinicDomainConfig {
@@ -35,13 +36,24 @@ public class ClinicDomainConfig {
         return new OnboardClinicService(clinicRepository, clinicStaffRepository, doctorProfileRepository);
     }
 
+    /**
+     * `@Primary` no es decorativo: `getClinicSettingsUseCase` (abajo) publica ESTE MISMO objeto
+     * bajo un segundo nombre, porque `ManageClinicService` implementa las dos interfaces. En
+     * cuanto ese segundo bean se instancia, Spring conoce su tipo real y ve dos candidatos para
+     * cualquier inyeccion de `ManageClinicUseCase`. Que falle o no dependia del orden de creacion
+     * y de si el compilador guardo los nombres de parametro (`-parameters`), asi que arrancaba con
+     * Maven y reventaba desde el IDE. Marcar cual gana lo vuelve determinista.
+     */
     @Bean
+    @Primary
     @ConditionalOnMissingBean(ManageClinicUseCase.class)
     public ManageClinicUseCase manageClinicUseCase(
             ClinicRepositoryPort clinicRepository,
             ClinicStaffRepositoryPort clinicStaffRepository,
-            DoctorProfileRepositoryPort doctorProfileRepository) {
-        return new ManageClinicService(clinicRepository, clinicStaffRepository, doctorProfileRepository);
+            DoctorProfileRepositoryPort doctorProfileRepository,
+            com.jclinical.core.security.StaffPermissionCheckerPort permissionChecker) {
+        return new ManageClinicService(
+                clinicRepository, clinicStaffRepository, doctorProfileRepository, permissionChecker);
     }
 
     @Bean
@@ -181,6 +193,7 @@ public class ClinicDomainConfig {
                         .email(domain.getEmail())
                         .logoUrl(domain.getLogoUrl())
                         .timezone(domain.getTimezone())
+                        .specialty(domain.getSpecialty())
                         .privacyNoticeUrl(domain.getPrivacyNoticeUrl())
                         .cofeprisPermitNumber(domain.getCofeprisPermitNumber())
                         .responsibleDoctorName(domain.getResponsibleDoctorName())
@@ -216,6 +229,7 @@ public class ClinicDomainConfig {
                         .email(entity.getEmail())
                         .logoUrl(entity.getLogoUrl())
                         .timezone(entity.getTimezone())
+                        .specialty(entity.getSpecialty())
                         .privacyNoticeUrl(entity.getPrivacyNoticeUrl())
                         .cofeprisPermitNumber(entity.getCofeprisPermitNumber())
                         .responsibleDoctorName(entity.getResponsibleDoctorName())
@@ -251,6 +265,7 @@ public class ClinicDomainConfig {
                         domain.getEmail(),
                         domain.getLogoUrl(),
                         domain.getTimezone(),
+                        domain.getSpecialty(),
                         domain.getPrivacyNoticeUrl(),
                         domain.getCofeprisPermitNumber(),
                         domain.getResponsibleDoctorName(),

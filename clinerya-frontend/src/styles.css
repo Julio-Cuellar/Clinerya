@@ -369,6 +369,341 @@ h2 {
   color: var(--color-error);
 }
 
+.alert.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.alert.info {
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  border: 1px solid var(--color-border);
+}
+
+/* Alta guiada de la clinica */
+.onboarding-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-card);
+}
+
+.onboarding-banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-sidebar);
+}
+
+.onboarding-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.onboarding-banner-text strong {
+  font-size: 14px;
+  color: var(--color-text-1);
+}
+
+.onboarding-banner-text span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-2);
+}
+
+.onboarding-banner-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.onboarding-shell {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+  overflow: hidden;
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.onboarding-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.onboarding-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.onboarding-title strong {
+  font-size: 15px;
+  color: var(--color-text-1);
+}
+
+.onboarding-title span {
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+.onboarding-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.onboarding-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-3);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.onboarding-step:hover {
+  background: var(--color-surface);
+}
+
+.onboarding-step.current {
+  color: var(--color-text-1);
+  font-weight: 500;
+}
+
+.onboarding-step.done {
+  color: var(--color-text-2);
+}
+
+.onboarding-step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  font-size: 11px;
+}
+
+.onboarding-step.current .onboarding-step-dot {
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.onboarding-step.done .onboarding-step-dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.onboarding-panel h3 {
+  margin: 0 0 var(--space-1);
+}
+
+.onboarding-lead {
+  margin: 0 0 var(--space-4);
+  max-width: 68ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-2);
+}
+
+.onboarding-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.onboarding-check input {
+  margin-top: 2px;
+}
+
+.onboarding-check span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.onboarding-check strong {
+  font-size: 13px;
+  color: var(--color-text-1);
+}
+
+.onboarding-check em {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--color-text-3);
+}
+
+.onboarding-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onboarding-invite {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.onboarding-invite .field {
+  flex: 1 1 200px;
+}
+
+@media (max-width: 860px) {
+  .onboarding-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .onboarding-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* Estado vacio del catalogo de servicios */
+.catalog-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.catalog-empty-state strong {
+  font-size: 15px;
+  color: var(--color-text-1);
+}
+
+.catalog-empty-state p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-2);
+}
+
+.catalog-empty-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-3) !important;
+  font-size: 12px !important;
+}
+
+.catalog-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Selector de especialidad de la clinica */
+.clinic-specialty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.clinic-specialty-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-card);
+  color: var(--color-text-2);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.clinic-specialty-option:hover {
+  border-color: var(--color-primary);
+}
+
+.clinic-specialty-option.active {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+  color: var(--color-primary);
+}
+
+.clinic-specialty-option strong {
+  font-size: 13px;
+  color: var(--color-text-1);
+}
+
+.clinic-specialty-option.active strong {
+  color: var(--color-primary);
+}
+
+.clinic-specialty-option span {
+  font-size: 11px;
+  color: var(--color-text-3);
+}
+
+.clinic-specialty-summary {
+  margin: 0 0 var(--space-4);
+  padding-left: var(--space-4);
+  font-size: 12px;
+  color: var(--color-text-2);
+  line-height: 1.6;
+}
+
 .app-shell {
   --sidebar-motion-duration: 280ms;
   --sidebar-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);

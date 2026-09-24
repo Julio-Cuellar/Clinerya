@@ -9,6 +9,7 @@ import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase.Up
 import com.jclinical.treatments.infra.adapters.in.web.dto.CatalogMaterialRequest;
 import com.jclinical.treatments.infra.adapters.in.web.dto.CatalogMaterialResponse;
 import com.jclinical.treatments.infra.adapters.in.web.dto.CreateTreatmentCatalogItemRequest;
+import com.jclinical.treatments.infra.adapters.in.web.dto.SeedCatalogResponse;
 import com.jclinical.treatments.infra.adapters.in.web.dto.TreatmentCatalogItemResponse;
 import com.jclinical.treatments.infra.adapters.in.web.dto.UpdateTreatmentCatalogItemRequest;
 import com.jclinical.users.infra.security.CurrentUserResolver;
@@ -51,6 +52,17 @@ public class TreatmentCatalogController {
         TreatmentCatalogItem item = catalogUseCase.createCatalogItem(
                 currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(item));
+    }
+
+    @PostMapping("/seed")
+    public ResponseEntity<SeedCatalogResponse> seedCatalog(@PathVariable UUID clinicId) {
+        ManageTreatmentCatalogUseCase.SeedResult result = catalogUseCase.seedCatalogForSpecialty(
+                currentUserResolver.getCurrentUserId(), clinicId);
+        SeedCatalogResponse response = new SeedCatalogResponse(
+                result.created(),
+                result.skipped(),
+                result.items().stream().map(this::toResponse).toList());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping

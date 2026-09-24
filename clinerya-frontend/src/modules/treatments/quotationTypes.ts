@@ -8,6 +8,20 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   EXPIRED: "Vencida"
 };
 
+export type BadgeTone = "success" | "neutral" | "warning";
+
+/**
+ * Tono del badge por estado de cotización. Vive junto a las etiquetas porque antes había tres
+ * copias de esta misma decisión repartidas por la app y una de ellas no miraba el estado.
+ */
+export const QUOTATION_STATUS_BADGES: Record<QuotationStatus, BadgeTone> = {
+  DRAFT: "warning",
+  SENT: "warning",
+  ACCEPTED: "success",
+  REJECTED: "neutral",
+  EXPIRED: "neutral"
+};
+
 export type ItemProgressStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED";
 
 export const ITEM_PROGRESS_STATUS_LABELS: Record<ItemProgressStatus, string> = {

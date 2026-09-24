@@ -1,6 +1,9 @@
 package com.jclinical.clinics.infra.adapters.out;
 
+import com.jclinical.core.domain.ClinicSpecialty;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -66,6 +69,10 @@ public class ClinicEntity {
 
     @Column(nullable = false)
     private String timezone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private ClinicSpecialty specialty;
 
     @Column(name = "privacy_notice_url")
     private String privacyNoticeUrl;

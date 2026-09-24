@@ -10,6 +10,7 @@ import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
 import com.jclinical.treatments.domain.model.Visit;
 import com.jclinical.treatments.domain.model.VisitLineItem;
 import com.jclinical.treatments.domain.model.VisitMaterialUsage;
+import com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.PatientValidatorPort;
 import com.jclinical.treatments.domain.ports.out.QuotationRepositoryPort;
@@ -48,8 +49,10 @@ public class TreatmentsDomainConfig {
     public TreatmentCatalogService treatmentCatalogService(
             TreatmentCatalogRepositoryPort catalogRepository,
             InventoryMaterialPort inventoryMaterialPort,
-            StaffPermissionCheckerPort permissionChecker) {
-        return new TreatmentCatalogService(catalogRepository, inventoryMaterialPort, permissionChecker);
+            StaffPermissionCheckerPort permissionChecker,
+            ClinicSpecialtyPort clinicSpecialtyPort) {
+        return new TreatmentCatalogService(
+                catalogRepository, inventoryMaterialPort, permissionChecker, clinicSpecialtyPort);
     }
 
     @Bean
@@ -57,8 +60,14 @@ public class TreatmentsDomainConfig {
             QuotationRepositoryPort quotationRepository,
             PatientValidatorPort patientValidator,
             InventoryMaterialPort inventoryMaterialPort,
-            PatientAccessAuthorizationPort accessAuthorizationPort) {
-        return new QuotationService(quotationRepository, patientValidator, inventoryMaterialPort, accessAuthorizationPort);
+            PatientAccessAuthorizationPort accessAuthorizationPort,
+            ClinicSpecialtyPort clinicSpecialtyPort) {
+        return new QuotationService(
+                quotationRepository,
+                patientValidator,
+                inventoryMaterialPort,
+                accessAuthorizationPort,
+                clinicSpecialtyPort);
     }
 
     @Bean

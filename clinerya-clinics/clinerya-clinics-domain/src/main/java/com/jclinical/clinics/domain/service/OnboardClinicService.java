@@ -3,6 +3,7 @@ package com.jclinical.clinics.domain.service;
 import com.jclinical.clinics.domain.model.*;
 import com.jclinical.clinics.domain.ports.in.OnboardClinicUseCase;
 import com.jclinical.clinics.domain.ports.out.ClinicRepositoryPort;
+import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 import com.jclinical.staff.domain.model.ClinicStaff;
@@ -37,6 +38,7 @@ public class OnboardClinicService implements OnboardClinicUseCase {
                 .name(clinicName)
                 .email(email)
                 .timezone("America/Mexico_City")
+                .specialty(ClinicSpecialty.SIN_CONFIGURAR)
                 .active(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

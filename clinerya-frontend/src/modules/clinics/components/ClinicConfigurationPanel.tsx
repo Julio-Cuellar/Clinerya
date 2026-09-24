@@ -1,10 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { IconDeviceFloppy } from "@tabler/icons-react";
 import { ClinicFields } from "@modules/clinics/components/ClinicFields";
+import { ClinicSpecialtyPanel } from "@modules/clinics/components/ClinicSpecialtyPanel";
 import type { ClinicResponse, UpdateClinicRequest } from "@modules/clinics/types";
 import { clinicsApi, getFriendlyError } from "@shared/api/api";
 
-export function ClinicConfigurationPanel({ clinicId }: { clinicId?: string }) {
+export function ClinicConfigurationPanel({
+  clinicId,
+  onClinicUpdated
+}: {
+  clinicId?: string;
+  onClinicUpdated?: (clinic: ClinicResponse) => void;
+}) {
   const [clinic, setClinic] = useState<ClinicResponse>();
   const [loading, setLoading] = useState(true);
   const [savingClinic, setSavingClinic] = useState(false);
@@ -56,6 +63,7 @@ export function ClinicConfigurationPanel({ clinicId }: { clinicId?: string }) {
     try {
       const updated = await clinicsApi.update(clinicId, body);
       setClinic(updated);
+      onClinicUpdated?.(updated);
       setClinicSuccess("Datos de la clinica guardados.");
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -70,6 +78,16 @@ export function ClinicConfigurationPanel({ clinicId }: { clinicId?: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {clinic && (
+        <ClinicSpecialtyPanel
+          clinic={clinic}
+          onChanged={(updated) => {
+            setClinic(updated);
+            onClinicUpdated?.(updated);
+          }}
+        />
+      )}
+
       <div className="panel" style={{ padding: "16px", background: "var(--color-card)" }}>
         <div className="panel-heading">
           <div>

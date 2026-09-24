@@ -11,6 +11,7 @@ import {
 import { QUOTATION_STATUS_LABELS, type QuotationResponse } from "@modules/treatments/quotationTypes";
 import type { ClinicResponse } from "@modules/clinics/types";
 import type { PatientResponse } from "@modules/patients/types";
+import { DEFAULT_CLINIC_PROFILE, type ClinicProfile } from "@shared/utils/clinicProfile";
 
 const currencyFormatter = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
@@ -38,8 +39,10 @@ export async function exportQuotationToPdf(options: {
   quotation: QuotationResponse;
   patient: PatientResponse;
   clinicInfo?: ClinicHeaderInfo;
+  profile?: ClinicProfile;
 }) {
-  const { quotation, patient, clinicInfo } = options;
+  const { quotation, patient, clinicInfo, profile = DEFAULT_CLINIC_PROFILE } = options;
+  const showsLocator = profile.showsClinicalLocator;
 
   const resolvedClinicInfo: ResolvedClinicHeaderInfo | undefined = clinicInfo
     ? { ...clinicInfo, logoDataUrl: clinicInfo.logoUrl ? (await loadImageAsDataUrl(clinicInfo.logoUrl)) ?? undefined : undefined }
@@ -72,8 +75,11 @@ export async function exportQuotationToPdf(options: {
   doc.text(`Paciente: ${patientName}`, MARGIN_MM, cursorY);
   cursorY += 8;
 
-  const columns = ["Descripción", "Diente", "M. Obra", "Materiales", "Desc. %", "Subtotal"];
-  const colWidths = [70, 14, 26, 26, 14, 38];
+  const columns = showsLocator
+    ? ["Descripción", profile.locatorColumnLabel, profile.laborShortLabel, "Materiales", "Desc. %", "Subtotal"]
+    : ["Descripción", profile.laborShortLabel, "Materiales", "Desc. %", "Subtotal"];
+  // Sin columna localizadora, sus 14 mm vuelven a la descripción para no alterar el ancho total.
+  const colWidths = showsLocator ? [70, 14, 26, 26, 14, 38] : [84, 26, 26, 14, 38];
   const tableX = MARGIN_MM;
   const rowHeight = 7;
 
@@ -99,7 +105,7 @@ export async function exportQuotationToPdf(options: {
     drawRow(
       [
         item.description,
-        item.toothNumber ? String(item.toothNumber) : "—",
+        ...(showsLocator ? [item.toothNumber ? String(item.toothNumber) : "—"] : []),
         currencyFormatter.format(item.laborCharge),
         currencyFormatter.format(item.materialsTotal),
         `${item.discountPercentage ?? 0}%`,

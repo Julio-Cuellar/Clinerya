@@ -19,6 +19,18 @@ public interface ManageTreatmentCatalogUseCase {
 
     List<TreatmentCatalogItem> getCatalogItemsByClinic(UUID actingUserId, UUID clinicId, boolean includeInactive);
 
+    /**
+     * Siembra el catálogo sugerido para la especialidad de la clínica.
+     *
+     * <p>Es idempotente: sólo crea los servicios cuyo nombre todavía no existe en la clínica, así
+     * que correrla dos veces no duplica nada. El onboarding es salteable y reanudable, de modo que
+     * esto va a pasar.
+     */
+    SeedResult seedCatalogForSpecialty(UUID actingUserId, UUID clinicId);
+
+    /** Qué hizo la siembra: cuántos servicios creó y cuántos ya existían. */
+    record SeedResult(int created, int skipped, List<TreatmentCatalogItem> items) {}
+
     record CatalogMaterialCommand(
         UUID materialId,
         BigDecimal typicalQuantity
