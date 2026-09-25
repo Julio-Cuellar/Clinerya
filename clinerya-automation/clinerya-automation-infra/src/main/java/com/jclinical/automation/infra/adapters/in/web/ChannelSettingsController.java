@@ -7,6 +7,7 @@ import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.Cha
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.ConnectionTestResult;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.GeminiCredentials;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.SecretKind;
+import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.TemplateSettings;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.WhatsAppCredentials;
 import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,12 @@ public class ChannelSettingsController {
         return settings.updateAssistant(currentUserResolver.getCurrentUserId(), clinicId,
                 new AssistantPreferences(request.promptMode(), request.customPrompt(),
                         request.chatRetentionMonths() == null ? 12 : request.chatRetentionMonths()));
+    }
+
+    /** Plantillas aprobadas en Meta para escribir fuera de la ventana de 24 h (paciente y medico). */
+    @PutMapping("/templates")
+    public ChannelSettingsView updateTemplates(@PathVariable UUID clinicId, @RequestBody TemplateSettings body) {
+        return settings.updateTemplates(currentUserResolver.getCurrentUserId(), clinicId, required(body));
     }
 
     @DeleteMapping("/secrets/{kind}")

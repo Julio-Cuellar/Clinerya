@@ -44,6 +44,10 @@ import com.jclinical.automation.domain.ports.out.IntentInterpreterPort;
 import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
 import com.jclinical.automation.domain.ports.out.SlotAvailabilityPort;
 import com.jclinical.automation.infra.adapters.out.crossmodule.DoctorDirectoryAdapter;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcDoctorChannelRepository;
+import com.jclinical.automation.domain.ports.out.DoctorChannelRepositoryPort;
+import com.jclinical.automation.domain.service.DoctorChannelService;
+import com.jclinical.automation.domain.service.DoctorNotificationService;
 import com.jclinical.automation.infra.adapters.out.crossmodule.PatientDirectoryAdapter;
 import com.jclinical.automation.infra.adapters.out.crossmodule.SlotAvailabilityAdapter;
 import com.jclinical.automation.infra.adapters.out.gemini.GeminiIntentInterpreter;
@@ -110,7 +114,7 @@ public class AutomationConfig {
     }
 
     @Bean
-    public AppointmentRequestRepositoryPort appointmentRequestRepository(JdbcTemplate jdbcTemplate, ProposedOptionsCodec codec) {
+    public JdbcAppointmentRequestRepository appointmentRequestRepository(JdbcTemplate jdbcTemplate, ProposedOptionsCodec codec) {
         return new JdbcAppointmentRequestRepository(jdbcTemplate, codec);
     }
 
@@ -146,8 +150,8 @@ public class AutomationConfig {
     @Bean
     public AppointmentRequestService automationAppointmentRequestService(
             AppointmentRequestRepositoryPort requests, SlotBookingPort booking, SlotAvailabilityPort slots,
-            DomainEventPublisherPort events) {
-        return new AppointmentRequestService(requests, booking, slots, events, request -> { }, Clock.systemDefaultZone());
+            DomainEventPublisherPort events, DoctorNotificationService doctorNotifications) {
+        return new AppointmentRequestService(requests, booking, slots, events, doctorNotifications, Clock.systemDefaultZone());
     }
 
     @Bean
@@ -238,8 +242,39 @@ public class AutomationConfig {
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
     @Bean
     public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
-                                                             OutboundMessageQueuePort outbound, ChatHistoryPort chatHistory) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory, (clinicId, phone) -> false);
+                                                             OutboundMessageQueuePort outbound, ChatHistoryPort chatHistory,
+                                                             DoctorNotificationService doctorNotifications) {
+        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory, doctorNotifications);
+    }
+
+    // ---- Aviso al medico (entrega 5.6, D8) ------------------------------------------------------
+
+    @Bean
+    public DoctorChannelRepositoryPort doctorChannelRepository(JdbcTemplate jdbcTemplate) {
+        return new JdbcDoctorChannelRepository(jdbcTemplate);
+    }
+
+    @Bean
+    public DoctorChannelService doctorChannelService(DoctorChannelRepositoryPort doctorChannels, SlotBookingPort booking,
+                                                     DoctorDirectoryPort doctors, StaffPermissionCheckerPort permissions) {
+        return new DoctorChannelService(doctorChannels, booking::doctorStaffIdOfUser, doctors, permissions,
+                Clock.systemDefaultZone());
+    }
+
+    /**
+     * Los avisos al medico van directo a la cola (no al historial de chats de pacientes). El enlace
+     * lleva a la bandeja de solicitudes en Clinerya.
+     */
+    @Bean
+    public DoctorNotificationService doctorNotificationService(
+            DoctorChannelRepositoryPort doctorChannels, JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec,
+            ObjectMapper objectMapper, JdbcAppointmentRequestRepository requests,
+            @Value("${app.frontend-base-url:http://localhost:5173}") String frontendBaseUrl,
+            @Value("${app.automation.doctor-inbox-path:/solicitudes-de-cita}") String inboxPath) {
+        Clock clock = Clock.systemDefaultZone();
+        return new DoctorNotificationService(doctorChannels,
+                new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, clock), requests,
+                frontendBaseUrl.replaceAll("/+$", "") + inboxPath, clock);
     }
 
     @Bean

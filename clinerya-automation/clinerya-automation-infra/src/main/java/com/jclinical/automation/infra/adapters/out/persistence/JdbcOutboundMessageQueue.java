@@ -2,7 +2,9 @@ package com.jclinical.automation.infra.adapters.out.persistence;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jclinical.automation.domain.model.DoctorNotice;
 import com.jclinical.automation.domain.model.PatientNotification;
+import com.jclinical.automation.domain.ports.out.DoctorNoticeQueuePort;
 import com.jclinical.automation.domain.ports.out.OutboundMessageQueuePort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -17,12 +19,18 @@ import java.util.UUID;
  * que un mensaje nunca queda sin su cambio de estado (ni al reves). El despachador los envia despues.
  * Si hubiera que usar plantilla, el texto completo va como su unico parametro.
  */
-public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort {
+public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort, DoctorNoticeQueuePort {
 
     private static final String INSERT_SQL = """
             INSERT INTO automation.outbound_messages
                 (id, clinic_id, phone, audience, body, options, template_parameters, status, attempts, next_attempt_at, created_at)
             VALUES (?, ?, ?, 'PATIENT', ?, ?, ?, 'PENDING', 0, ?, ?)
+            """;
+
+    private static final String INSERT_DOCTOR_SQL = """
+            INSERT INTO automation.outbound_messages
+                (id, clinic_id, phone, audience, body, options, template_parameters, status, attempts, next_attempt_at, created_at)
+            VALUES (?, ?, ?, 'DOCTOR', ?, '[]', ?, 'PENDING', 0, ?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -44,6 +52,14 @@ public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort {
         jdbcTemplate.update(INSERT_SQL, UUID.randomUUID(), notification.clinicId(), notification.phone(),
                 notification.reply().text(), optionsCodec.encode(notification.reply().options()),
                 json(List.of(notification.reply().text())), now, now);
+    }
+
+    /** Aviso al medico: el despachador usa la plantilla de medicos si la ventana de 24 h esta cerrada. */
+    @Override
+    public void enqueue(DoctorNotice notice) {
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now(clock));
+        jdbcTemplate.update(INSERT_DOCTOR_SQL, UUID.randomUUID(), notice.clinicId(), notice.phone(), notice.text(),
+                json(notice.templateParameters()), now, now);
     }
 
     private String json(List<String> values) {

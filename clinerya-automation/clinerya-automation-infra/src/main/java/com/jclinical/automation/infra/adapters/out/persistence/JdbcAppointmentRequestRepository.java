@@ -3,6 +3,7 @@ package com.jclinical.automation.infra.adapters.out.persistence;
 import com.jclinical.automation.domain.model.AppointmentRequest;
 import com.jclinical.automation.domain.model.AppointmentRequest.Status;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestRepositoryPort;
+import com.jclinical.automation.domain.ports.out.PendingRequestReminderPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.ResultSet;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class JdbcAppointmentRequestRepository implements AppointmentRequestRepositoryPort {
+public class JdbcAppointmentRequestRepository implements AppointmentRequestRepositoryPort, PendingRequestReminderPort {
 
     /** Tope de filas por consulta: la bandeja y el barrido de vencimientos trabajan por lotes. */
     static final int MAX_ROWS = 200;
@@ -53,6 +54,16 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
             LIMIT %d
             """.formatted(MAX_ROWS);
 
+    private static final String FIND_TO_REMIND_SQL = "SELECT " + COLUMNS + """
+             FROM automation.appointment_requests
+            WHERE status = 'PENDING' AND reminded_at IS NULL AND created_at <= ?
+            ORDER BY created_at
+            LIMIT %d
+            """.formatted(MAX_ROWS);
+
+    private static final String MARK_REMINDED_SQL =
+            "UPDATE automation.appointment_requests SET reminded_at = ? WHERE id = ? AND reminded_at IS NULL";
+
     private final JdbcTemplate jdbcTemplate;
     private final ProposedOptionsCodec codec;
 
@@ -88,6 +99,16 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
     public List<AppointmentRequest> findOverdue(LocalDateTime cutoff) {
         Timestamp limit = Timestamp.valueOf(cutoff);
         return jdbcTemplate.query(FIND_OVERDUE_SQL, (row, rowNum) -> toRequest(row), limit, limit);
+    }
+
+    @Override
+    public List<AppointmentRequest> findPendingNotRemindedBefore(LocalDateTime createdBefore) {
+        return jdbcTemplate.query(FIND_TO_REMIND_SQL, (row, rowNum) -> toRequest(row), Timestamp.valueOf(createdBefore));
+    }
+
+    @Override
+    public void markReminded(UUID requestId, LocalDateTime at) {
+        jdbcTemplate.update(MARK_REMINDED_SQL, Timestamp.valueOf(at), requestId);
     }
 
     private AppointmentRequest toRequest(ResultSet row) throws SQLException {
