@@ -155,7 +155,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED, new AppointmentScheduledEvent(
                 UUID.randomUUID(), clinicId, saved.getId(), saved.getDoctorStaffId(),
-                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now(), null));
+                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now(), saved.getPatientId()));
 
         materialReservationSchedulingService.processReservation(saved);
 
@@ -233,11 +233,14 @@ public class AppointmentService implements ManageAppointmentsUseCase {
                 validateNoRoomBlockOverlap(appointment.getRoomId(), clinicId, newStart, newEnd);
             }
         }
+        LocalDateTime previousStart = appointment.getScheduledStart();
+        LocalDateTime previousEnd = appointment.getScheduledEnd();
         appointment.reschedule(newStart, newEnd);
         Appointment saved = appointmentRepository.save(appointment);
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_RESCHEDULED, new AppointmentRescheduledEvent(
-                UUID.randomUUID(), clinicId, appointmentId, newStart, newEnd, LocalDateTime.now(), null, null, null, null));
+                UUID.randomUUID(), clinicId, appointmentId, newStart, newEnd, LocalDateTime.now(),
+                saved.getPatientId(), saved.getDoctorStaffId(), previousStart, previousEnd));
 
         materialReservationSchedulingService.processReservation(saved);
 
@@ -273,7 +276,8 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         if (targetStatus == AppointmentStatus.CANCELLED) {
             eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_CANCELLED, new AppointmentCancelledEvent(
-                    UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now(), null, null, null, null));
+                    UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now(),
+                    saved.getPatientId(), saved.getDoctorStaffId(), saved.getScheduledStart(), cancellationReason));
         }
 
         return saved;
