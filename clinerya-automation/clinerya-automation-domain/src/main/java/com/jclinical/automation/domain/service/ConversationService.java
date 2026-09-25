@@ -7,6 +7,7 @@ import com.jclinical.automation.domain.model.ConversationState;
 import com.jclinical.automation.domain.model.InboundMessage;
 import com.jclinical.automation.domain.model.OutboundReply;
 import com.jclinical.automation.domain.model.AppointmentRequestResolvedEvent;
+import com.jclinical.automation.domain.model.AppointmentRequestResolvedEvent.Outcome;
 import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
 import com.jclinical.automation.domain.ports.in.HandleRequestOutcomeUseCase;
@@ -26,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -95,6 +97,9 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
                     + " sigue pendiente. Te avisaremos por aquí en cuanto la revise."));
         }
         if (conversation.patientId() != null && isRestart(message.text())) {
+            if (conversation.state() == ConversationState.ELEGIR_OPCION_MEDICO) {
+                requests.declineOptions(conversation.clinicId(), conversation.requestId());
+            }
             return List.of(showMenu(reset(conversation), now));
         }
 
@@ -105,17 +110,45 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
         return List.of(transition(conversation, optionId, now));
     }
 
+    /**
+     * Solo reacciona si la conversacion sigue esperando exactamente esa solicitud: el evento viaja por
+     * el outbox (al menos una vez), y una repeticion o un evento viejo no debe mover nada.
+     */
     @Override
     public Optional<PatientNotification> onRequestResolved(AppointmentRequestResolvedEvent event) {
-        throw new UnsupportedOperationException("pendiente");
+        Optional<Conversation> waiting = conversations.findById(event.conversationId())
+                .filter(conversation -> event.requestId().equals(conversation.requestId()))
+                .filter(conversation -> awaitsOutcome(conversation, event.outcome()));
+        if (waiting.isEmpty()) {
+            return Optional.empty();
+        }
+        Conversation conversation = waiting.get();
+        LocalDateTime now = LocalDateTime.now(clock);
+        OutboundReply reply = switch (event.outcome()) {
+            case BOOKED -> confirm(conversation, event.start(), now);
+            case REJECTED -> offerSlots(conversation, conversation.doctorStaffId(), conversation.doctorName(), now,
+                    rejectionText(conversation, event.reason()));
+            case OPTIONS_PROPOSED -> offerProposal(conversation, event.options(), now);
+            case EXPIRED -> showMenuWith(reset(conversation), now, expirationText(conversation));
+        };
+        return Optional.of(new PatientNotification(conversation.clinicId(), conversation.phone(), reply));
+    }
+
+    private static boolean awaitsOutcome(Conversation conversation, Outcome outcome) {
+        return conversation.state() == ConversationState.ESPERANDO_MEDICO
+                || (outcome == Outcome.EXPIRED && conversation.state() == ConversationState.ELEGIR_OPCION_MEDICO);
     }
 
     // ---- entrada ----------------------------------------------------------------------------
 
-    /** Una conversacion en espera del medico no vence por inactividad: el medico tiene su propio plazo. */
+    /**
+     * Mientras hay una solicitud abierta (esperando al medico o eligiendo entre sus opciones) la
+     * conversacion no vence por inactividad: la solicitud tiene su propio plazo de 24 h.
+     */
     private Optional<Conversation> expireIfIdle(Conversation conversation, LocalDateTime now) {
-        boolean idle = conversation.state() != ConversationState.ESPERANDO_MEDICO
-                && conversation.lastActivityAt().plus(IDLE_TIMEOUT).isBefore(now);
+        boolean requestOpen = conversation.state() == ConversationState.ESPERANDO_MEDICO
+                || conversation.state() == ConversationState.ELEGIR_OPCION_MEDICO;
+        boolean idle = !requestOpen && conversation.lastActivityAt().plus(IDLE_TIMEOUT).isBefore(now);
         if (!idle) {
             return Optional.of(conversation);
         }
@@ -160,6 +193,7 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
             case MENU -> offerDoctors(conversation, now, null);
             case ELEGIR_MEDICO -> chooseDoctor(conversation, optionId, now);
             case ELEGIR_CUPO -> submitRequest(conversation, optionId, now);
+            case ELEGIR_OPCION_MEDICO -> chooseProposedOption(conversation, optionId, now);
             default -> unrecognized(conversation, now);
         };
     }
@@ -232,8 +266,8 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
         List<AvailableSlot> available = slots.availableSlots(conversation.clinicId(), doctorId,
                 now.toLocalDate(), SLOT_SEARCH_DAYS, MAX_OPTIONS);
         if (available.isEmpty()) {
-            return listDoctors(conversation, now,
-                    doctorName + " no tiene horarios disponibles en los próximos " + SLOT_SEARCH_DAYS + " días.");
+            return listDoctors(conversation, now, withPrefix(prefix,
+                    doctorName + " no tiene horarios disponibles en los próximos " + SLOT_SEARCH_DAYS + " días."));
         }
         List<ConversationOption> options = available.stream()
                 .map(slot -> new ConversationOption(slotId(slot), slotLabel(slot)))
@@ -261,6 +295,62 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
                 conversation.createdAt(), now));
         return OutboundReply.text("Listo. Enviamos tu solicitud para el " + labelOf(conversation, optionId)
                 + " a " + conversation.doctorName() + ". Te avisaremos por aquí en cuanto la revise.");
+    }
+
+    // ---- respuesta del medico ---------------------------------------------------------------
+
+    private OutboundReply confirm(Conversation conversation, LocalDateTime start, LocalDateTime now) {
+        save(conversation, ConversationState.CERRADA, List.of(), 0, now);
+        return OutboundReply.text("¡Listo! Tu cita con " + conversation.doctorName() + " quedó confirmada para el "
+                + startLabel(start) + ".");
+    }
+
+    private OutboundReply offerProposal(Conversation conversation, List<AvailableSlot> proposed, LocalDateTime now) {
+        List<ConversationOption> options = new ArrayList<>(proposed.stream().limit(MAX_OPTIONS - 1)
+                .map(slot -> new ConversationOption(slotId(slot), slotLabel(slot)))
+                .toList());
+        options.add(new ConversationOption(DECLINE_OPTIONS, "Ninguno me funciona"));
+        save(conversation, ConversationState.ELEGIR_OPCION_MEDICO, options, 0, now);
+        return new OutboundReply(conversation.doctorName()
+                + " no puede atenderte en ese horario, pero te propone estas opciones:", options);
+    }
+
+    /** Una opcion propuesta por el medico ya esta aprobada: elegirla agenda la cita directo. */
+    private OutboundReply chooseProposedOption(Conversation conversation, String optionId, LocalDateTime now) {
+        if (DECLINE_OPTIONS.equals(optionId)) {
+            requests.declineOptions(conversation.clinicId(), conversation.requestId());
+            return showMenuWith(reset(conversation), now, "Entendido, descartamos las opciones propuestas.");
+        }
+        AvailableSlot slot = parseSlot(optionId);
+        try {
+            requests.chooseOption(conversation.clinicId(), conversation.requestId(), slot.start(), slot.end());
+        } catch (SlotNoLongerAvailableException taken) {
+            return dropTakenOption(conversation, optionId, now);
+        }
+        return confirm(conversation, slot.start(), now);
+    }
+
+    private OutboundReply dropTakenOption(Conversation conversation, String optionId, LocalDateTime now) {
+        List<ConversationOption> remaining = conversation.offeredOptions().stream()
+                .filter(option -> !option.id().equals(optionId))
+                .toList();
+        if (remaining.stream().noneMatch(option -> option.id().startsWith(SLOT_PREFIX))) {
+            requests.declineOptions(conversation.clinicId(), conversation.requestId());
+            return showMenuWith(reset(conversation), now, "Ese horario ya no está disponible y no quedan otras opciones.");
+        }
+        save(conversation, conversation.state(), remaining, 0, now);
+        return new OutboundReply("Ese horario ya no está disponible. Elige otra opción:", remaining);
+    }
+
+    private static String rejectionText(Conversation conversation, String reason) {
+        return conversation.doctorName() + " no puede atenderte en ese horario"
+                + (reason == null ? "" : " (" + reason + ")") + ".";
+    }
+
+    private static String expirationText(Conversation conversation) {
+        return conversation.state() == ConversationState.ELEGIR_OPCION_MEDICO
+                ? "Las opciones que te propuso " + conversation.doctorName() + " vencieron."
+                : conversation.doctorName() + " no respondió a tiempo y tu solicitud venció.";
     }
 
     private OutboundReply showMenuWith(Conversation conversation, LocalDateTime now, String prefix) {
@@ -329,7 +419,11 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     }
 
     private static String slotLabel(AvailableSlot slot) {
-        String label = SLOT_LABEL.format(slot.start()).replace(".", "");
+        return startLabel(slot.start());
+    }
+
+    private static String startLabel(LocalDateTime start) {
+        String label = SLOT_LABEL.format(start).replace(".", "");
         return Character.toUpperCase(label.charAt(0)) + label.substring(1);
     }
 }
