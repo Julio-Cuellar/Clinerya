@@ -24,5 +24,6 @@ public record RegisterPatientRequest(
     String nationality,
     BloodType bloodType,
     Address address,
-    EmergencyContact emergencyContact
+    EmergencyContact emergencyContact,
+    ContactConsentRequest contactConsent
 ) {}

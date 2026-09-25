@@ -2,6 +2,13 @@ package com.jclinical.patients.infra.adapters.in.web;
 
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.ClinicMembershipPort;
+import com.jclinical.patients.domain.model.ConsentSource;
+import com.jclinical.patients.domain.model.ContactConsentText;
+import com.jclinical.patients.domain.ports.in.RecordContactConsentUseCase;
+import com.jclinical.patients.domain.ports.in.RecordContactConsentUseCase.ContactConsentDecision;
+import com.jclinical.patients.infra.adapters.in.web.dto.ContactConsentRequest;
+import com.jclinical.patients.infra.adapters.in.web.dto.ContactConsentResponse;
+import com.jclinical.patients.infra.adapters.in.web.dto.ContactConsentTextResponse;
 import com.jclinical.patients.domain.model.Patient;
 import com.jclinical.patients.domain.ports.in.DeletePatientUseCase;
 import com.jclinical.patients.domain.ports.in.GetPatientUseCase;
@@ -38,6 +45,7 @@ public class PatientController {
     private final GetPatientUseCase getPatientUseCase;
     private final UpdatePatientUseCase updatePatientUseCase;
     private final DeletePatientUseCase deletePatientUseCase;
+    private final RecordContactConsentUseCase recordContactConsentUseCase;
     private final CurrentUserResolver currentUserResolver;
     private final ClinicMembershipPort clinicMembershipPort;
 
@@ -60,11 +68,31 @@ public class PatientController {
                 request.nationality(),
                 request.bloodType(),
                 request.address(),
-                request.emergencyContact()
+                request.emergencyContact(),
+                toDecision(request.contactConsent())
         );
 
         Patient patient = registerPatientUseCase.registerPatient(command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(patient));
+    }
+
+    /** Texto oficial vigente que el personal le lee al paciente antes de marcar la casilla. */
+    @GetMapping("/contact-consent-text")
+    public ResponseEntity<ContactConsentTextResponse> contactConsentText() {
+        return ResponseEntity.ok(new ContactConsentTextResponse(
+                ContactConsentText.CURRENT_VERSION, ContactConsentText.CURRENT_TEXT));
+    }
+
+    /** Otorga o revoca el consentimiento de contacto despues del alta. */
+    @PutMapping("/{id}/contact-consent")
+    public ResponseEntity<PatientResponse> recordContactConsent(@PathVariable UUID id,
+                                                                @RequestBody ContactConsentRequest request) {
+        Patient patient = getPatientUseCase.getPatientById(id)
+                .orElseThrow(() -> new IllegalArgumentException("El paciente no existe."));
+        requireMembership(patient.getClinicId());
+        Patient updated = recordContactConsentUseCase.recordContactConsent(
+                id, patient.getClinicId(), toDecision(request), ConsentSource.CLINIC_UPDATE);
+        return ResponseEntity.ok(toResponse(updated));
     }
 
     @GetMapping("/{id}")
@@ -121,6 +149,13 @@ public class PatientController {
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
 
+    private ContactConsentDecision toDecision(ContactConsentRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return new ContactConsentDecision(request.granted(), request.textVersion(), currentUserResolver.getCurrentUserId());
+    }
+
     private void requireMembership(UUID clinicId) {
         UUID userId = currentUserResolver.getCurrentUserId();
         if (!clinicMembershipPort.isActiveStaffMember(userId, clinicId)) {
@@ -146,6 +181,7 @@ public class PatientController {
                 patient.getBloodType(),
                 patient.getAddress(),
                 patient.getEmergencyContact(),
+                ContactConsentResponse.from(patient.getContactConsent()),
                 patient.getCreatedAt(),
                 patient.getUpdatedAt()
         );

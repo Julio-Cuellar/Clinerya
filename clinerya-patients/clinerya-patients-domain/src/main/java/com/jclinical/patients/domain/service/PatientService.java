@@ -1,6 +1,8 @@
 package com.jclinical.patients.domain.service;
 
 import com.jclinical.patients.domain.model.ConsentSource;
+import com.jclinical.patients.domain.model.ContactConsent;
+import com.jclinical.patients.domain.model.ContactConsentText;
 import com.jclinical.patients.domain.model.Patient;
 import com.jclinical.patients.domain.ports.in.DeletePatientUseCase;
 import com.jclinical.patients.domain.ports.in.GetPatientUseCase;
@@ -25,6 +27,9 @@ public class PatientService implements RegisterPatientUseCase, GetPatientUseCase
 
     @Override
     public Patient registerPatient(RegisterPatientCommand command) {
+        ContactConsent consent = command.contactConsent() == null
+                ? ContactConsent.notRecorded()
+                : toConsent(command.contactConsent(), ConsentSource.CLINIC_REGISTRATION, command.phone(), command.email());
         if (command.curp() != null && !command.curp().trim().isEmpty()) {
             if (patientRepository.existsByCurpAndClinicId(command.curp().trim(), command.clinicId())) {
                 throw new IllegalArgumentException("Ya existe un paciente registrado con el mismo CURP en esta clínica");
@@ -48,6 +53,7 @@ public class PatientService implements RegisterPatientUseCase, GetPatientUseCase
                 .bloodType(command.bloodType())
                 .address(command.address())
                 .emergencyContact(command.emergencyContact())
+                .contactConsent(consent)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -92,6 +98,7 @@ public class PatientService implements RegisterPatientUseCase, GetPatientUseCase
                     .bloodType(command.bloodType())
                     .address(command.address())
                     .emergencyContact(command.emergencyContact())
+                    .contactConsent(existing.getContactConsent())
                     .createdAt(existing.getCreatedAt())
                     .updatedAt(LocalDateTime.now())
                     .build();
@@ -111,6 +118,35 @@ public class PatientService implements RegisterPatientUseCase, GetPatientUseCase
 
     @Override
     public Patient recordContactConsent(UUID patientId, UUID clinicId, ContactConsentDecision decision, ConsentSource source) {
-        throw new UnsupportedOperationException("pendiente");
+        if (decision == null || source == null) {
+            throw new IllegalArgumentException("La decision de contacto y su origen son obligatorios.");
+        }
+        Patient existing = patientRepository.findById(patientId)
+                .filter(patient -> patient.getClinicId().equals(clinicId))
+                .orElseThrow(() -> new IllegalArgumentException("El paciente no existe en esta clínica."));
+        ContactConsent consent = toConsent(decision, source, existing.getPhone(), existing.getEmail());
+        return patientRepository.save(existing.toBuilder()
+                .contactConsent(consent)
+                .updatedAt(LocalDateTime.now())
+                .build());
+    }
+
+    private ContactConsent toConsent(ContactConsentDecision decision, ConsentSource source, String phone, String email) {
+        if (decision.granted()) {
+            if (!ContactConsentText.CURRENT_VERSION.equals(decision.textVersion())) {
+                throw new IllegalArgumentException(
+                        "El texto de autorización cambió. Vuelve a leerle al paciente el texto vigente antes de registrarlo.");
+            }
+            if (isBlank(phone) && isBlank(email)) {
+                throw new IllegalArgumentException(
+                        "Para autorizar el contacto el paciente debe tener al menos un celular o un correo.");
+            }
+        }
+        return new ContactConsent(decision.granted(), decision.textVersion(), source,
+                decision.recordedByUserId(), LocalDateTime.now());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

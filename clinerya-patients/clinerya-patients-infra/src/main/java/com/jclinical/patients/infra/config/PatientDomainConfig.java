@@ -1,6 +1,8 @@
 package com.jclinical.patients.infra.config;
 
 import com.jclinical.patients.domain.model.Address;
+import com.jclinical.patients.domain.model.ConsentSource;
+import com.jclinical.patients.domain.model.ContactConsent;
 import com.jclinical.patients.domain.model.BloodType;
 import com.jclinical.patients.domain.model.EmergencyContact;
 import com.jclinical.patients.domain.model.Gender;
@@ -33,6 +35,8 @@ public class PatientDomainConfig {
                 }
                 Address address = domain.getAddress();
                 EmergencyContact emergencyContact = domain.getEmergencyContact();
+                ContactConsent consent = domain.getContactConsent() == null
+                        ? ContactConsent.notRecorded() : domain.getContactConsent();
                 return PatientEntity.builder()
                         .id(domain.getId())
                         .clinicId(domain.getClinicId())
@@ -58,6 +62,11 @@ public class PatientDomainConfig {
                         .emergencyContactFullName(emergencyContact == null ? null : emergencyContact.getFullName())
                         .emergencyContactRelationship(emergencyContact == null ? null : emergencyContact.getRelationship())
                         .emergencyContactPhone(emergencyContact == null ? null : emergencyContact.getPhone())
+                        .contactConsentGranted(consent.granted())
+                        .contactConsentTextVersion(consent.textVersion())
+                        .contactConsentSource(toEnumValue(consent.source()))
+                        .contactConsentRecordedBy(consent.recordedByUserId())
+                        .contactConsentRecordedAt(consent.recordedAt())
                         .createdAt(domain.getCreatedAt())
                         .updatedAt(domain.getUpdatedAt())
                         .build();
@@ -97,6 +106,12 @@ public class PatientDomainConfig {
                                 .relationship(entity.getEmergencyContactRelationship())
                                 .phone(entity.getEmergencyContactPhone())
                                 .build())
+                        .contactConsent(new ContactConsent(
+                                entity.isContactConsentGranted(),
+                                entity.getContactConsentTextVersion(),
+                                toEnum(entity.getContactConsentSource(), ConsentSource.class),
+                                entity.getContactConsentRecordedBy(),
+                                entity.getContactConsentRecordedAt()))
                         .createdAt(entity.getCreatedAt())
                         .updatedAt(entity.getUpdatedAt())
                         .build();

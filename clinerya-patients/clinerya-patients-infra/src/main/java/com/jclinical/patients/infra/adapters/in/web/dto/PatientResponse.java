@@ -27,6 +27,7 @@ public record PatientResponse(
     BloodType bloodType,
     Address address,
     EmergencyContact emergencyContact,
+    ContactConsentResponse contactConsent,
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 ) {}

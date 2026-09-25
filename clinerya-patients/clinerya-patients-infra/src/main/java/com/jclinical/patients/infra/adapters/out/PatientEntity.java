@@ -99,6 +99,21 @@ public class PatientEntity {
     @Column(name = "emergency_contact_phone")
     private String emergencyContactPhone;
 
+    @Column(name = "contact_consent_granted", nullable = false)
+    private boolean contactConsentGranted;
+
+    @Column(name = "contact_consent_text_version", length = 40)
+    private String contactConsentTextVersion;
+
+    @Column(name = "contact_consent_source", length = 40)
+    private String contactConsentSource;
+
+    @Column(name = "contact_consent_recorded_by")
+    private UUID contactConsentRecordedBy;
+
+    @Column(name = "contact_consent_recorded_at")
+    private LocalDateTime contactConsentRecordedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

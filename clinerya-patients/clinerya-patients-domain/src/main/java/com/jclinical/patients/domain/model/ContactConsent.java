@@ -21,6 +21,6 @@ public record ContactConsent(
     }
 
     public boolean allowsProactiveContact() {
-        return false;
+        return granted;
     }
 }
