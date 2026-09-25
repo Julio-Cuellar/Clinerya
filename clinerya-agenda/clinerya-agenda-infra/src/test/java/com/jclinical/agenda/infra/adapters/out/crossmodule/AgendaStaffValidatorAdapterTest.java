@@ -55,6 +55,14 @@ class AgendaStaffValidatorAdapterTest {
         assertEquals(List.of(doctor.staffId(), owner.staffId()), doctors.stream().map(DoctorSnapshot::staffId).toList());
     }
 
+    @Test
+    void resolvesTheUserBehindAStaffMember() {
+        StaffSummary doctor = staff(StaffRole.DOCTOR, "Dr. Lopez", true);
+        when(clinicStaffUseCase.getActiveStaffById(doctor.staffId(), clinicId)).thenReturn(Optional.of(doctor));
+
+        assertEquals(Optional.of(doctor.userId()), adapter.userIdOfStaff(doctor.staffId(), clinicId));
+    }
+
     private StaffSummary staff(StaffRole role, String fullName, boolean practitioner) {
         return new StaffSummary(UUID.randomUUID(), clinicId, UUID.randomUUID(), role, fullName,
                 role != StaffRole.DOCTOR && practitioner, practitioner);
