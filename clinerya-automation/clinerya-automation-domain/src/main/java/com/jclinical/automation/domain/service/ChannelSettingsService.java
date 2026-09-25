@@ -160,6 +160,11 @@ public class ChannelSettingsService implements ManageChannelSettingsUseCase {
     }
 
     @Override
+    public ChannelSettingsView updateTemplates(UUID actingUserId, UUID clinicId, TemplateSettings templates) {
+        throw new UnsupportedOperationException("pendiente");
+    }
+
+    @Override
     public ChannelSettingsView regenerateVerifyToken(UUID actingUserId, UUID clinicId) {
         requireManage(actingUserId, clinicId);
         return save(current(clinicId).toBuilder().verifyToken(randomTokens.get()), actingUserId, clinicId,
@@ -228,7 +233,10 @@ public class ChannelSettingsService implements ManageChannelSettingsUseCase {
                 current.enabled(),
                 current.whatsappVerifiedAt(),
                 current.geminiVerifiedAt(),
-                missingToEnable(current));
+                missingToEnable(current),
+                current.patientTemplateName(),
+                current.doctorTemplateName(),
+                current.templateLanguage());
     }
 
     private static List<String> missingToEnable(ChannelSettings current) {

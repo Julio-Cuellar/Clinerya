@@ -104,7 +104,8 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
                 localDateTime(row.getTimestamp("whatsapp_verified_at")),
                 localDateTime(row.getTimestamp("gemini_verified_at")),
                 row.getObject("updated_by", UUID.class),
-                localDateTime(row.getTimestamp("updated_at")));
+                localDateTime(row.getTimestamp("updated_at")),
+                null, null, ChannelSettings.DEFAULT_TEMPLATE_LANGUAGE);
     }
 
     private static Timestamp timestamp(LocalDateTime value) {

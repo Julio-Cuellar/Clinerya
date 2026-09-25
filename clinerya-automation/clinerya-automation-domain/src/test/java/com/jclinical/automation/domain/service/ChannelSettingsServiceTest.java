@@ -8,6 +8,7 @@ import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.Cha
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.ConnectionTestResult;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.GeminiCredentials;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.SecretKind;
+import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.TemplateSettings;
 import com.jclinical.automation.domain.ports.in.ManageChannelSettingsUseCase.WhatsAppCredentials;
 import com.jclinical.automation.domain.ports.out.ChannelConnectionCheckPort;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsAuditPort;
@@ -271,6 +272,28 @@ class ChannelSettingsServiceTest {
                 new AssistantPreferences(PromptMode.DEFAULT, null, 0)));
         assertThrows(IllegalArgumentException.class, () -> service.updateAssistant(adminUserId, clinicId,
                 new AssistantPreferences(PromptMode.DEFAULT, null, 61)));
+    }
+
+    @Test
+    void theClinicRegistersItsApprovedTemplates() {
+        ChannelSettingsView view = service.updateTemplates(adminUserId, clinicId,
+                new TemplateSettings(" aviso_paciente ", "aviso_medico", "es_MX"));
+
+        assertEquals("aviso_paciente", view.patientTemplateName());
+        assertEquals("aviso_medico", view.doctorTemplateName());
+        assertEquals("es_MX", view.templateLanguage());
+        assertNull(service.updateTemplates(adminUserId, clinicId, new TemplateSettings(" ", null, null)).patientTemplateName());
+        assertEquals("es_MX", repository.stored.get(clinicId).templateLanguage(), "idioma en blanco = es_MX");
+    }
+
+    @Test
+    void templateNamesAndLanguageFollowMetasFormat() {
+        assertThrows(IllegalArgumentException.class, () -> service.updateTemplates(adminUserId, clinicId,
+                new TemplateSettings("Aviso Paciente", null, "es_MX")));
+        assertThrows(IllegalArgumentException.class, () -> service.updateTemplates(adminUserId, clinicId,
+                new TemplateSettings("aviso_paciente", null, "espanol")));
+        assertThrows(ClinicAccessDeniedException.class, () -> service.updateTemplates(receptionistUserId, clinicId,
+                new TemplateSettings("aviso_paciente", null, "es_MX")));
     }
 
     @Test

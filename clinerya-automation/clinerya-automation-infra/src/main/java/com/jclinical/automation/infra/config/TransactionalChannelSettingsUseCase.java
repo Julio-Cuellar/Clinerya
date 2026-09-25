@@ -49,6 +49,12 @@ public class TransactionalChannelSettingsUseCase implements ManageChannelSetting
 
     @Override
     @Transactional
+    public ChannelSettingsView updateTemplates(UUID actingUserId, UUID clinicId, TemplateSettings templates) {
+        return settings.updateTemplates(actingUserId, clinicId, templates);
+    }
+
+    @Override
+    @Transactional
     public ChannelSettingsView regenerateVerifyToken(UUID actingUserId, UUID clinicId) {
         return settings.regenerateVerifyToken(actingUserId, clinicId);
     }

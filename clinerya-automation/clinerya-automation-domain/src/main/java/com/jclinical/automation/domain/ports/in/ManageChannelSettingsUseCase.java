@@ -24,6 +24,9 @@ public interface ManageChannelSettingsUseCase {
 
     ChannelSettingsView removeSecret(UUID actingUserId, UUID clinicId, SecretKind kind);
 
+    /** Plantillas aprobadas en Meta para escribir fuera de la ventana de 24 h (en blanco: sin plantilla). */
+    ChannelSettingsView updateTemplates(UUID actingUserId, UUID clinicId, TemplateSettings templates);
+
     ChannelSettingsView regenerateVerifyToken(UUID actingUserId, UUID clinicId);
 
     ConnectionTestResult testConnection(UUID actingUserId, UUID clinicId);
@@ -36,6 +39,8 @@ public interface ManageChannelSettingsUseCase {
     record GeminiCredentials(String apiKey, String model) {}
 
     record AssistantPreferences(PromptMode promptMode, String customPrompt, int chatRetentionMonths) {}
+
+    record TemplateSettings(String patientTemplateName, String doctorTemplateName, String languageCode) {}
 
     enum SecretKind {
         WHATSAPP_ACCESS_TOKEN,
@@ -65,6 +70,9 @@ public interface ManageChannelSettingsUseCase {
             boolean enabled,
             LocalDateTime whatsappVerifiedAt,
             LocalDateTime geminiVerifiedAt,
-            List<String> missingToEnable
+            List<String> missingToEnable,
+            String patientTemplateName,
+            String doctorTemplateName,
+            String templateLanguage
     ) {}
 }

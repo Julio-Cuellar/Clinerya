@@ -25,15 +25,20 @@ public record ChannelSettings(
         LocalDateTime whatsappVerifiedAt,
         LocalDateTime geminiVerifiedAt,
         UUID updatedBy,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String patientTemplateName,
+        String doctorTemplateName,
+        String templateLanguage
 ) {
 
     public static final String DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
     public static final int DEFAULT_CHAT_RETENTION_MONTHS = 12;
+    public static final String DEFAULT_TEMPLATE_LANGUAGE = "es_MX";
 
     public static ChannelSettings unconfigured(UUID clinicId) {
         return new ChannelSettings(clinicId, null, null, null, null, null, null, null, DEFAULT_GEMINI_MODEL,
-                PromptMode.DEFAULT, null, DEFAULT_CHAT_RETENTION_MONTHS, false, null, null, null, null);
+                PromptMode.DEFAULT, null, DEFAULT_CHAT_RETENTION_MONTHS, false, null, null, null, null,
+                null, null, DEFAULT_TEMPLATE_LANGUAGE);
     }
 
     public Builder toBuilder() {
@@ -58,6 +63,9 @@ public record ChannelSettings(
         private LocalDateTime geminiVerifiedAt;
         private UUID updatedBy;
         private LocalDateTime updatedAt;
+        private String patientTemplateName;
+        private String doctorTemplateName;
+        private String templateLanguage;
 
         private Builder(ChannelSettings source) {
             clinicId = source.clinicId;
@@ -77,6 +85,9 @@ public record ChannelSettings(
             geminiVerifiedAt = source.geminiVerifiedAt;
             updatedBy = source.updatedBy;
             updatedAt = source.updatedAt;
+            patientTemplateName = source.patientTemplateName;
+            doctorTemplateName = source.doctorTemplateName;
+            templateLanguage = source.templateLanguage;
         }
 
         public Builder whatsappPhoneNumberId(String value) { whatsappPhoneNumberId = value; return this; }
@@ -95,11 +106,15 @@ public record ChannelSettings(
         public Builder geminiVerifiedAt(LocalDateTime value) { geminiVerifiedAt = value; return this; }
         public Builder updatedBy(UUID value) { updatedBy = value; return this; }
         public Builder updatedAt(LocalDateTime value) { updatedAt = value; return this; }
+        public Builder patientTemplateName(String value) { patientTemplateName = value; return this; }
+        public Builder doctorTemplateName(String value) { doctorTemplateName = value; return this; }
+        public Builder templateLanguage(String value) { templateLanguage = value; return this; }
 
         public ChannelSettings build() {
             return new ChannelSettings(clinicId, whatsappPhoneNumberId, whatsappBusinessAccountId, whatsappAccessToken,
                     whatsappAppSecret, verifyToken, webhookKey, geminiApiKey, geminiModel, promptMode, customPrompt,
-                    chatRetentionMonths, enabled, whatsappVerifiedAt, geminiVerifiedAt, updatedBy, updatedAt);
+                    chatRetentionMonths, enabled, whatsappVerifiedAt, geminiVerifiedAt, updatedBy, updatedAt,
+                    patientTemplateName, doctorTemplateName, templateLanguage);
         }
     }
 }
