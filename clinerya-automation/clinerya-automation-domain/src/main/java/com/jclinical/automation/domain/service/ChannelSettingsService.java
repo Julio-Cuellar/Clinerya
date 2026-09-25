@@ -35,6 +35,8 @@ public class ChannelSettingsService implements ManageChannelSettingsUseCase {
     private static final Pattern META_ID = Pattern.compile("\\d{5,30}");
     private static final Pattern GEMINI_MODEL = Pattern.compile("[a-z0-9][a-z0-9.\\-]{2,59}");
     private static final Pattern NO_WHITESPACE = Pattern.compile("\\S+");
+    private static final Pattern TEMPLATE_NAME = Pattern.compile("[a-z0-9_]{1,512}");
+    private static final Pattern TEMPLATE_LANGUAGE = Pattern.compile("[a-z]{2,3}(_[A-Z]{2})?");
     private static final int MAX_TOKEN_LENGTH = 2048;
     private static final int MAX_SECRET_LENGTH = 512;
 
@@ -161,7 +163,28 @@ public class ChannelSettingsService implements ManageChannelSettingsUseCase {
 
     @Override
     public ChannelSettingsView updateTemplates(UUID actingUserId, UUID clinicId, TemplateSettings templates) {
-        throw new UnsupportedOperationException("pendiente");
+        requireManage(actingUserId, clinicId);
+        String language = isBlank(templates.languageCode())
+                ? ChannelSettings.DEFAULT_TEMPLATE_LANGUAGE : templates.languageCode().trim();
+        if (!TEMPLATE_LANGUAGE.matcher(language).matches()) {
+            throw new IllegalArgumentException("El idioma de la plantilla debe tener el formato de Meta, por ejemplo es_MX.");
+        }
+        ChannelSettings.Builder updated = current(clinicId).toBuilder()
+                .patientTemplateName(templateName(templates.patientTemplateName()))
+                .doctorTemplateName(templateName(templates.doctorTemplateName()))
+                .templateLanguage(language);
+        return save(updated, actingUserId, clinicId, "TEMPLATES_UPDATED");
+    }
+
+    private static String templateName(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (!TEMPLATE_NAME.matcher(trimmed).matches()) {
+            throw new IllegalArgumentException("El nombre de la plantilla debe ser el de Meta: minúsculas, números y guion bajo.");
+        }
+        return trimmed;
     }
 
     @Override
