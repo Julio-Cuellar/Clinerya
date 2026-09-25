@@ -1,7 +1,12 @@
 package com.jclinical.app.architecture;
 
 import com.jclinical.automation.archfixture.AutomationReadingAgendaTables;
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.properties.CanBeAnnotated;
+import jakarta.persistence.Entity;
+import org.springframework.data.repository.Repository;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
@@ -35,8 +40,16 @@ class AutomationIsolationArchTest {
      */
     static final ArchRule AUTOMATION_USES_ONLY_PUBLIC_APIS = noClasses()
             .that().resideInAPackage("com.jclinical.automation..")
-            .should().dependOnClassesThat().haveSimpleName("__PENDIENTE__")
+            .should().dependOnClassesThat(anotherModulesPersistence())
             .because("el agente jamas consulta la base de otro modulo; solo su API publica");
+
+    private static DescribedPredicate<JavaClass> anotherModulesPersistence() {
+        return JavaClass.Predicates.resideInAPackage("..persistence..")
+                .or(CanBeAnnotated.Predicates.annotatedWith(Entity.class))
+                .or(JavaClass.Predicates.assignableTo(Repository.class))
+                .and(JavaClass.Predicates.resideOutsideOfPackage("com.jclinical.automation.."))
+                .as("la persistencia de otro modulo (entidades, repositorios o adaptadores de datos)");
+    }
 
     @Test
     void theAutomationNeverReachesIntoAnotherModulesPersistence() {

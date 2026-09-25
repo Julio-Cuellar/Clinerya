@@ -5,10 +5,13 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,8 +62,16 @@ class AutomationSqlScopeTest {
         private SqlTableScanner() {
         }
 
+        private static final Pattern TABLE_REFERENCE = Pattern.compile(
+                "(?i)\\b(?:from|join|into|update|table(?:\\s+if\\s+(?:not\\s+)?exists)?)\\s+([a-z_][a-z0-9_]*)\\.([a-z_][a-z0-9_]*)");
+
         static Set<String> tablesIn(String text) {
-            return Set.of();
+            Set<String> tables = new TreeSet<>();
+            Matcher matcher = TABLE_REFERENCE.matcher(text);
+            while (matcher.find()) {
+                tables.add((matcher.group(1) + "." + matcher.group(2)).toLowerCase(Locale.ROOT));
+            }
+            return tables;
         }
     }
 }
