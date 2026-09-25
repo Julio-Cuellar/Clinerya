@@ -28,6 +28,24 @@ export const moduleOnboardingCopy: Record<ModuleKey, ModuleOnboardingCopy> = {
     setupSteps: ["Revisa los horarios de atencion", "Confirma los doctores disponibles", "Crea o importa la primera cita"],
     primaryLabel: "Comenzar en Agenda"
   },
+  solicitudes: {
+    eyebrow: "Primera vez en Solicitudes de cita",
+    title: "Responde las citas que piden tus pacientes por WhatsApp",
+    description:
+      "El asistente de WhatsApp aparta el horario que eligió el paciente y te lo trae aquí. Solo tú, como su médico, la aceptas, la rechazas o propones otros horarios.",
+    highlights: ["Se actualiza en vivo", "El horario queda apartado 24 h", "Propón hasta 3 horarios"],
+    setupSteps: ["Registra tu celular en Perfil para recibir avisos", "Acepta o propón horarios", "El paciente recibe la respuesta por WhatsApp"],
+    primaryLabel: "Ver solicitudes"
+  },
+  chats: {
+    eyebrow: "Primera vez en Chats de WhatsApp",
+    title: "Consulta lo que el asistente habló con cada paciente",
+    description:
+      "Aquí están las conversaciones del asistente de WhatsApp. Son de solo lectura y cada vez que alguien abre un chat queda registrado.",
+    highlights: ["Actividad en vivo", "Solo lectura", "Cada lectura queda auditada"],
+    setupSteps: ["Elige un chat de la lista", "Lee la conversación", "Aprueba las citas en Solicitudes de cita"],
+    primaryLabel: "Ver chats"
+  },
   consultorios: {
     eyebrow: "Primera vez en Consultorios",
     title: "Organiza los espacios de atencion de tu clinica",

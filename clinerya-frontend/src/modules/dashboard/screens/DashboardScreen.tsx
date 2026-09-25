@@ -31,6 +31,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 const moduleSummary: Record<Exclude<ModuleKey, "dashboard">, string> = {
   agenda: "Agenda diaria, doctores y citas por confirmar.",
+  solicitudes: "Citas que los pacientes pidieron por WhatsApp.",
+  chats: "Conversaciones del asistente de WhatsApp.",
   consultorios: "Espacios de atención, estado y disponibilidad de la clínica.",
   atencion: "Atención médica, notas SOAP, recetas y consumos.",
   pacientes: "Directorio clínico y datos administrativos.",

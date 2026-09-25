@@ -114,6 +114,20 @@ import type {
   VoidTicketRequest
 } from "@modules/cash/types";
 import type {
+  AppointmentRequestView,
+  ChannelSettingsView,
+  ChatAccess,
+  ChatMessage,
+  ChatSummary,
+  ConnectionTestResult,
+  DoctorChannelUpdate,
+  DoctorChannelView,
+  OnlineBookingSettings,
+  PromptMode,
+  SecretKind,
+  Slot
+} from "@modules/automation/types";
+import type {
   ExternalAccessGrantResponse,
   InviteExternalAccessRequest,
   TemporaryShareView
@@ -1438,6 +1452,81 @@ export const systemConfigsApi = {
     }
     return response.blob();
   }
+};
+
+// ---- Asistente de WhatsApp (modulo de automatizacion) -----------------------------------------
+
+const automationBase = (clinicId: string) => `/v1/clinics/${clinicId}/automation`;
+const putJson = (body: unknown): RequestInit => ({ method: "PUT", body: JSON.stringify(body) });
+const postJson = (body?: unknown): RequestInit => ({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
+export const whatsAppSettingsApi = {
+  get: (clinicId: string) => request<ChannelSettingsView>(`${automationBase(clinicId)}/settings`),
+  updateWhatsApp: (
+    clinicId: string,
+    body: { phoneNumberId: string; businessAccountId: string; accessToken: string; appSecret: string }
+  ) => request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/whatsapp`, putJson(body)),
+  updateGemini: (clinicId: string, body: { apiKey: string; model: string }) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/gemini`, putJson(body)),
+  updateAssistant: (clinicId: string, body: { promptMode: PromptMode; customPrompt: string; chatRetentionMonths: number }) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/assistant`, putJson(body)),
+  updateTemplates: (clinicId: string, body: { patientTemplateName: string; doctorTemplateName: string; languageCode: string }) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/templates`, putJson(body)),
+  setEnabled: (clinicId: string, enabled: boolean) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/enabled`, putJson({ enabled })),
+  removeSecret: (clinicId: string, kind: SecretKind) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/secrets/${kind}`, { method: "DELETE" }),
+  regenerateVerifyToken: (clinicId: string) =>
+    request<ChannelSettingsView>(`${automationBase(clinicId)}/settings/verify-token`, postJson()),
+  testConnection: (clinicId: string) =>
+    request<ConnectionTestResult>(`${automationBase(clinicId)}/settings/test-connection`, postJson())
+};
+
+export const doctorChannelsApi = {
+  getMine: (clinicId: string) => request<DoctorChannelView>(`${automationBase(clinicId)}/doctor-channels/me`),
+  updateMine: (clinicId: string, body: DoctorChannelUpdate) =>
+    request<DoctorChannelView>(`${automationBase(clinicId)}/doctor-channels/me`, putJson(body)),
+  get: (clinicId: string, staffId: string) =>
+    request<DoctorChannelView>(`${automationBase(clinicId)}/doctor-channels/${staffId}`),
+  update: (clinicId: string, staffId: string, body: DoctorChannelUpdate) =>
+    request<DoctorChannelView>(`${automationBase(clinicId)}/doctor-channels/${staffId}`, putJson(body))
+};
+
+export const appointmentRequestsApi = {
+  listPending: (clinicId: string) => request<AppointmentRequestView[]>(`/v1/clinics/${clinicId}/appointment-requests`),
+  proposableSlots: (clinicId: string, requestId: string) =>
+    request<Slot[]>(`/v1/clinics/${clinicId}/appointment-requests/${requestId}/proposable-slots`),
+  accept: (clinicId: string, requestId: string) =>
+    request<AppointmentRequestView>(`/v1/clinics/${clinicId}/appointment-requests/${requestId}/accept`, postJson()),
+  reject: (clinicId: string, requestId: string, reason: string) =>
+    request<AppointmentRequestView>(`/v1/clinics/${clinicId}/appointment-requests/${requestId}/reject`, postJson({ reason })),
+  propose: (clinicId: string, requestId: string, options: Slot[]) =>
+    request<AppointmentRequestView>(`/v1/clinics/${clinicId}/appointment-requests/${requestId}/propose`, postJson({ options }))
+};
+
+export const whatsAppChatsApi = {
+  list: (clinicId: string) => request<ChatSummary[]>(`${automationBase(clinicId)}/chats`),
+  messages: (clinicId: string, phone: string, before?: string) =>
+    request<ChatMessage[]>(
+      `${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/messages${before ? `?before=${encodeURIComponent(before)}` : ""}`
+    ),
+  accessLog: (clinicId: string, filters: { phone?: string; userId?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams(
+      Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1]))
+    ).toString();
+    return request<ChatAccess[]>(`${automationBase(clinicId)}/chat-access-log${query ? `?${query}` : ""}`);
+  }
+};
+
+export const onlineBookingSettingsApi = {
+  get: (clinicId: string) => request<OnlineBookingSettings>(`/v1/clinics/${clinicId}/online-booking/settings`),
+  updateSlotMinutes: (clinicId: string, minutes: number) =>
+    request<OnlineBookingSettings>(`/v1/clinics/${clinicId}/online-booking/settings/slot-minutes`, putJson({ minutes })),
+  updateDoctorLeadMinutes: (clinicId: string, doctorStaffId: string, minutes: number) =>
+    request<OnlineBookingSettings>(
+      `/v1/clinics/${clinicId}/online-booking/settings/doctors/${doctorStaffId}/lead-minutes`,
+      putJson({ minutes })
+    )
 };
 
 export function getFriendlyError(error: unknown) {

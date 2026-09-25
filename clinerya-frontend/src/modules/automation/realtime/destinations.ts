@@ -4,8 +4,9 @@ export function chatsTopic(clinicId: string): string {
   return `/topic/clinics/${clinicId}/chats`;
 }
 
-export function realtimeUrl(_location: { protocol: string; host: string }): string {
-  throw new Error("pendiente");
+/** El socket va al mismo origen que la app; Vite (desarrollo) y nginx (produccion) lo pasan a /ws. */
+export function realtimeUrl(location: { protocol: string; host: string }): string {
+  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 }
 
 export function doctorInboxTopic(clinicId: string, staffId: string): string {

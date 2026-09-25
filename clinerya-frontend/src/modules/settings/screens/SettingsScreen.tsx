@@ -15,6 +15,9 @@ import { ClinicConfigurationPanel } from "@modules/clinics/components/ClinicConf
 import type { ClinicResponse } from "@modules/clinics/types";
 import type { UserProfile } from "@modules/auth/types";
 import type { Theme } from "@modules/settings/themeTypes";
+import { WhatsAppAssistantCard } from "@modules/automation/components/WhatsAppAssistantCard";
+import { OnlineBookingRulesCard } from "@modules/automation/components/OnlineBookingRulesCard";
+import { MyWhatsAppNoticesCard } from "@modules/automation/components/MyWhatsAppNoticesCard";
 
 type TabId = "profile" | "clinic" | "security" | "appearance" | "system";
 
@@ -267,6 +270,10 @@ export function SettingsScreen({
     }
   };
 
+  // Sin permisos cargados (sesion vieja) se deja intentar; el backend responde 403 si no corresponde.
+  const clinicPermissions = user.clinics?.find((clinic) => clinic.id === clinicId)?.permissions;
+  const can = (permission: string) => !clinicPermissions || clinicPermissions.includes(permission);
+
   return (
     <section className="settings-page">
       <div className="settings-page-header">
@@ -348,6 +355,8 @@ export function SettingsScreen({
                     <span style={{ color: "var(--color-success)" }}>{user.active ? "Activo" : "Inactivo"}</span>
                   </div>
                 </div>
+
+                {clinicId && <MyWhatsAppNoticesCard clinicId={clinicId} />}
               </div>
             )}
 
@@ -367,6 +376,9 @@ export function SettingsScreen({
                   </div>
 
                   <ClinicConfigurationPanel clinicId={clinicId} onClinicUpdated={onClinicUpdated} />
+
+                  {clinicId && <WhatsAppAssistantCard clinicId={clinicId} canManage={can("MANAGE_INTEGRATIONS")} />}
+                  {clinicId && <OnlineBookingRulesCard clinicId={clinicId} canManage={can("MANAGE_AGENDA")} />}
 
                   <div className="panel" style={{ padding: "16px", background: "var(--color-card)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

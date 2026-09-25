@@ -4,10 +4,10 @@ import { modules, type ModuleKey } from "@app/constants/modules";
 import type { UserProfile } from "@modules/auth/types";
 
 export const allowedModulesByRole: Record<string, Set<ModuleKey>> = {
-  ADMIN: new Set(["dashboard", "agenda", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
-  CLINIC_ADMIN: new Set(["dashboard", "agenda", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
-  DOCTOR: new Set(["dashboard", "agenda", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
-  RECEPTIONIST: new Set(["dashboard", "agenda", "pacientes", "caja"]),
+  ADMIN: new Set(["dashboard", "agenda", "solicitudes", "chats", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
+  CLINIC_ADMIN: new Set(["dashboard", "agenda", "solicitudes", "chats", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
+  DOCTOR: new Set(["dashboard", "agenda", "solicitudes", "chats", "pacientes", "expediente", "tratamientos", "caja", "inventario", "contabilidad", "personal"]),
+  RECEPTIONIST: new Set(["dashboard", "agenda", "chats", "pacientes", "caja"]),
   ASSISTANT: new Set(["dashboard", "agenda", "pacientes", "expediente", "inventario"]),
   ACCOUNTANT: new Set(["dashboard", "caja", "contabilidad"]),
   CLEANING: new Set(["dashboard", "agenda"])
@@ -16,6 +16,9 @@ export const allowedModulesByRole: Record<string, Set<ModuleKey>> = {
 export const modulePermissionByKey: Partial<Record<ModuleKey, string | string[]>> = {
   dashboard: ["VIEW_DASHBOARD", "VIEW_DASHBOARD_METRICS"],
   agenda: ["VIEW_AGENDA", "MANAGE_AGENDA"],
+  // La bandeja es del medico que atiende; los chats los ven medicos y recepcion (D9).
+  solicitudes: ["VIEW_PATIENT_CARE"],
+  chats: ["VIEW_PATIENTS"],
   pacientes: ["VIEW_PATIENTS", "MANAGE_PATIENTS"],
   expediente: ["VIEW_MEDICAL_RECORDS"],
   tratamientos: ["VIEW_TREATMENTS", "MANAGE_TREATMENTS"],

@@ -1,4 +1,6 @@
 import {
+  IconBrandWhatsapp,
+  IconInbox,
   IconBuildingHospital,
   IconCalendar,
   IconCash,
@@ -16,6 +18,8 @@ import {
 export type ModuleKey =
   | "dashboard"
   | "agenda"
+  | "solicitudes"
+  | "chats"
   | "consultorios"
   | "atencion"
   | "pacientes"
@@ -30,6 +34,8 @@ export type ModuleKey =
 export const modules: Array<{ key: ModuleKey; label: string; section: string; icon: typeof IconCalendar }> = [
   { key: "dashboard", label: "Dashboard", section: "Inicio", icon: IconLayoutDashboard },
   { key: "agenda", label: "Agenda", section: "Clinica", icon: IconCalendar },
+  { key: "solicitudes", label: "Solicitudes de cita", section: "Clinica", icon: IconInbox },
+  { key: "chats", label: "Chats de WhatsApp", section: "Clinica", icon: IconBrandWhatsapp },
   { key: "consultorios", label: "Consultorios", section: "Clinica", icon: IconBuildingHospital },
   { key: "atencion", label: "Atencion al Paciente", section: "Clinica", icon: IconHeartHandshake },
   { key: "pacientes", label: "Pacientes", section: "Clinica", icon: IconUsers },
@@ -45,6 +51,8 @@ export const modules: Array<{ key: ModuleKey; label: string; section: string; ic
 export const moduleCopy: Record<ModuleKey, { subtitle: string; primary?: string; secondary?: string }> = {
   dashboard: { subtitle: "Resumen general de la clinica y sus modulos" },
   agenda: { subtitle: "Citas y horarios de la clinica" },
+  solicitudes: { subtitle: "Solicitudes de cita que los pacientes hicieron por WhatsApp" },
+  chats: { subtitle: "Conversaciones del asistente de WhatsApp con los pacientes" },
   consultorios: { subtitle: "Espacios de atencion, estado y disponibilidad de la clinica" },
   atencion: { subtitle: "Consulta medica activa, historia clinica, notas SOAP, recetas y comparativo de insumos" },
   pacientes: { subtitle: "Catalogo activo de pacientes", primary: "+ Nuevo paciente", secondary: "Exportar listado" },

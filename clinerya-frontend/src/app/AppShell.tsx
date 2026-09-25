@@ -25,6 +25,8 @@ import { ContabilidadScreen } from "@modules/accounting/screens/ContabilidadScre
 import { TratamientosScreen } from "@modules/treatments/screens/TratamientosScreen";
 import { PatientCareScreen } from "@modules/treatments/screens/PatientCareScreen";
 import { SettingsScreen } from "@modules/settings/screens/SettingsScreen";
+import { AppointmentRequestsScreen } from "@modules/automation/screens/AppointmentRequestsScreen";
+import { WhatsAppChatsScreen } from "@modules/automation/screens/WhatsAppChatsScreen";
 import { mobileRestricted, moduleCopy, modules, type ModuleKey } from "@app/constants/modules";
 import { authApi, clinicsApi, getFriendlyError, patientsApi, sessionStore, ticketsApi } from "@shared/api/api";
 import type { UserProfile } from "@modules/auth/types";
@@ -37,6 +39,9 @@ import { getInitials } from "@shared/utils/getInitials";
 const modulePathByKey: Record<ModuleKey, string> = {
   dashboard: "/dashboard",
   agenda: "/agenda",
+  // El aviso de WhatsApp al medico enlaza a esta ruta (app.automation.doctor-inbox-path).
+  solicitudes: "/solicitudes-de-cita",
+  chats: "/chats-whatsapp",
   consultorios: "/consultorios",
   atencion: "/atencion",
   pacientes: "/pacientes",
@@ -57,7 +62,9 @@ function moduleFromPath(): ModuleKey {
   if (!firstSegment) {
     return "dashboard";
   }
-  const matched = modules.find((item) => item.key === firstSegment);
+  const matched = modules.find(
+    (item) => item.key === firstSegment || modulePathByKey[item.key].split("/").filter(Boolean)[0] === firstSegment
+  );
   return matched?.key ?? "dashboard";
 }
 
@@ -384,6 +391,10 @@ export function AppShell({
               patients={patients}
               onStartCare={canAttendPatients ? handleStartCare : undefined}
             />
+          ) : active === "solicitudes" ? (
+            <AppointmentRequestsScreen clinicId={activeClinicId} userId={user.id} />
+          ) : active === "chats" ? (
+            <WhatsAppChatsScreen clinicId={activeClinicId} canSeeAccessLog={hasPermission("MANAGE_CLINIC")} />
           ) : active === "consultorios" ? (
             <ConsultoriosScreen clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} />
           ) : active === "atencion" && canAttendPatients ? (
