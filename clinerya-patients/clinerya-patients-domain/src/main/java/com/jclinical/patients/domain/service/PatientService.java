@@ -1,8 +1,10 @@
 package com.jclinical.patients.domain.service;
 
+import com.jclinical.patients.domain.model.ConsentSource;
 import com.jclinical.patients.domain.model.Patient;
 import com.jclinical.patients.domain.ports.in.DeletePatientUseCase;
 import com.jclinical.patients.domain.ports.in.GetPatientUseCase;
+import com.jclinical.patients.domain.ports.in.RecordContactConsentUseCase;
 import com.jclinical.patients.domain.ports.in.RegisterPatientUseCase;
 import com.jclinical.patients.domain.ports.in.UpdatePatientUseCase;
 import com.jclinical.patients.domain.ports.out.PatientRepositoryPort;
@@ -12,7 +14,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class PatientService implements RegisterPatientUseCase, GetPatientUseCase, UpdatePatientUseCase, DeletePatientUseCase {
+public class PatientService implements RegisterPatientUseCase, GetPatientUseCase, UpdatePatientUseCase, DeletePatientUseCase,
+        RecordContactConsentUseCase {
 
     private final PatientRepositoryPort patientRepository;
 
@@ -104,5 +107,10 @@ public class PatientService implements RegisterPatientUseCase, GetPatientUseCase
         }
         patientRepository.deleteById(id);
         return true;
+    }
+
+    @Override
+    public Patient recordContactConsent(UUID patientId, UUID clinicId, ContactConsentDecision decision, ConsentSource source) {
+        throw new UnsupportedOperationException("pendiente");
     }
 }

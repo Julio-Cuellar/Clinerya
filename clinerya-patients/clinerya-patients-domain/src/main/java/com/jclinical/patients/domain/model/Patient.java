@@ -28,6 +28,8 @@ public class Patient {
     private final BloodType bloodType;
     private final Address address;
     private final EmergencyContact emergencyContact;
+    @Builder.Default
+    private final ContactConsent contactConsent = ContactConsent.notRecorded();
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 }
