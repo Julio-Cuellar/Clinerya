@@ -41,6 +41,8 @@ public class SecurityConfig {
                     "/api/v1/public/shared-history",
                     "/api/v1/public/shared-history/**",
                     "/api/v1/integrations/google-calendar/callback",
+                    // Webhook de WhatsApp: Meta no manda JWT; lo protege la firma HMAC de cada clinica.
+                    "/api/v1/public/whatsapp/**",
                     "/api/v1/info",
                     "/actuator/health",
                     "/actuator/health/**"

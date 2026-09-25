@@ -19,6 +19,7 @@ public class AutomationRabbitConfig {
 
     public static final String REQUEST_RESOLVED_QUEUE = "automation.appointment-request.resolved";
     public static final String DEAD_LETTER_QUEUE = "automation.dlq";
+    public static final String WHATSAPP_MESSAGE_RECEIVED_QUEUE = "automation.whatsapp.message.received";
 
     @Bean
     public Queue automationRequestResolvedQueue() {
@@ -26,6 +27,28 @@ public class AutomationRabbitConfig {
                 .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
                 .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.APPOINTMENT_REQUEST_RESOLVED)
                 .build();
+    }
+
+    @Bean
+    public Queue automationWhatsAppMessageQueue() {
+        return QueueBuilder.durable(WHATSAPP_MESSAGE_RECEIVED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED)
+                .build();
+    }
+
+    @Bean
+    public Binding automationWhatsAppMessageBinding(Queue automationWhatsAppMessageQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(automationWhatsAppMessageQueue)
+                .to(domainEventsExchange)
+                .with(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED);
+    }
+
+    @Bean
+    public Binding automationWhatsAppDeadLetterBinding(Queue automationDeadLetterQueue, DirectExchange domainEventsDeadLetterExchange) {
+        return BindingBuilder.bind(automationDeadLetterQueue)
+                .to(domainEventsDeadLetterExchange)
+                .with(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED);
     }
 
     @Bean

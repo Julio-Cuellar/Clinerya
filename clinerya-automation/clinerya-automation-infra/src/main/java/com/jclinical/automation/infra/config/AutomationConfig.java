@@ -21,6 +21,11 @@ import com.jclinical.automation.domain.ports.out.ChannelConnectionCheckPort;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsAuditPort;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsService;
+import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
+import com.jclinical.automation.domain.service.WhatsAppWebhookService;
+import com.jclinical.automation.infra.adapters.in.webhook.MetaWebhookPayloadParser;
+import com.jclinical.automation.infra.adapters.in.webhook.WebhookRateLimiter;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcInboundMessageLedger;
 import com.jclinical.automation.infra.adapters.out.connection.ChannelConnectionChecker;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettingsAudit;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettingsRepository;
@@ -47,6 +52,7 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.Base64;
 
 /**
@@ -173,6 +179,26 @@ public class AutomationConfig {
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(8));
         return RestClient.builder().requestFactory(requestFactory).build();
+    }
+
+    @Bean
+    public WhatsAppWebhookService whatsAppWebhookService(ChannelSettingsRepositoryPort settings, ObjectMapper objectMapper,
+                                                         JdbcTemplate jdbcTemplate, DomainEventPublisherPort events) {
+        return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
+                new JdbcInboundMessageLedger(jdbcTemplate), events, Clock.systemDefaultZone());
+    }
+
+    /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
+    @Bean
+    public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
+                                                             OutboundMessageQueuePort outbound) {
+        return new InboundWhatsAppProcessor(automationConversationService, outbound);
+    }
+
+    @Bean
+    public WebhookRateLimiter whatsAppWebhookRateLimiter(
+            @Value("${app.automation.whatsapp.webhook-max-requests-per-minute:600}") int maxRequestsPerMinute) {
+        return new WebhookRateLimiter(maxRequestsPerMinute, System::currentTimeMillis);
     }
 
     /** Gemini con la clave y el modelo de cada clinica (D4); no hay clave de plataforma. */
