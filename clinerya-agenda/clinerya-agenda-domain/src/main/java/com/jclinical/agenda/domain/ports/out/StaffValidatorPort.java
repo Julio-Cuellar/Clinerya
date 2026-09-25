@@ -10,6 +10,11 @@ public interface StaffValidatorPort {
 
     List<DoctorSnapshot> listActiveDoctors(UUID clinicId);
 
+    /** Usuario de Clinerya del miembro del personal, para saber si quien llama es ese medico. */
+    default Optional<UUID> userIdOfStaff(UUID staffId, UUID clinicId) {
+        return Optional.empty();
+    }
+
     record DoctorSnapshot(
             UUID staffId,
             String fullName
