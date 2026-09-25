@@ -145,6 +145,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         if (!command.externalImport()) {
             validateNoDoctorOverlap(command.doctorStaffId(), clinicId, command.scheduledStart(), command.scheduledEnd(), null);
+            validateNoActiveHold(command.doctorStaffId(), clinicId, command.scheduledStart(), command.scheduledEnd());
             if (command.roomId() != null) {
                 validateActiveRoom(command.roomId(), clinicId);
                 validateNoRoomOverlap(command.roomId(), clinicId, command.scheduledStart(), command.scheduledEnd(), null);
@@ -246,6 +247,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
         if (!externalImport) {
             validateWithinClinicSchedule(clinicId, newStart, newEnd);
             validateNoDoctorOverlap(appointment.getDoctorStaffId(), clinicId, newStart, newEnd, appointmentId);
+            validateNoActiveHold(appointment.getDoctorStaffId(), clinicId, newStart, newEnd);
             if (appointment.getRoomId() != null) {
                 validateActiveRoom(appointment.getRoomId(), clinicId);
                 validateNoRoomOverlap(appointment.getRoomId(), clinicId, newStart, newEnd, appointmentId);
@@ -452,6 +454,20 @@ public class AppointmentService implements ManageAppointmentsUseCase {
                 .anyMatch(a -> a.overlapsWith(start, end));
         if (hasOverlap) {
             throw new IllegalStateException("El doctor ya tiene otra cita agendada en ese horario.");
+        }
+    }
+
+    /**
+     * Un cupo apartado por una solicitud de cita en linea queda bloqueado tambien para el personal
+     * mientras el medico decide (decision de la entrega 3). Vencido o liberado deja de contar.
+     */
+    private void validateNoActiveHold(UUID doctorStaffId, UUID clinicId, LocalDateTime start, LocalDateTime end) {
+        if (slotHoldRepository == null) {
+            return;
+        }
+        if (!slotHoldRepository.findActiveByDoctorAndRange(doctorStaffId, clinicId, start, end, LocalDateTime.now()).isEmpty()) {
+            throw new IllegalStateException(
+                    "Ese horario está apartado por una solicitud de cita en espera de respuesta del médico.");
         }
     }
 
