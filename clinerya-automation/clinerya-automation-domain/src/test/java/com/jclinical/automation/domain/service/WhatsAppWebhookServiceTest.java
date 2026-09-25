@@ -42,6 +42,7 @@ class WhatsAppWebhookServiceTest {
     private final InMemorySettings settings = new InMemorySettings();
     private final List<WhatsAppInboundMessage> parsed = new ArrayList<>();
     private final Set<String> seen = new HashSet<>();
+    private final List<String> senders = new ArrayList<>();
     private final List<Object[]> published = new ArrayList<>();
 
     private WhatsAppWebhookService service;
@@ -52,7 +53,10 @@ class WhatsAppWebhookServiceTest {
                 .whatsappPhoneNumberId(PHONE_NUMBER_ID).whatsappAppSecret(APP_SECRET)
                 .webhookKey("llave-webhook").verifyToken("token-verificacion").enabled(true).build());
         service = new WhatsAppWebhookService(settings, body -> List.copyOf(parsed),
-                (clinic, waMessageId, at) -> seen.add(waMessageId),
+                (clinic, waMessageId, fromPhone, at) -> {
+                    senders.add(fromPhone);
+                    return seen.add(waMessageId);
+                },
                 (routingKey, payload) -> published.add(new Object[]{routingKey, payload}),
                 Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
     }
@@ -126,6 +130,7 @@ class WhatsAppWebhookServiceTest {
         assertEquals(NOW, first.receivedAt());
         WhatsAppMessageReceivedEvent second = (WhatsAppMessageReceivedEvent) published.get(1)[1];
         assertEquals("action:book", second.selectedOptionId());
+        assertEquals(List.of("5215512345678", "5215512345678"), senders, "el remitente abre la ventana de 24 h");
     }
 
     @Test
