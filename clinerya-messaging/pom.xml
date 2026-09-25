@@ -33,6 +33,17 @@
             <artifactId>spring-retry</artifactId>
         </dependency>
 
+        <!-- Outbox de eventos: se serializan con Jackson y se guardan con JDBC en la transaccion del negocio. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
