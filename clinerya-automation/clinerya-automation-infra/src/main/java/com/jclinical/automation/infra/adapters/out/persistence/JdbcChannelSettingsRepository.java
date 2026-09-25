@@ -20,14 +20,14 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
             clinic_id, whatsapp_phone_number_id, whatsapp_business_account_id, whatsapp_access_token,
             whatsapp_app_secret, verify_token, webhook_key, gemini_api_key, gemini_model, prompt_mode,
             custom_prompt, chat_retention_months, enabled, whatsapp_verified_at, gemini_verified_at,
-            updated_by, updated_at
+            updated_by, updated_at, patient_template_name, doctor_template_name, template_language
             """;
 
     private static final String SELECT = "SELECT " + COLUMNS + " FROM automation.clinic_channel_settings WHERE ";
 
     private static final String UPSERT_SQL = """
             INSERT INTO automation.clinic_channel_settings (%s)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (clinic_id) DO UPDATE SET
                 whatsapp_phone_number_id = EXCLUDED.whatsapp_phone_number_id,
                 whatsapp_business_account_id = EXCLUDED.whatsapp_business_account_id,
@@ -44,7 +44,10 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
                 whatsapp_verified_at = EXCLUDED.whatsapp_verified_at,
                 gemini_verified_at = EXCLUDED.gemini_verified_at,
                 updated_by = EXCLUDED.updated_by,
-                updated_at = EXCLUDED.updated_at
+                updated_at = EXCLUDED.updated_at,
+                patient_template_name = EXCLUDED.patient_template_name,
+                doctor_template_name = EXCLUDED.doctor_template_name,
+                template_language = EXCLUDED.template_language
             """.formatted(COLUMNS);
 
     private final JdbcTemplate jdbcTemplate;
@@ -78,7 +81,8 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
                 cipher.encrypt(settings.verifyToken()), settings.webhookKey(), cipher.encrypt(settings.geminiApiKey()),
                 settings.geminiModel(), settings.promptMode().name(), settings.customPrompt(),
                 settings.chatRetentionMonths(), settings.enabled(), timestamp(settings.whatsappVerifiedAt()),
-                timestamp(settings.geminiVerifiedAt()), settings.updatedBy(), timestamp(settings.updatedAt()));
+                timestamp(settings.geminiVerifiedAt()), settings.updatedBy(), timestamp(settings.updatedAt()),
+                settings.patientTemplateName(), settings.doctorTemplateName(), settings.templateLanguage());
         return settings;
     }
 
@@ -105,7 +109,9 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
                 localDateTime(row.getTimestamp("gemini_verified_at")),
                 row.getObject("updated_by", UUID.class),
                 localDateTime(row.getTimestamp("updated_at")),
-                null, null, ChannelSettings.DEFAULT_TEMPLATE_LANGUAGE);
+                row.getString("patient_template_name"),
+                row.getString("doctor_template_name"),
+                row.getString("template_language"));
     }
 
     private static Timestamp timestamp(LocalDateTime value) {

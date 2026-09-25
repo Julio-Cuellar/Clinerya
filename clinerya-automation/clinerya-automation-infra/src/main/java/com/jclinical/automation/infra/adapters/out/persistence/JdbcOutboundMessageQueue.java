@@ -1,5 +1,7 @@
 package com.jclinical.automation.infra.adapters.out.persistence;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.ports.out.OutboundMessageQueuePort;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -7,33 +9,48 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Cola de mensajes al paciente. Se escribe en la misma transaccion que mueve la conversacion, asi
- * que un mensaje nunca queda sin su cambio de estado (ni al reves). El canal los envia despues.
+ * que un mensaje nunca queda sin su cambio de estado (ni al reves). El despachador los envia despues.
+ * Si hubiera que usar plantilla, el texto completo va como su unico parametro.
  */
 public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort {
 
     private static final String INSERT_SQL = """
-            INSERT INTO automation.outbound_messages (id, clinic_id, phone, body, options, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'PENDING', ?)
+            INSERT INTO automation.outbound_messages
+                (id, clinic_id, phone, audience, body, options, template_parameters, status, attempts, next_attempt_at, created_at)
+            VALUES (?, ?, ?, 'PATIENT', ?, ?, ?, 'PENDING', 0, ?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
     private final ConversationOptionsCodec optionsCodec;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public JdbcOutboundMessageQueue(JdbcTemplate jdbcTemplate, ConversationOptionsCodec optionsCodec, Clock clock) {
+    public JdbcOutboundMessageQueue(JdbcTemplate jdbcTemplate, ConversationOptionsCodec optionsCodec,
+                                    ObjectMapper objectMapper, Clock clock) {
         this.jdbcTemplate = jdbcTemplate;
         this.optionsCodec = optionsCodec;
+        this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     @Override
     public void enqueue(PatientNotification notification) {
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now(clock));
         jdbcTemplate.update(INSERT_SQL, UUID.randomUUID(), notification.clinicId(), notification.phone(),
                 notification.reply().text(), optionsCodec.encode(notification.reply().options()),
-                Timestamp.valueOf(LocalDateTime.now(clock)));
+                json(List.of(notification.reply().text())), now, now);
+    }
+
+    private String json(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("No se pudieron guardar los parametros de la plantilla.", exception);
+        }
     }
 }

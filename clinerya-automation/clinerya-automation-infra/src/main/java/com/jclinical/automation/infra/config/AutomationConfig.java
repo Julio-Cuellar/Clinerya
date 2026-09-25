@@ -22,6 +22,9 @@ import com.jclinical.automation.domain.ports.out.ChannelSettingsAuditPort;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsService;
 import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
+import com.jclinical.automation.domain.service.OutboundDispatcher;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcOutboundDispatchRepository;
+import com.jclinical.automation.infra.adapters.out.whatsapp.MetaWhatsAppSender;
 import com.jclinical.automation.domain.service.WhatsAppWebhookService;
 import com.jclinical.automation.infra.adapters.in.webhook.MetaWebhookPayloadParser;
 import com.jclinical.automation.infra.adapters.in.webhook.WebhookRateLimiter;
@@ -106,8 +109,25 @@ public class AutomationConfig {
     }
 
     @Bean
-    public OutboundMessageQueuePort outboundMessageQueue(JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec) {
-        return new JdbcOutboundMessageQueue(jdbcTemplate, codec, Clock.systemDefaultZone());
+    public OutboundMessageQueuePort outboundMessageQueue(JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec,
+                                                         ObjectMapper objectMapper) {
+        return new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, Clock.systemDefaultZone());
+    }
+
+    @Bean
+    public JdbcInboundMessageLedger inboundMessageLedger(JdbcTemplate jdbcTemplate) {
+        return new JdbcInboundMessageLedger(jdbcTemplate);
+    }
+
+    @Bean
+    public OutboundDispatcher outboundDispatcher(
+            JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec, ObjectMapper objectMapper,
+            ChannelSettingsRepositoryPort settings, JdbcInboundMessageLedger inboundMessageLedger,
+            @Value("${app.automation.whatsapp.graph-base-url:https://graph.facebook.com}") String graphBaseUrl,
+            @Value("${app.automation.whatsapp.graph-version:v23.0}") String graphVersion) {
+        return new OutboundDispatcher(new JdbcOutboundDispatchRepository(jdbcTemplate, codec, objectMapper), settings,
+                inboundMessageLedger, new MetaWhatsAppSender(externalRestClient(), objectMapper, graphBaseUrl, graphVersion),
+                Clock.systemDefaultZone());
     }
 
     @Bean
@@ -183,9 +203,10 @@ public class AutomationConfig {
 
     @Bean
     public WhatsAppWebhookService whatsAppWebhookService(ChannelSettingsRepositoryPort settings, ObjectMapper objectMapper,
-                                                         JdbcTemplate jdbcTemplate, DomainEventPublisherPort events) {
+                                                         JdbcInboundMessageLedger inboundMessageLedger,
+                                                         DomainEventPublisherPort events) {
         return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
-                new JdbcInboundMessageLedger(jdbcTemplate), events, Clock.systemDefaultZone());
+                inboundMessageLedger, events, Clock.systemDefaultZone());
     }
 
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */

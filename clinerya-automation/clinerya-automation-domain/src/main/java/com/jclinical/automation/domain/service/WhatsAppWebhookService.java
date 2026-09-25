@@ -69,7 +69,7 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
         for (WhatsAppInboundMessage message : parser.parse(rawBody)) {
             boolean forThisNumber = clinic.whatsappPhoneNumberId() != null
                     && clinic.whatsappPhoneNumberId().equals(message.phoneNumberId());
-            if (forThisNumber && ledger.recordIfNew(clinic.clinicId(), message.waMessageId(), now)) {
+            if (forThisNumber && ledger.recordIfNew(clinic.clinicId(), message.waMessageId(), message.fromPhone(), now)) {
                 events.publish(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED, new WhatsAppMessageReceivedEvent(
                         UUID.randomUUID(), clinic.clinicId(), message.waMessageId(), message.fromPhone(),
                         message.kind(), message.text(), message.selectedOptionId(), now));
