@@ -51,6 +51,7 @@
         <module>clinerya-cash</module>
         <module>clinerya-accounting</module>
         <module>clinerya-notifications</module>
+        <module>clinerya-automation</module>
         <module>clinerya-collaboration</module>
         <module>clinerya-app</module>
     </modules>
@@ -61,6 +62,16 @@
             <dependency>
                 <groupId>com.jclinical</groupId>
                 <artifactId>clinerya-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jclinical</groupId>
+                <artifactId>clinerya-automation-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jclinical</groupId>
+                <artifactId>clinerya-automation-infra</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
