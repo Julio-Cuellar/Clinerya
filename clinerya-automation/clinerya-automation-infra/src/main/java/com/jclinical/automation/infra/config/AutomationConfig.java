@@ -55,8 +55,8 @@ import java.util.Base64;
  * ({@link TransactionalConversationUseCase}, {@link TransactionalAppointmentRequestUseCase}) son los
  * que usan los adaptadores de entrada.
  *
- * <p>Gemini se configura por variables de entorno: GEMINI_API_KEY (sin ella el interprete nunca
- * llama y la conversacion funciona solo con botones), GEMINI_MODEL y GEMINI_BASE_URL.
+ * <p>Gemini usa la clave y el modelo que cada clinica guarda en su configuracion; no hay clave de
+ * plataforma. GEMINI_BASE_URL solo cambia el servidor (pruebas).
  */
 @Configuration
 public class AutomationConfig {
@@ -175,16 +175,11 @@ public class AutomationConfig {
         return RestClient.builder().requestFactory(requestFactory).build();
     }
 
+    /** Gemini con la clave y el modelo de cada clinica (D4); no hay clave de plataforma. */
     @Bean
     public IntentInterpreterPort geminiIntentInterpreter(
-            ObjectMapper objectMapper,
-            @Value("${app.automation.gemini.api-key:${GEMINI_API_KEY:}}") String apiKey,
-            @Value("${app.automation.gemini.model:${GEMINI_MODEL:gemini-2.5-flash}}") String model,
+            ObjectMapper objectMapper, ChannelSettingsRepositoryPort channelSettings,
             @Value("${app.automation.gemini.base-url:${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}}") String baseUrl) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(3));
-        requestFactory.setReadTimeout(Duration.ofSeconds(8));
-        RestClient restClient = RestClient.builder().requestFactory(requestFactory).build();
-        return new GeminiIntentInterpreter(restClient, objectMapper, baseUrl, model, apiKey);
+        return new GeminiIntentInterpreter(externalRestClient(), objectMapper, baseUrl, channelSettings);
     }
 }

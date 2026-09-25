@@ -1,5 +1,7 @@
 package com.jclinical.automation.infra.adapters.out.gemini;
 
+import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -12,6 +14,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Interprete de texto libre con Gemini. Solo le pide elegir, entre las opciones que el motor ya
@@ -38,25 +41,32 @@ public class GeminiIntentInterpreter implements IntentInterpreterPort {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
-    private final String endpoint;
-    private final String apiKey;
+    private final String baseUrl;
+    private final ChannelSettingsRepositoryPort settings;
 
-    public GeminiIntentInterpreter(RestClient restClient, ObjectMapper objectMapper, String baseUrl, String model, String apiKey) {
+    public GeminiIntentInterpreter(RestClient restClient, ObjectMapper objectMapper, String baseUrl,
+                                   ChannelSettingsRepositoryPort settings) {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
-        this.endpoint = baseUrl + "/v1beta/models/" + model + ":generateContent";
-        this.apiKey = apiKey == null ? "" : apiKey.trim();
+        this.baseUrl = baseUrl;
+        this.settings = settings;
     }
 
+    /** Cada clinica paga su propio Gemini: se usan su clave y su modelo; sin clave no se interpreta. */
     @Override
-    public Optional<String> interpret(String text, List<ConversationOption> options) {
-        if (apiKey.isEmpty() || text == null || text.isBlank() || options.isEmpty()) {
+    public Optional<String> interpret(UUID clinicId, String text, List<ConversationOption> options) {
+        if (text == null || text.isBlank() || options.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<ChannelSettings> clinic = settings.findByClinicId(clinicId)
+                .filter(found -> found.geminiApiKey() != null && !found.geminiApiKey().isBlank());
+        if (clinic.isEmpty()) {
             return Optional.empty();
         }
         try {
             JsonNode response = restClient.post()
-                    .uri(endpoint)
-                    .header("x-goog-api-key", apiKey)
+                    .uri(baseUrl + "/v1beta/models/" + clinic.get().geminiModel() + ":generateContent")
+                    .header("x-goog-api-key", clinic.get().geminiApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(request(text, options)))
                     .retrieve()

@@ -164,7 +164,7 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
             return null;
         }
         try {
-            return interpreter.interpret(message.text(), conversation.offeredOptions())
+            return interpreter.interpret(conversation.clinicId(), message.text(), conversation.offeredOptions())
                     .filter(optionId -> isOffered(conversation, optionId))
                     .orElse(null);
         } catch (RuntimeException exception) {
