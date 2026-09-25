@@ -72,9 +72,10 @@ public class AgendaDomainConfig {
             AppointmentRepositoryPort appointmentRepository,
             com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort slotHoldRepository,
             com.jclinical.agenda.domain.service.OnlineBookingSettingsService settings,
-            StaffValidatorPort staffValidator) {
+            StaffValidatorPort staffValidator,
+            AppointmentService appointmentService) {
         return new com.jclinical.agenda.domain.service.OnlineBookingService(clinicScheduleService, appointmentRepository,
-                slotHoldRepository, settings, staffValidator, java.time.Clock.systemDefaultZone());
+                slotHoldRepository, settings, staffValidator, appointmentService, java.time.Clock.systemDefaultZone());
     }
 
     @Bean

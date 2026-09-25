@@ -32,6 +32,11 @@ public class AgendaStaffValidatorAdapter implements StaffValidatorPort {
     }
 
     @Override
+    public Optional<UUID> staffIdOfUser(UUID userId, UUID clinicId) {
+        return clinicStaffUseCase.getActiveStaffByUserAndClinic(userId, clinicId).map(ManageClinicStaffUseCase.StaffSummary::staffId);
+    }
+
+    @Override
     public List<DoctorSnapshot> listActiveDoctors(UUID clinicId) {
         return clinicStaffUseCase.listPractitioners(clinicId).stream()
                 .map(staff -> new DoctorSnapshot(staff.staffId(), staff.fullName()))

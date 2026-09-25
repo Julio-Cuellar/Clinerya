@@ -5,6 +5,7 @@ import com.jclinical.agenda.domain.model.BookableSlot;
 import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.model.SlotHold;
 import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
+import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase.CreateAppointmentCommand;
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.OnlineBookingSettingsPort;
@@ -101,14 +102,34 @@ public class OnlineBookingService implements OnlineBookingUseCase {
                 .ifPresent(hold -> holds.save(hold.withStatus(SlotHold.Status.RELEASED)));
     }
 
+    /**
+     * El apartado se marca consumido antes de crear la cita para que la validacion de apartados de la
+     * agenda no lo cuente como choque; si la agenda rechaza la cita, se restaura tal como estaba.
+     */
     @Override
     public UUID bookHeldSlot(BookHeldSlotCommand command) {
-        throw new UnsupportedOperationException("pendiente");
+        SlotHold found = holds.findByIdAndClinicId(command.holdId(), command.clinicId())
+                .orElseThrow(() -> new SlotUnavailableException("El cupo apartado no existe."));
+        holds.lockDoctorSchedule(found.clinicId(), found.doctorStaffId());
+
+        SlotHold hold = holds.findByIdAndClinicId(found.id(), found.clinicId()).orElse(found);
+        if (!hold.isActiveAt(LocalDateTime.now(clock))) {
+            throw new SlotUnavailableException("El cupo apartado ya venció o fue liberado.");
+        }
+        holds.save(hold.withStatus(SlotHold.Status.CONSUMED));
+        try {
+            return appointmentCreator.createAppointment(null, hold.clinicId(), new CreateAppointmentCommand(
+                    command.patientId(), hold.doctorStaffId(), null, null, null,
+                    hold.start(), hold.end(), command.reason(), null)).getId();
+        } catch (IllegalArgumentException | IllegalStateException rejected) {
+            holds.save(hold);
+            throw new SlotUnavailableException(rejected.getMessage());
+        }
     }
 
     @Override
     public Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId) {
-        throw new UnsupportedOperationException("pendiente");
+        return staffValidator.staffIdOfUser(userId, clinicId);
     }
 
     /**

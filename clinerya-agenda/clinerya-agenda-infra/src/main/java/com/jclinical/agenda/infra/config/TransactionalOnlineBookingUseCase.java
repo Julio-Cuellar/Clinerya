@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -40,5 +41,17 @@ public class TransactionalOnlineBookingUseCase implements OnlineBookingUseCase {
     @Transactional
     public void releaseHold(UUID clinicId, UUID holdId) {
         onlineBookingService.releaseHold(clinicId, holdId);
+    }
+
+    @Override
+    @Transactional
+    public UUID bookHeldSlot(BookHeldSlotCommand command) {
+        return onlineBookingService.bookHeldSlot(command);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId) {
+        return onlineBookingService.doctorStaffIdOfUser(clinicId, userId);
     }
 }
