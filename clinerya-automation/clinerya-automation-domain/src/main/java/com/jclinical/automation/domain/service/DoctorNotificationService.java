@@ -19,7 +19,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Avisos al medico por WhatsApp (D8): solicitud nueva, recordatorio si a las 4 h sigue sin respuesta
+ * Avisos al medico (D8): su bandeja abierta en Clinerya se actualiza al momento y, si tiene canal de
+ * WhatsApp activo, recibe ahi la solicitud nueva, un recordatorio si a las 4 h sigue sin respuesta
  * y, si escribe, que responde en Clinerya. Los avisos solo llevan la fecha y el enlace a la bandeja;
  * nada del paciente sale por este canal.
  */
@@ -32,6 +33,7 @@ public class DoctorNotificationService implements DoctorAlertPort, DoctorReplyPo
     private final DoctorChannelRepositoryPort channels;
     private final DoctorNoticeQueuePort notices;
     private final PendingRequestReminderPort reminders;
+    private final RealtimeNotifierPort realtime;
     private final String inboxUrl;
     private final Clock clock;
 
@@ -41,12 +43,14 @@ public class DoctorNotificationService implements DoctorAlertPort, DoctorReplyPo
         this.channels = channels;
         this.notices = notices;
         this.reminders = reminders;
+        this.realtime = realtime;
         this.inboxUrl = inboxUrl;
         this.clock = clock;
     }
 
     @Override
     public void newRequest(AppointmentRequest request) {
+        realtime.newAppointmentRequest(request.clinicId(), request.doctorStaffId(), request.id());
         activeChannelOf(request).ifPresent(channel -> notices.enqueue(
                 notice(channel, "Tienes una nueva solicitud de cita para el " + SlotLabel.of(request.start()))));
     }
