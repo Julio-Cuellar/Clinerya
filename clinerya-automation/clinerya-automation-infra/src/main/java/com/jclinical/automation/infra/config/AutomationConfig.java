@@ -274,6 +274,16 @@ public class AutomationConfig {
         Clock clock = Clock.systemDefaultZone();
         return new DoctorNotificationService(doctorChannels,
                 new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, clock), requests,
+                new com.jclinical.automation.domain.ports.out.RealtimeNotifierPort() {
+                    @Override
+                    public void chatActivity(java.util.UUID clinicId, String phone, java.time.LocalDateTime at) {
+                    }
+
+                    @Override
+                    public void newAppointmentRequest(java.util.UUID clinicId, java.util.UUID doctorStaffId,
+                                                      java.util.UUID requestId) {
+                    }
+                },
                 frontendBaseUrl.replaceAll("/+$", "") + inboxPath, clock);
     }
 

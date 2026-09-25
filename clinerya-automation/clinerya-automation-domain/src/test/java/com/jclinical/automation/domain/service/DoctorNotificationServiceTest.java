@@ -6,6 +6,7 @@ import com.jclinical.automation.domain.model.DoctorChannel;
 import com.jclinical.automation.domain.model.DoctorNotice;
 import com.jclinical.automation.domain.ports.out.PendingRequestReminderPort;
 import com.jclinical.automation.domain.service.DoctorChannelServiceTest.InMemoryChannels;
+import com.jclinical.automation.domain.service.NotifyingChatHistoryTest.RecordingNotifier;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -35,9 +36,10 @@ class DoctorNotificationServiceTest {
     private final InMemoryChannels channels = new InMemoryChannels();
     private final List<DoctorNotice> notices = new ArrayList<>();
     private final FakeReminders reminders = new FakeReminders();
+    private final RecordingNotifier realtime = new RecordingNotifier();
 
     private final DoctorNotificationService service = new DoctorNotificationService(channels, notices::add, reminders,
-            INBOX, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
+            realtime, INBOX, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
 
     @Test
     void aNewRequestSendsTheDoctorANoticeWithTheLinkToTheInbox() {
@@ -54,6 +56,16 @@ class DoctorNotificationServiceTest {
         assertEquals(2, notice.templateParameters().size(), "la plantilla aprobada lleva el resumen y el enlace");
         assertTrue(notice.templateParameters().get(0).contains("Mar 29/09 10:00"));
         assertEquals(INBOX, notice.templateParameters().get(1));
+    }
+
+    @Test
+    void theDoctorsOpenInboxIsUpdatedEvenWithoutWhatsApp() {
+        AppointmentRequest request = request(NOW);
+
+        service.newRequest(request);
+
+        assertTrue(notices.isEmpty());
+        assertEquals(List.of(clinicId + "|" + doctorId + "|" + request.id()), realtime.newRequests);
     }
 
     @Test

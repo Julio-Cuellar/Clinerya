@@ -9,6 +9,7 @@ import com.jclinical.automation.domain.ports.out.DoctorChannelRepositoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorNoticeQueuePort;
 import com.jclinical.automation.domain.ports.out.DoctorReplyPort;
 import com.jclinical.automation.domain.ports.out.PendingRequestReminderPort;
+import com.jclinical.automation.domain.ports.out.RealtimeNotifierPort;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -35,7 +36,8 @@ public class DoctorNotificationService implements DoctorAlertPort, DoctorReplyPo
     private final Clock clock;
 
     public DoctorNotificationService(DoctorChannelRepositoryPort channels, DoctorNoticeQueuePort notices,
-                                     PendingRequestReminderPort reminders, String inboxUrl, Clock clock) {
+                                     PendingRequestReminderPort reminders, RealtimeNotifierPort realtime,
+                                     String inboxUrl, Clock clock) {
         this.channels = channels;
         this.notices = notices;
         this.reminders = reminders;
