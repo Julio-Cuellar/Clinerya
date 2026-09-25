@@ -2,7 +2,9 @@ package com.jclinical.automation.infra.adapters.out.gemini;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jclinical.automation.domain.model.ChannelSettings;
 import com.jclinical.automation.domain.model.ConversationOption;
+import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -11,8 +13,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,6 +44,9 @@ class GeminiIntentInterpreterTest {
             new ConversationOption("action:last-doctor", "Con Dra. Beatriz Ramos"),
             new ConversationOption("action:show-doctors", "Ver médicos de la clínica"));
 
+    private final UUID clinicId = UUID.randomUUID();
+    private final Map<UUID, ChannelSettings> settings = new HashMap<>();
+
     private MockRestServiceServer server;
     private GeminiIntentInterpreter interpreter;
 
@@ -46,8 +54,9 @@ class GeminiIntentInterpreterTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
+        settings.put(clinicId, ChannelSettings.unconfigured(clinicId).toBuilder().geminiApiKey("clave-de-prueba").build());
         interpreter = new GeminiIntentInterpreter(builder.build(), objectMapper,
-                "https://generativelanguage.googleapis.com", "gemini-2.5-flash", "clave-de-prueba");
+                "https://generativelanguage.googleapis.com", new SettingsById(settings));
     }
 
     @Test
@@ -55,7 +64,7 @@ class GeminiIntentInterpreterTest {
         server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(answer("action:last-doctor"), MediaType.APPLICATION_JSON));
 
-        Optional<String> chosen = interpreter.interpret("con la doctora de siempre", options);
+        Optional<String> chosen = interpreter.interpret(clinicId, "con la doctora de siempre", options);
 
         assertEquals(Optional.of("action:last-doctor"), chosen);
         server.verify();
@@ -69,7 +78,7 @@ class GeminiIntentInterpreterTest {
                 .andExpect(request -> body.set(request.getBody().toString()))
                 .andRespond(withSuccess(answer("NONE"), MediaType.APPLICATION_JSON));
 
-        interpreter.interpret("con la doctora de siempre", options);
+        interpreter.interpret(clinicId, "con la doctora de siempre", options);
 
         JsonNode request = objectMapper.readTree(body.get());
         String userPart = request.at("/contents/0/parts/0/text").asText();
@@ -86,35 +95,74 @@ class GeminiIntentInterpreterTest {
     void noneMeansNotUnderstood() {
         server.expect(requestTo(URL)).andRespond(withSuccess(answer("NONE"), MediaType.APPLICATION_JSON));
 
-        assertTrue(interpreter.interpret("asdf", options).isEmpty());
+        assertTrue(interpreter.interpret(clinicId, "asdf", options).isEmpty());
     }
 
     @Test
     void aMalformedAnswerMeansNotUnderstood() {
         server.expect(requestTo(URL)).andRespond(withSuccess("{\"candidates\":[]}", MediaType.APPLICATION_JSON));
 
-        assertTrue(interpreter.interpret("con la doctora", options).isEmpty());
+        assertTrue(interpreter.interpret(clinicId, "con la doctora", options).isEmpty());
     }
 
     @Test
     void aServerErrorMeansNotUnderstood() {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
-        assertTrue(interpreter.interpret("con la doctora", options).isEmpty());
+        assertTrue(interpreter.interpret(clinicId, "con la doctora", options).isEmpty());
     }
 
     @Test
     void blankTextDoesNotCallGemini() {
-        assertTrue(interpreter.interpret("   ", options).isEmpty());
+        assertTrue(interpreter.interpret(clinicId, "   ", options).isEmpty());
         server.verify();
     }
 
     @Test
-    void withoutApiKeyItNeverCallsGemini() {
-        GeminiIntentInterpreter disabled = new GeminiIntentInterpreter(RestClient.builder().build(), objectMapper,
-                "https://generativelanguage.googleapis.com", "gemini-2.5-flash", " ");
+    void aClinicWithoutItsOwnGeminiKeyNeverCallsGemini() {
+        UUID withoutKey = UUID.randomUUID();
+        settings.put(withoutKey, ChannelSettings.unconfigured(withoutKey));
 
-        assertTrue(disabled.interpret("con la doctora", options).isEmpty());
+        assertTrue(interpreter.interpret(withoutKey, "con la doctora", options).isEmpty());
+        assertTrue(interpreter.interpret(UUID.randomUUID(), "con la doctora", options).isEmpty(), "sin configuracion");
+        server.verify();
+    }
+
+    @Test
+    void eachClinicUsesItsOwnKeyAndModel() {
+        UUID otherClinic = UUID.randomUUID();
+        settings.put(otherClinic, ChannelSettings.unconfigured(otherClinic).toBuilder()
+                .geminiApiKey("clave-de-otra-clinica").geminiModel("gemini-2.5-pro").build());
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"))
+                .andExpect(header("x-goog-api-key", "clave-de-otra-clinica"))
+                .andRespond(withSuccess(answer("action:show-doctors"), MediaType.APPLICATION_JSON));
+
+        assertEquals(Optional.of("action:show-doctors"), interpreter.interpret(otherClinic, "ver doctores", options));
+        server.verify();
+    }
+
+    /** Lectura de la configuracion por clinica, como la hace el repositorio real. */
+    record SettingsById(Map<UUID, ChannelSettings> byClinic) implements ChannelSettingsRepositoryPort {
+        @Override
+        public Optional<ChannelSettings> findByClinicId(UUID clinicId) {
+            return Optional.ofNullable(byClinic.get(clinicId));
+        }
+
+        @Override
+        public Optional<ChannelSettings> findByPhoneNumberId(String phoneNumberId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<ChannelSettings> findByWebhookKey(String webhookKey) {
+            return Optional.empty();
+        }
+
+        @Override
+        public ChannelSettings save(ChannelSettings value) {
+            byClinic.put(value.clinicId(), value);
+            return value;
+        }
     }
 
     private String answer(String optionId) {

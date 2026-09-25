@@ -282,6 +282,16 @@ class ConversationServiceTest {
     }
 
     @Test
+    void freeTextIsInterpretedWithTheCredentialsOfTheConversationsClinic() {
+        send("Hola");
+        interpreter.answer = ConversationService.BOOK;
+
+        send("quiero una cita");
+
+        assertEquals(clinicId, interpreter.lastClinicId, "cada clinica usa su propia clave de Gemini");
+    }
+
+    @Test
     void anIdleConversationExpiresAndTheNextMessageStartsOver() {
         send("Hola");
         send(null, ConversationService.BOOK);
@@ -406,10 +416,12 @@ class ConversationServiceTest {
     static final class FakeInterpreter implements IntentInterpreterPort {
         String answer;
         boolean fail;
+        UUID lastClinicId;
         List<ConversationOption> lastOptions = List.of();
 
         @Override
-        public Optional<String> interpret(String text, List<ConversationOption> options) {
+        public Optional<String> interpret(UUID clinicId, String text, List<ConversationOption> options) {
+            lastClinicId = clinicId;
             lastOptions = options;
             if (fail) {
                 throw new IllegalStateException("Gemini no respondio");
