@@ -6,6 +6,7 @@ import com.jclinical.agenda.domain.model.SlotHold;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -21,8 +22,22 @@ public interface OnlineBookingUseCase {
 
     void releaseHold(UUID clinicId, UUID holdId);
 
+    /**
+     * Convierte un apartado vigente en cita, con todas las validaciones de la agenda. Lo invoca la
+     * automatizacion cuando el medico ya aprobo; el permiso del medico lo verifica quien llama.
+     *
+     * @return id de la cita creada.
+     * @throws SlotUnavailableException si el apartado ya no esta vigente o la agenda rechaza la cita.
+     */
+    UUID bookHeldSlot(BookHeldSlotCommand command);
+
+    /** Miembro del personal activo que corresponde al usuario en la clinica. */
+    Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId);
+
     record HoldSlotCommand(UUID clinicId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end,
                            UUID reference, int holdMinutes) {}
+
+    record BookHeldSlotCommand(UUID clinicId, UUID holdId, UUID patientId, String reason) {}
 
     class SlotUnavailableException extends RuntimeException {
         public SlotUnavailableException(String message) {

@@ -15,6 +15,11 @@ public interface StaffValidatorPort {
         return Optional.empty();
     }
 
+    /** Miembro del personal activo que corresponde a un usuario de Clinerya en la clinica. */
+    default Optional<UUID> staffIdOfUser(UUID userId, UUID clinicId) {
+        return Optional.empty();
+    }
+
     record DoctorSnapshot(
             UUID staffId,
             String fullName

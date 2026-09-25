@@ -64,7 +64,7 @@ class OnlineBookingServiceTest {
     @BeforeEach
     void setUp() {
         service = new OnlineBookingService(schedule, appointments, holds, settings, staff,
-                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
+                mock(com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase.class), Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
         for (DayOfWeek day : DayOfWeek.values()) {
             boolean weekday = day.getValue() <= 5;
             when(schedule.getEffectiveDay(clinicId, day)).thenReturn(ClinicSchedule.builder()

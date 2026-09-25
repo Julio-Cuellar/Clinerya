@@ -4,6 +4,7 @@ import com.jclinical.agenda.domain.model.Appointment;
 import com.jclinical.agenda.domain.model.BookableSlot;
 import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.model.SlotHold;
+import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.OnlineBookingSettingsPort;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,16 +32,19 @@ public class OnlineBookingService implements OnlineBookingUseCase {
     private final SlotHoldRepositoryPort holds;
     private final OnlineBookingSettingsPort settings;
     private final StaffValidatorPort staffValidator;
+    private final ManageAppointmentsUseCase appointmentCreator;
     private final Clock clock;
 
     public OnlineBookingService(ClinicScheduleService clinicScheduleService, AppointmentRepositoryPort appointments,
                                 SlotHoldRepositoryPort holds, OnlineBookingSettingsPort settings,
-                                StaffValidatorPort staffValidator, Clock clock) {
+                                StaffValidatorPort staffValidator, ManageAppointmentsUseCase appointmentCreator,
+                                Clock clock) {
         this.clinicScheduleService = clinicScheduleService;
         this.appointments = appointments;
         this.holds = holds;
         this.settings = settings;
         this.staffValidator = staffValidator;
+        this.appointmentCreator = appointmentCreator;
         this.clock = clock;
     }
 
@@ -94,6 +99,16 @@ public class OnlineBookingService implements OnlineBookingUseCase {
         holds.findByIdAndClinicId(holdId, clinicId)
                 .filter(hold -> hold.status() == SlotHold.Status.ACTIVE)
                 .ifPresent(hold -> holds.save(hold.withStatus(SlotHold.Status.RELEASED)));
+    }
+
+    @Override
+    public UUID bookHeldSlot(BookHeldSlotCommand command) {
+        throw new UnsupportedOperationException("pendiente");
+    }
+
+    @Override
+    public Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId) {
+        throw new UnsupportedOperationException("pendiente");
     }
 
     /**
