@@ -1,11 +1,14 @@
 package com.jclinical.app.architecture;
 
+import com.jclinical.automation.archfixture.AutomationReadingAgendaTables;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * La automatizacion escucha al resto del sistema (eventos y puertos de lectura), pero nadie depende
@@ -24,6 +27,27 @@ class AutomationIsolationArchTest {
                 .should().dependOnClassesThat().resideInAPackage("com.jclinical.automation..")
                 .because("los demas modulos solo publican eventos; la automatizacion es un consumidor opcional")
                 .check(CLASSES);
+    }
+
+    /**
+     * Decision 19: la automatizacion nunca lee los datos de otro modulo por su persistencia
+     * (entidades, repositorios, adaptadores de salida); solo por su API publica.
+     */
+    static final ArchRule AUTOMATION_USES_ONLY_PUBLIC_APIS = noClasses()
+            .that().resideInAPackage("com.jclinical.automation..")
+            .should().dependOnClassesThat().haveSimpleName("__PENDIENTE__")
+            .because("el agente jamas consulta la base de otro modulo; solo su API publica");
+
+    @Test
+    void theAutomationNeverReachesIntoAnotherModulesPersistence() {
+        AUTOMATION_USES_ONLY_PUBLIC_APIS.check(CLASSES);
+    }
+
+    @Test
+    void theDataAccessRuleCatchesAnAutomationClassReadingAgendaTables() {
+        JavaClasses violation = new ClassFileImporter().importClasses(AutomationReadingAgendaTables.class);
+
+        assertThrows(AssertionError.class, () -> AUTOMATION_USES_ONLY_PUBLIC_APIS.check(violation));
     }
 
     @Test
