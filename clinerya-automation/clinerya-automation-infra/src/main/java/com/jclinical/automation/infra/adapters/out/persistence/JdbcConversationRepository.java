@@ -29,6 +29,13 @@ public class JdbcConversationRepository implements ConversationRepositoryPort {
              LIMIT 1
             """.formatted(TERMINAL_STATES);
 
+    private static final String FIND_BY_ID_SQL = """
+            SELECT id, clinic_id, phone, state, patient_id, patient_name, doctor_staff_id, doctor_name,
+                   request_id, offered_options, unrecognized_count, created_at, last_activity_at
+              FROM automation.conversations
+             WHERE id = ?
+            """;
+
     private static final String UPSERT_SQL = """
             INSERT INTO automation.conversations (
                 id, clinic_id, phone, state, patient_id, patient_name, doctor_staff_id, doctor_name,
@@ -57,6 +64,13 @@ public class JdbcConversationRepository implements ConversationRepositoryPort {
     @Override
     public Optional<Conversation> findActive(UUID clinicId, String phone) {
         return jdbcTemplate.query(FIND_ACTIVE_SQL, (row, rowNum) -> toConversation(row), clinicId, phone)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public Optional<Conversation> findById(UUID conversationId) {
+        return jdbcTemplate.query(FIND_BY_ID_SQL, (row, rowNum) -> toConversation(row), conversationId)
                 .stream()
                 .findFirst();
     }
