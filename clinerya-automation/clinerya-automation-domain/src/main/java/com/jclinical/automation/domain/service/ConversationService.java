@@ -26,7 +26,6 @@ import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +57,6 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     static final int MAX_OPTIONS = 10;
 
     private static final Set<String> RESTART_WORDS = Set.of("menu", "inicio", "reiniciar", "empezar de nuevo");
-    private static final DateTimeFormatter SLOT_LABEL = DateTimeFormatter.ofPattern("EEE dd/MM HH:mm", Locale.forLanguageTag("es-MX"));
 
     private final ConversationRepositoryPort conversations;
     private final PatientDirectoryPort patients;
@@ -423,7 +421,6 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     }
 
     private static String startLabel(LocalDateTime start) {
-        String label = SLOT_LABEL.format(start).replace(".", "");
-        return Character.toUpperCase(label.charAt(0)) + label.substring(1);
+        return SlotLabel.of(start);
     }
 }

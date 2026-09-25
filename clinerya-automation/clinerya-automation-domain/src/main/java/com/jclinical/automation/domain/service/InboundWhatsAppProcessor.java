@@ -17,7 +17,8 @@ import java.util.UUID;
 
 /**
  * Lleva a la conversacion un mensaje ya aceptado por el webhook y deja sus respuestas en la cola de
- * salida, en el mismo orden. Lo que no es texto ni una opcion recibe un aviso y no mueve nada.
+ * salida, en el mismo orden. Lo que no es texto ni una opcion recibe un aviso y no mueve nada. Si
+ * escribe un medico de la clinica, se le recuerda que responde en Clinerya (D8).
  */
 public class InboundWhatsAppProcessor implements ProcessInboundWhatsAppUseCase {
 
@@ -30,16 +31,21 @@ public class InboundWhatsAppProcessor implements ProcessInboundWhatsAppUseCase {
     private final HandleInboundMessageUseCase conversations;
     private final OutboundMessageQueuePort outbound;
     private final ChatHistoryPort history;
+    private final DoctorReplyPort doctors;
 
     public InboundWhatsAppProcessor(HandleInboundMessageUseCase conversations, OutboundMessageQueuePort outbound,
                                     ChatHistoryPort history, DoctorReplyPort doctors) {
         this.conversations = conversations;
         this.outbound = outbound;
         this.history = history;
+        this.doctors = doctors;
     }
 
     @Override
     public void process(WhatsAppMessageReceivedEvent event) {
+        if (doctors.replyIfDoctor(event.clinicId(), event.fromPhone())) {
+            return;
+        }
         history.record(new ChatMessage(UUID.randomUUID(), event.clinicId(), event.fromPhone(), ChatMessage.Direction.INBOUND,
                 event.kind() == Kind.UNSUPPORTED ? UNSUPPORTED_PLACEHOLDER : event.text(), List.of(), event.receivedAt()));
         if (event.kind() == Kind.UNSUPPORTED) {

@@ -44,6 +44,7 @@ public class AppointmentRequestService
     private final SlotBookingPort booking;
     private final SlotAvailabilityPort slots;
     private final DomainEventPublisherPort events;
+    private final DoctorAlertPort alerts;
     private final Clock clock;
 
     public AppointmentRequestService(AppointmentRequestRepositoryPort requests, SlotBookingPort booking,
@@ -53,6 +54,7 @@ public class AppointmentRequestService
         this.booking = booking;
         this.slots = slots;
         this.events = events;
+        this.alerts = alerts;
         this.clock = clock;
     }
 
@@ -63,10 +65,11 @@ public class AppointmentRequestService
         UUID requestId = UUID.randomUUID();
         UUID holdId = booking.hold(request.clinicId(), request.doctorStaffId(), request.start(), request.end(),
                 requestId, HOLD_MINUTES);
-        requests.save(new AppointmentRequest(requestId, request.clinicId(), request.conversationId(),
-                request.patientId(), request.patientName(), request.patientPhone(), request.doctorStaffId(),
-                request.doctorName(), request.start(), request.end(), holdId, Status.PENDING, List.of(), null, null,
-                now(), null));
+        AppointmentRequest saved = requests.save(new AppointmentRequest(requestId, request.clinicId(),
+                request.conversationId(), request.patientId(), request.patientName(), request.patientPhone(),
+                request.doctorStaffId(), request.doctorName(), request.start(), request.end(), holdId, Status.PENDING,
+                List.of(), null, null, now(), null));
+        alerts.newRequest(saved);
         return requestId;
     }
 
