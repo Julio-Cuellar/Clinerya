@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -84,6 +85,12 @@ public class JdbcChannelSettingsRepository implements ChannelSettingsRepositoryP
                 timestamp(settings.geminiVerifiedAt()), settings.updatedBy(), timestamp(settings.updatedAt()),
                 settings.patientTemplateName(), settings.doctorTemplateName(), settings.templateLanguage());
         return settings;
+    }
+
+    @Override
+    public List<ChannelSettings> findAll() {
+        return jdbcTemplate.query("SELECT " + COLUMNS + " FROM automation.clinic_channel_settings",
+                (row, rowNum) -> toSettings(row));
     }
 
     private Optional<ChannelSettings> findOne(String sql, Object key) {

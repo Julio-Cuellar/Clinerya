@@ -353,6 +353,11 @@ class ChannelSettingsServiceTest {
             stored.put(settings.clinicId(), settings);
             return settings;
         }
+
+        @Override
+        public List<ChannelSettings> findAll() {
+            return List.copyOf(stored.values());
+        }
     }
 
     static final class FakeChecks implements ChannelConnectionCheckPort {

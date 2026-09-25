@@ -214,7 +214,7 @@ public class AutomationConfig {
     @Bean
     public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
                                                              OutboundMessageQueuePort outbound) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound);
+        return new InboundWhatsAppProcessor(automationConversationService, outbound, message -> { });
     }
 
     @Bean

@@ -1,11 +1,14 @@
 package com.jclinical.automation.domain.service;
 
+import com.jclinical.automation.domain.model.ChatMessage;
+import com.jclinical.automation.domain.model.ChatSummary;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.InboundMessage;
 import com.jclinical.automation.domain.model.OutboundReply;
 import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
+import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -24,6 +27,7 @@ class InboundWhatsAppProcessorTest {
     private final UUID clinicId = UUID.randomUUID();
     private final List<InboundMessage> handled = new ArrayList<>();
     private final List<PatientNotification> queued = new ArrayList<>();
+    private final List<ChatMessage> recorded = new ArrayList<>();
     private List<OutboundReply> replies = List.of();
 
     private final InboundWhatsAppProcessor processor = new InboundWhatsAppProcessor(
@@ -31,7 +35,8 @@ class InboundWhatsAppProcessorTest {
                 handled.add(message);
                 return replies;
             },
-            queued::add);
+            queued::add,
+            new RecordingHistory());
 
     @Test
     void textGoesToTheConversationAndEveryReplyIsQueuedInOrder() {
@@ -60,6 +65,41 @@ class InboundWhatsAppProcessorTest {
         assertTrue(handled.isEmpty());
         assertEquals(1, queued.size());
         assertTrue(queued.get(0).reply().text().contains("texto"), queued.get(0).reply().text());
+    }
+
+    @Test
+    void whatThePatientWroteIsKeptInTheChatHistory() {
+        processor.process(event(Kind.TEXT, "Hola", null));
+        processor.process(event(Kind.OPTION, "Agendar una cita", "action:book"));
+        processor.process(event(Kind.UNSUPPORTED, null, null));
+
+        assertEquals(List.of("Hola", "Agendar una cita", "[Mensaje que no es texto]"),
+                recorded.stream().map(ChatMessage::text).toList());
+        assertTrue(recorded.stream().allMatch(message -> message.direction() == ChatMessage.Direction.INBOUND));
+        assertEquals("5215512345678", recorded.get(0).phone());
+        assertEquals(NOW, recorded.get(0).at());
+    }
+
+    private final class RecordingHistory implements ChatHistoryPort {
+        @Override
+        public void record(ChatMessage message) {
+            recorded.add(message);
+        }
+
+        @Override
+        public List<ChatSummary> findChats(UUID clinicId, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public List<ChatMessage> findMessages(UUID clinicId, String phone, LocalDateTime before, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
+            return 0;
+        }
     }
 
     private WhatsAppMessageReceivedEvent event(Kind kind, String text, String optionId) {

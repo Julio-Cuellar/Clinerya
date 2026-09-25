@@ -163,6 +163,11 @@ class GeminiIntentInterpreterTest {
             byClinic.put(value.clinicId(), value);
             return value;
         }
+
+        @Override
+        public List<ChannelSettings> findAll() {
+            return List.copyOf(byClinic.values());
+        }
     }
 
     private String answer(String optionId) {
