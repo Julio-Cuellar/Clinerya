@@ -6,7 +6,10 @@ import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.ConversationState;
 import com.jclinical.automation.domain.model.InboundMessage;
 import com.jclinical.automation.domain.model.OutboundReply;
+import com.jclinical.automation.domain.model.AppointmentRequestResolvedEvent;
+import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
+import com.jclinical.automation.domain.ports.in.HandleRequestOutcomeUseCase;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.NewAppointmentRequest;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.SlotNoLongerAvailableException;
@@ -35,11 +38,12 @@ import java.util.UUID;
  * {@link Conversation#offeredOptions()}, y el texto libre solo se traduce, con el interprete, a una
  * de esas mismas opciones. Lo que no encaja se vuelve a preguntar; nunca se improvisa una accion.
  */
-public class ConversationService implements HandleInboundMessageUseCase {
+public class ConversationService implements HandleInboundMessageUseCase, HandleRequestOutcomeUseCase {
 
     public static final String BOOK = "action:book";
     public static final String LAST_DOCTOR = "action:last-doctor";
     public static final String SHOW_DOCTORS = "action:show-doctors";
+    public static final String DECLINE_OPTIONS = "action:decline-options";
 
     static final String PATIENT_PREFIX = "patient:";
     static final String DOCTOR_PREFIX = "doctor:";
@@ -99,6 +103,11 @@ public class ConversationService implements HandleInboundMessageUseCase {
             return List.of(unrecognized(conversation, now));
         }
         return List.of(transition(conversation, optionId, now));
+    }
+
+    @Override
+    public Optional<PatientNotification> onRequestResolved(AppointmentRequestResolvedEvent event) {
+        throw new UnsupportedOperationException("pendiente");
     }
 
     // ---- entrada ----------------------------------------------------------------------------

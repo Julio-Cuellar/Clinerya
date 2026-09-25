@@ -9,5 +9,7 @@ public interface ConversationRepositoryPort {
     /** La conversacion no terminal de ese celular en esa clinica, si existe. */
     Optional<Conversation> findActive(UUID clinicId, String phone);
 
+    Optional<Conversation> findById(UUID conversationId);
+
     Conversation save(Conversation conversation);
 }

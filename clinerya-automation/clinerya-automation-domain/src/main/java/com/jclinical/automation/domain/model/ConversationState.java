@@ -12,6 +12,8 @@ public enum ConversationState {
     ELEGIR_MEDICO,
     ELEGIR_CUPO,
     ESPERANDO_MEDICO,
+    /** El medico propuso otros horarios; el paciente elige uno o los declina. */
+    ELEGIR_OPCION_MEDICO,
     CERRADA(true),
     EXPIRADA(true);
 

@@ -371,7 +371,11 @@ class ConversationServiceTest {
 
     static final class FakeRequests implements AppointmentRequestPort {
         final List<NewAppointmentRequest> submitted = new ArrayList<>();
+        final List<AvailableSlot> chosen = new ArrayList<>();
+        final List<UUID> chosenRequests = new ArrayList<>();
+        final List<UUID> declined = new ArrayList<>();
         boolean rejectNext;
+        boolean failChoice;
 
         @Override
         public UUID submit(NewAppointmentRequest request) {
@@ -385,12 +389,17 @@ class ConversationServiceTest {
 
         @Override
         public UUID chooseOption(UUID clinicId, UUID requestId, LocalDateTime start, LocalDateTime end) {
-            throw new UnsupportedOperationException("pendiente");
+            if (failChoice) {
+                throw new SlotNoLongerAvailableException();
+            }
+            chosen.add(new AvailableSlot(start, end));
+            chosenRequests.add(requestId);
+            return UUID.randomUUID();
         }
 
         @Override
         public void declineOptions(UUID clinicId, UUID requestId) {
-            throw new UnsupportedOperationException("pendiente");
+            declined.add(requestId);
         }
     }
 
@@ -419,6 +428,11 @@ class ConversationServiceTest {
                     .filter(conversation -> conversation.clinicId().equals(clinicId) && conversation.phone().equals(phone))
                     .filter(conversation -> !conversation.state().isTerminal())
                     .findFirst();
+        }
+
+        @Override
+        public Optional<Conversation> findById(UUID conversationId) {
+            return all.stream().filter(conversation -> conversation.id().equals(conversationId)).findFirst();
         }
 
         @Override
