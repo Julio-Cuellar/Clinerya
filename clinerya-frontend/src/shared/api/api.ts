@@ -15,7 +15,13 @@ import type {
   UpdateClinicRequest,
   UpdateClinicSpecialtyRequest
 } from "@modules/clinics/types";
-import type { PatientResponse, RegisterPatientRequest, UpdatePatientRequest } from "@modules/patients/types";
+import type {
+  ContactConsentRequest,
+  ContactConsentTextResponse,
+  PatientResponse,
+  RegisterPatientRequest,
+  UpdatePatientRequest
+} from "@modules/patients/types";
 import type {
   AttachmentMeta,
   ClinicalNoteResponse,
@@ -271,7 +277,10 @@ export const patientsApi = {
     request<PatientResponse>("/v1/patients", { method: "POST", body: JSON.stringify(body) }),
   update: (patientId: string, body: UpdatePatientRequest) =>
     request<PatientResponse>(`/v1/patients/${patientId}`, { method: "PUT", body: JSON.stringify(body) }),
-  remove: (patientId: string) => request<void>(`/v1/patients/${patientId}`, { method: "DELETE" })
+  remove: (patientId: string) => request<void>(`/v1/patients/${patientId}`, { method: "DELETE" }),
+  contactConsentText: () => request<ContactConsentTextResponse>("/v1/patients/contact-consent-text"),
+  recordContactConsent: (patientId: string, body: ContactConsentRequest) =>
+    request<PatientResponse>(`/v1/patients/${patientId}/contact-consent`, { method: "PUT", body: JSON.stringify(body) })
 };
 
 export const historyTemplatesApi = {

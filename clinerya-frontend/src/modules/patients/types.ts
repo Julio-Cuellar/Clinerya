@@ -28,6 +28,27 @@ export interface EmergencyContact {
   phone?: string;
 }
 
+export type ConsentSource = "CLINIC_REGISTRATION" | "CLINIC_UPDATE" | "WHATSAPP_CHAT";
+
+/** Decision del paciente sobre mensajes automaticos. recordedAt vacio = nunca se le pregunto. */
+export interface ContactConsentResponse {
+  granted: boolean;
+  textVersion?: string;
+  source?: ConsentSource;
+  recordedByUserId?: string;
+  recordedAt?: string;
+}
+
+export interface ContactConsentRequest {
+  granted: boolean;
+  textVersion?: string;
+}
+
+export interface ContactConsentTextResponse {
+  version: string;
+  text: string;
+}
+
 export interface PatientResponse {
   id: string;
   clinicId: string;
@@ -45,6 +66,7 @@ export interface PatientResponse {
   bloodType?: BloodType;
   address?: Address;
   emergencyContact?: EmergencyContact;
+  contactConsent?: ContactConsentResponse;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,6 +87,7 @@ export interface RegisterPatientRequest {
   bloodType?: BloodType;
   address?: Address;
   emergencyContact?: EmergencyContact;
+  contactConsent?: ContactConsentRequest;
 }
 
 export interface UpdatePatientRequest {

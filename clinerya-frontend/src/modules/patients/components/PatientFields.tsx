@@ -1,8 +1,13 @@
 import { bloodTypeOptions, genderOptions, maritalStatusOptions } from "@modules/patients/constants/patientOptions";
 import type { PatientResponse } from "@modules/patients/types";
 import { Field } from "@shared/ui/Field";
+import { ContactConsentFields } from "@modules/patients/components/ContactConsentFields";
 
-export function PatientFields({ patient }: { patient?: PatientResponse }) {
+/**
+ * {@code withContactConsent} solo en el alta: en la edicion el consentimiento se cambia desde la ficha,
+ * para que editar datos nunca lo altere por accidente.
+ */
+export function PatientFields({ patient, withContactConsent = false }: { patient?: PatientResponse; withContactConsent?: boolean }) {
   const address = patient?.address;
   const emergencyContact = patient?.emergencyContact;
 
@@ -16,6 +21,7 @@ export function PatientFields({ patient }: { patient?: PatientResponse }) {
       <Field name="curp" label="CURP" defaultValue={patient?.curp} />
       <Field name="phone" label="Teléfono" defaultValue={patient?.phone} required />
       <Field name="email" label="Correo electrónico" type="email" defaultValue={patient?.email} />
+      {withContactConsent && <ContactConsentFields />}
       <Field name="occupation" label="Ocupación" defaultValue={patient?.occupation} />
       <Field name="maritalStatus" label="Estado civil" options={maritalStatusOptions} defaultValue={patient?.maritalStatus} />
       <Field name="nationality" label="Nacionalidad" defaultValue={patient?.nationality ?? "Mexicana"} />

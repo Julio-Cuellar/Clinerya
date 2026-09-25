@@ -59,7 +59,12 @@ export function PatientModal({
       nationality: value("nationality") || undefined,
       bloodType: (value("bloodType") as BloodType) || undefined,
       address: hasAddress ? address : undefined,
-      emergencyContact: hasEmergencyContact ? emergencyContact : undefined
+      emergencyContact: hasEmergencyContact ? emergencyContact : undefined,
+      // Sin marcar tambien se envia: en el alta si se le pregunto, asi que queda como un "no" explicito.
+      contactConsent:
+        mode === "create" && value("contactConsentTextVersion")
+          ? { granted: form.get("contactConsentGranted") === "on", textVersion: value("contactConsentTextVersion") }
+          : undefined
     });
   };
 
@@ -93,7 +98,7 @@ export function PatientModal({
             </button>
           </div>
           <form className="profile-form" onSubmit={submit}>
-            <PatientFields patient={patient} />
+            <PatientFields patient={patient} withContactConsent={mode === "create"} />
 
             <div className="form-actions">
               <button className="btn primary" type="submit">

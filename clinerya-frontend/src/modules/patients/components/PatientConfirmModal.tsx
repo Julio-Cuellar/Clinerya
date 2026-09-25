@@ -1,5 +1,5 @@
 import { IconCheck, IconPencil } from "@tabler/icons-react";
-import type { Address, BloodType, EmergencyContact, Gender, MaritalStatus } from "@modules/patients/types";
+import type { Address, BloodType, ContactConsentRequest, EmergencyContact, Gender, MaritalStatus } from "@modules/patients/types";
 import { PatientSummaryList } from "@modules/patients/components/PatientSummaryList";
 
 export interface PatientDraft {
@@ -17,6 +17,7 @@ export interface PatientDraft {
   bloodType?: BloodType;
   address?: Address;
   emergencyContact?: EmergencyContact;
+  contactConsent?: ContactConsentRequest;
 }
 
 export function PatientConfirmModal({
@@ -48,6 +49,14 @@ export function PatientConfirmModal({
         </p>
 
         <PatientSummaryList patient={draft} />
+        {draft.contactConsent && (
+          <div className="clinic-list">
+            <div className="clinic-row">
+              <strong>Contacto automático</strong>
+              <span>{draft.contactConsent.granted ? "✓ Autoriza recordatorios y avisos" : "No autoriza"}</span>
+            </div>
+          </div>
+        )}
 
         {error && <p className="alert error">{error}</p>}
 

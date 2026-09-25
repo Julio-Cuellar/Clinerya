@@ -196,7 +196,16 @@ export function PatientsPanel({
         {error && <p className="alert error">{error}</p>}
       </article>
 
-      {selected && <PatientDetailModal patient={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <PatientDetailModal
+          patient={selected}
+          onClose={() => setSelected(null)}
+          onUpdated={(updated) => {
+            onPatientUpdated(updated);
+            setSelected(updated);
+          }}
+        />
+      )}
 
       {editing && clinicId && (
         <PatientModal
