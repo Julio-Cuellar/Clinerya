@@ -382,6 +382,16 @@ class ConversationServiceTest {
             submitted.add(request);
             return UUID.randomUUID();
         }
+
+        @Override
+        public UUID chooseOption(UUID clinicId, UUID requestId, LocalDateTime start, LocalDateTime end) {
+            throw new UnsupportedOperationException("pendiente");
+        }
+
+        @Override
+        public void declineOptions(UUID clinicId, UUID requestId) {
+            throw new UnsupportedOperationException("pendiente");
+        }
     }
 
     static final class FakeInterpreter implements IntentInterpreterPort {

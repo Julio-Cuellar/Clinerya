@@ -20,4 +20,5 @@ public final class DomainEventRoutingKeys {
     public static final String APPOINTMENT_RESCHEDULED = "appointment.rescheduled";
     public static final String APPOINTMENT_CANCELLED = "appointment.cancelled";
     public static final String APPOINTMENT_DELETED = "appointment.deleted";
+    public static final String APPOINTMENT_REQUEST_RESOLVED = "appointment.request.resolved";
 }

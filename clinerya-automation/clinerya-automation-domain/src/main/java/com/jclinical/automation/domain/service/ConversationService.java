@@ -240,7 +240,8 @@ public class ConversationService implements HandleInboundMessageUseCase {
         UUID requestId;
         try {
             requestId = requests.submit(new NewAppointmentRequest(conversation.clinicId(), conversation.id(),
-                    conversation.patientId(), conversation.doctorStaffId(), slot.start(), slot.end(), conversation.phone()));
+                    conversation.patientId(), conversation.doctorStaffId(), slot.start(), slot.end(), conversation.phone(),
+                    conversation.patientName(), conversation.doctorName()));
         } catch (SlotNoLongerAvailableException exception) {
             return offerSlots(conversation, conversation.doctorStaffId(), conversation.doctorName(), now,
                     "Ese horario ya no está disponible.");
