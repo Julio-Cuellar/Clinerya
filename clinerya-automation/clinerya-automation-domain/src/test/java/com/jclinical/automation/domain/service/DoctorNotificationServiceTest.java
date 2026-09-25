@@ -104,6 +104,16 @@ class DoctorNotificationServiceTest {
     }
 
     @Test
+    void aReminderAlreadyClaimedByAnotherSweepIsNotSentTwice() {
+        activeChannel();
+        reminders.due.add(request(NOW.minusHours(5)));
+        reminders.alreadyClaimed = true;
+
+        assertEquals(0, service.remindPending());
+        assertTrue(notices.isEmpty(), "otra instancia ya lo marco y lo envio");
+    }
+
+    @Test
     void remindersForDoctorsWithoutAChannelAreMarkedSoTheyAreNotRetried() {
         AppointmentRequest waiting = request(NOW.minusHours(5));
         reminders.due.add(waiting);
@@ -143,6 +153,7 @@ class DoctorNotificationServiceTest {
         final List<AppointmentRequest> due = new ArrayList<>();
         final List<UUID> marked = new ArrayList<>();
         LocalDateTime cutoff;
+        boolean alreadyClaimed;
 
         @Override
         public List<AppointmentRequest> findPendingNotRemindedBefore(LocalDateTime createdBefore) {
@@ -151,8 +162,9 @@ class DoctorNotificationServiceTest {
         }
 
         @Override
-        public void markReminded(UUID requestId, LocalDateTime at) {
+        public boolean markReminded(UUID requestId, LocalDateTime at) {
             marked.add(requestId);
+            return !alreadyClaimed;
         }
     }
 }

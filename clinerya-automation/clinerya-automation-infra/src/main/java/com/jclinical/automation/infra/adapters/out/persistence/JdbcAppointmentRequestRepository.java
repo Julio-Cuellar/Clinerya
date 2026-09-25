@@ -107,8 +107,8 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
     }
 
     @Override
-    public void markReminded(UUID requestId, LocalDateTime at) {
-        jdbcTemplate.update(MARK_REMINDED_SQL, Timestamp.valueOf(at), requestId);
+    public boolean markReminded(UUID requestId, LocalDateTime at) {
+        return jdbcTemplate.update(MARK_REMINDED_SQL, Timestamp.valueOf(at), requestId) == 1;
     }
 
     private AppointmentRequest toRequest(ResultSet row) throws SQLException {

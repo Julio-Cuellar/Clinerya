@@ -141,6 +141,27 @@ class DoctorChannelServiceTest {
     void onlyStaffWhoAttendPatientsCanHaveAChannel() {
         assertThrows(IllegalArgumentException.class, () -> serviceAt(NOW).update(adminUserId, clinicId, UUID.randomUUID(),
                 new DoctorChannelUpdate("5512345678", true, true)));
+        assertThrows(IllegalArgumentException.class, () -> serviceAt(NOW).get(adminUserId, clinicId, UUID.randomUUID()));
+    }
+
+    @Test
+    void aNumberActiveForAnotherDoctorCannotBeReused() {
+        serviceAt(NOW).updateMine(doctorUserId, clinicId, new DoctorChannelUpdate("5512345678", true, true));
+
+        assertThrows(IllegalArgumentException.class, () -> serviceAt(NOW).update(adminUserId, clinicId, otherDoctorId,
+                new DoctorChannelUpdate("55 1234 5678", true, true)));
+        DoctorChannelView inactive = serviceAt(NOW).update(adminUserId, clinicId, otherDoctorId,
+                new DoctorChannelUpdate("5512345678", false, false));
+        assertFalse(inactive.active(), "guardarlo apagado no choca con nadie");
+        assertEquals(doctorId, channels.findActiveByPhone(clinicId, "5215512345678").orElseThrow().staffId());
+    }
+
+    @Test
+    void aDoctorCanSaveTheirOwnNumberAgain() {
+        serviceAt(NOW).updateMine(doctorUserId, clinicId, new DoctorChannelUpdate("5512345678", true, true));
+
+        assertTrue(serviceAt(NOW.plusDays(1)).updateMine(doctorUserId, clinicId,
+                new DoctorChannelUpdate("5512345678", true, true)).active());
     }
 
     // ---- utilidades -------------------------------------------------------------------------

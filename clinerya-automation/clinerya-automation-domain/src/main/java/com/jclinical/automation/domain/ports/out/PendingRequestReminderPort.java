@@ -11,5 +11,6 @@ public interface PendingRequestReminderPort {
 
     List<AppointmentRequest> findPendingNotRemindedBefore(LocalDateTime createdBefore);
 
-    void markReminded(UUID requestId, LocalDateTime at);
+    /** @return false si otro barrido ya la habia marcado (entonces no se envia de nuevo) */
+    boolean markReminded(UUID requestId, LocalDateTime at);
 }
