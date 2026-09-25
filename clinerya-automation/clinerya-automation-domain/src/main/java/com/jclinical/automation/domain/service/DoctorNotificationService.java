@@ -60,13 +60,16 @@ public class DoctorNotificationService implements DoctorAlertPort, DoctorReplyPo
         LocalDateTime now = LocalDateTime.now(clock);
         int reminded = 0;
         for (AppointmentRequest request : reminders.findPendingNotRemindedBefore(now.minus(REMINDER_AFTER))) {
+            // Solo quien logra marcarla envia: con dos barridos a la vez no sale dos veces.
+            if (!reminders.markReminded(request.id(), now)) {
+                continue;
+            }
             Optional<DoctorChannel> channel = request.isOverdueAt(now) ? Optional.empty() : activeChannelOf(request);
             if (channel.isPresent()) {
                 notices.enqueue(notice(channel.get(),
                         "Recordatorio: sigue pendiente la solicitud de cita del " + SlotLabel.of(request.start())));
                 reminded++;
             }
-            reminders.markReminded(request.id(), now);
         }
         return reminded;
     }

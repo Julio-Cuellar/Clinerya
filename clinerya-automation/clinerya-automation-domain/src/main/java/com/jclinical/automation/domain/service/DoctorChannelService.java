@@ -61,16 +61,21 @@ public class DoctorChannelService implements ManageDoctorChannelUseCase {
     @Override
     public DoctorChannelView get(UUID actingUserId, UUID clinicId, UUID staffId) {
         requireSelfOrIntegrationManager(actingUserId, clinicId, staffId);
+        requireAttendsPatients(clinicId, staffId);
         return view(staffId, channels.find(clinicId, staffId));
     }
 
     @Override
     public DoctorChannelView update(UUID actingUserId, UUID clinicId, UUID staffId, DoctorChannelUpdate update) {
         requireSelfOrIntegrationManager(actingUserId, clinicId, staffId);
+        requireAttendsPatients(clinicId, staffId);
+        return save(actingUserId, clinicId, staffId, update);
+    }
+
+    private void requireAttendsPatients(UUID clinicId, UUID staffId) {
         if (doctors.listDoctors(clinicId).stream().noneMatch(doctor -> doctor.staffId().equals(staffId))) {
             throw new IllegalArgumentException("Ese miembro del personal no atiende pacientes.");
         }
-        return save(actingUserId, clinicId, staffId, update);
     }
 
     private DoctorChannelView save(UUID actingUserId, UUID clinicId, UUID staffId, DoctorChannelUpdate update) {
@@ -80,6 +85,13 @@ public class DoctorChannelService implements ManageDoctorChannelUseCase {
         String phone = normalize(update.phone());
         if (update.active() && !update.consent()) {
             throw new IllegalArgumentException("Para recibir avisos por WhatsApp el médico debe aceptar recibirlos.");
+        }
+        // Un celular activo identifica a un solo medico: asi se reconoce quien escribe.
+        boolean takenByAnother = update.active() && channels.findActiveByPhone(clinicId, phone)
+                .filter(other -> !other.staffId().equals(staffId))
+                .isPresent();
+        if (takenByAnother) {
+            throw new IllegalArgumentException("Ese celular ya recibe los avisos de otro médico de la clínica.");
         }
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime consentAt = !update.consent() ? null : channels.find(clinicId, staffId)
