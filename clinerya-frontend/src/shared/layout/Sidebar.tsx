@@ -50,7 +50,7 @@ const sidebarSections = [
   { key: "Administracion", label: "Administración" }
 ];
 
-const APP_VERSION = "0.9.0-beta.2";
+const APP_VERSION = "0.10.0-beta.1";
 
 export function Sidebar({
   active,

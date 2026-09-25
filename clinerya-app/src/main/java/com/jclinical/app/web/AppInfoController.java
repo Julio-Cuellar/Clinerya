@@ -10,7 +10,7 @@ public class AppInfoController {
 
     @GetMapping
     public AppInfoResponse getInfo() {
-        return new AppInfoResponse("Clinerya API", "0.9.0-beta.2", "beta", "UP");
+        return new AppInfoResponse("Clinerya API", "0.10.0-beta.1", "beta", "UP");
     }
 
     public record AppInfoResponse(
