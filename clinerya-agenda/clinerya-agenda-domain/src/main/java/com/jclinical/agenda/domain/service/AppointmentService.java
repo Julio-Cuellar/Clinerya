@@ -5,6 +5,7 @@ import com.jclinical.agenda.domain.model.AppointmentStatus;
 import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
+import com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.PatientValidatorPort;
 import com.jclinical.agenda.domain.ports.out.QuotationValidatorPort;
 import com.jclinical.agenda.domain.ports.out.QuotationValidatorPort.AcceptedQuotationSnapshot;
@@ -39,6 +40,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     private final RoomBlockRepositoryPort roomBlockRepository;
     private final RoomValidatorPort roomValidator;
     private final StaffPermissionCheckerPort permissionChecker;
+    private final SlotHoldRepositoryPort slotHoldRepository;
 
     public AppointmentService(
             AppointmentRepositoryPort appointmentRepository,
@@ -64,6 +66,23 @@ public class AppointmentService implements ManageAppointmentsUseCase {
             RoomBlockRepositoryPort roomBlockRepository,
             RoomValidatorPort roomValidator,
             StaffPermissionCheckerPort permissionChecker) {
+        this(appointmentRepository, clinicScheduleService, patientValidator, staffValidator, quotationValidator,
+                materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator, permissionChecker, null);
+    }
+
+    public AppointmentService(
+            AppointmentRepositoryPort appointmentRepository,
+            ClinicScheduleService clinicScheduleService,
+            PatientValidatorPort patientValidator,
+            StaffValidatorPort staffValidator,
+            QuotationValidatorPort quotationValidator,
+            MaterialReservationSchedulingService materialReservationSchedulingService,
+            DomainEventPublisherPort eventPublisher,
+            RoomBlockRepositoryPort roomBlockRepository,
+            RoomValidatorPort roomValidator,
+            StaffPermissionCheckerPort permissionChecker,
+            SlotHoldRepositoryPort slotHoldRepository) {
+        this.slotHoldRepository = slotHoldRepository;
         this.appointmentRepository = appointmentRepository;
         this.clinicScheduleService = clinicScheduleService;
         this.patientValidator = patientValidator;
