@@ -1,6 +1,8 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
+import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WebhookSignature;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
@@ -70,9 +72,14 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
             return Receipt.IGNORED;
         }
         LocalDateTime now = LocalDateTime.now(clock);
-        for (WhatsAppInboundMessage message : parser.parse(rawBody).messages()) {
-            boolean forThisNumber = clinic.whatsappPhoneNumberId() != null
-                    && clinic.whatsappPhoneNumberId().equals(message.phoneNumberId());
+        WebhookPayload payload = parser.parse(rawBody);
+        for (DeliveryStatusUpdate status : payload.statuses()) {
+            if (isForThisNumber(clinic, status.phoneNumberId())) {
+                deliveryStatus.record(clinic.clinicId(), status);
+            }
+        }
+        for (WhatsAppInboundMessage message : payload.messages()) {
+            boolean forThisNumber = isForThisNumber(clinic, message.phoneNumberId());
             if (forThisNumber && ledger.recordIfNew(clinic.clinicId(), message.waMessageId(), message.fromPhone(), now)) {
                 events.publish(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED, new WhatsAppMessageReceivedEvent(
                         UUID.randomUUID(), clinic.clinicId(), message.waMessageId(), message.fromPhone(),
@@ -80,6 +87,10 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
             }
         }
         return Receipt.ACCEPTED;
+    }
+
+    private static boolean isForThisNumber(ChannelSettings clinic, String phoneNumberId) {
+        return clinic.whatsappPhoneNumberId() != null && clinic.whatsappPhoneNumberId().equals(phoneNumberId);
     }
 
     private Optional<ChannelSettings> clinicOf(String webhookKey) {

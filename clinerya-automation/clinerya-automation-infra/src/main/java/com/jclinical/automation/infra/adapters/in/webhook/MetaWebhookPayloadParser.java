@@ -2,6 +2,7 @@ package com.jclinical.automation.infra.adapters.in.webhook;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
 import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Lee el JSON del webhook de WhatsApp Cloud API (entry[].changes[].value.messages[]). Los avisos de
@@ -43,6 +46,7 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
             return WebhookPayload.EMPTY;
         }
         List<WhatsAppInboundMessage> messages = new ArrayList<>();
+        List<DeliveryStatusUpdate> statuses = new ArrayList<>();
         for (JsonNode entry : root.path("entry")) {
             for (JsonNode change : entry.path("changes")) {
                 JsonNode value = change.path("value");
@@ -50,9 +54,25 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
                 for (JsonNode message : value.path("messages")) {
                     messages.add(toMessage(phoneNumberId, message));
                 }
+                for (JsonNode status : value.path("statuses")) {
+                    toStatus(phoneNumberId, status).ifPresent(statuses::add);
+                }
             }
         }
-        return new WebhookPayload(messages, List.of());
+        return new WebhookPayload(messages, statuses);
+    }
+
+    /** sent, delivered, read y failed; cualquier otro estado de Meta se ignora. */
+    private Optional<DeliveryStatusUpdate> toStatus(String phoneNumberId, JsonNode status) {
+        DeliveryStatusUpdate.Status value;
+        try {
+            value = DeliveryStatusUpdate.Status.valueOf(status.path("status").asText("").toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException unknown) {
+            return Optional.empty();
+        }
+        JsonNode code = status.at("/errors/0/code");
+        return Optional.of(new DeliveryStatusUpdate(phoneNumberId, status.path("id").asText(null), value,
+                sentAt(status.path("timestamp").asText("")), code.isMissingNode() ? null : code.asText()));
     }
 
     private WhatsAppInboundMessage toMessage(String phoneNumberId, JsonNode message) {

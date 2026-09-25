@@ -23,6 +23,7 @@ import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsService;
 import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
 import com.jclinical.automation.domain.service.OutboundDispatcher;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcDeliveryStatusRecorder;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcOutboundDispatchRepository;
 import com.jclinical.automation.infra.adapters.out.whatsapp.MetaWhatsAppSender;
 import com.jclinical.automation.domain.service.WhatsAppWebhookService;
@@ -204,9 +205,9 @@ public class AutomationConfig {
     @Bean
     public WhatsAppWebhookService whatsAppWebhookService(ChannelSettingsRepositoryPort settings, ObjectMapper objectMapper,
                                                          JdbcInboundMessageLedger inboundMessageLedger,
-                                                         DomainEventPublisherPort events) {
+                                                         JdbcTemplate jdbcTemplate, DomainEventPublisherPort events) {
         return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
-                inboundMessageLedger, (clinicId, update) -> { }, events, Clock.systemDefaultZone());
+                inboundMessageLedger, new JdbcDeliveryStatusRecorder(jdbcTemplate), events, Clock.systemDefaultZone());
     }
 
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
