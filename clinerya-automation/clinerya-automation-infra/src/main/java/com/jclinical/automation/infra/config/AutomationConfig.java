@@ -15,6 +15,15 @@ import com.jclinical.automation.infra.adapters.out.persistence.JdbcAppointmentRe
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcOutboundMessageQueue;
 import com.jclinical.automation.infra.adapters.out.persistence.ProposedOptionsCodec;
 import com.jclinical.core.events.DomainEventPublisherPort;
+import com.jclinical.core.security.StaffPermissionCheckerPort;
+import com.jclinical.core.security.crypto.FieldCipher;
+import com.jclinical.automation.domain.ports.out.ChannelConnectionCheckPort;
+import com.jclinical.automation.domain.ports.out.ChannelSettingsAuditPort;
+import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
+import com.jclinical.automation.domain.service.ChannelSettingsService;
+import com.jclinical.automation.infra.adapters.out.connection.ChannelConnectionChecker;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettingsAudit;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettingsRepository;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
 import com.jclinical.automation.domain.ports.out.IntentInterpreterPort;
@@ -34,8 +43,11 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
+import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Base64;
 
 /**
  * Piezas de la automatizacion de citas: motor de conversacion, solicitudes al medico y sus
@@ -48,6 +60,9 @@ import java.time.Duration;
  */
 @Configuration
 public class AutomationConfig {
+
+    /** 32 bytes aleatorios: llave del webhook y token de verificacion. */
+    private static final int RANDOM_TOKEN_BYTES = 32;
 
     @Bean
     public ConversationOptionsCodec conversationOptionsCodec(ObjectMapper objectMapper) {
@@ -113,6 +128,51 @@ public class AutomationConfig {
     public RequestOutcomeProcessor requestOutcomeProcessor(ConversationService conversations,
                                                            OutboundMessageQueuePort outbound) {
         return new RequestOutcomeProcessor(conversations, outbound);
+    }
+
+    @Bean
+    public ChannelSettingsRepositoryPort channelSettingsRepository(
+            JdbcTemplate jdbcTemplate,
+            @Value("${medicloud.security.encryption-key}") String encryptionKey,
+            @Value("${medicloud.security.key-store-dir:/app/secrets}") String keyStoreDir) {
+        FieldCipher cipher = FieldCipher.fromConfiguration(
+                encryptionKey, keyStoreDir == null || keyStoreDir.isBlank() ? null : Path.of(keyStoreDir));
+        return new JdbcChannelSettingsRepository(jdbcTemplate, cipher);
+    }
+
+    @Bean
+    public ChannelSettingsAuditPort channelSettingsAudit(JdbcTemplate jdbcTemplate) {
+        return new JdbcChannelSettingsAudit(jdbcTemplate);
+    }
+
+    @Bean
+    public ChannelConnectionCheckPort channelConnectionChecker(
+            ObjectMapper objectMapper,
+            @Value("${app.automation.whatsapp.graph-base-url:https://graph.facebook.com}") String graphBaseUrl,
+            @Value("${app.automation.whatsapp.graph-version:v23.0}") String graphVersion,
+            @Value("${app.automation.gemini.base-url:${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}}") String geminiBaseUrl) {
+        return new ChannelConnectionChecker(externalRestClient(), objectMapper, graphBaseUrl, graphVersion, geminiBaseUrl);
+    }
+
+    @Bean
+    public ChannelSettingsService channelSettingsService(ChannelSettingsRepositoryPort settings,
+                                                         ChannelSettingsAuditPort audit,
+                                                         ChannelConnectionCheckPort checks,
+                                                         StaffPermissionCheckerPort permissions) {
+        SecureRandom random = new SecureRandom();
+        return new ChannelSettingsService(settings, audit, checks, permissions, () -> {
+            byte[] bytes = new byte[RANDOM_TOKEN_BYTES];
+            random.nextBytes(bytes);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        }, Clock.systemDefaultZone());
+    }
+
+    /** Cliente para Meta y Gemini: tiempos cortos para no dejar hilos colgados si el proveedor no responde. */
+    private static RestClient externalRestClient() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(3));
+        requestFactory.setReadTimeout(Duration.ofSeconds(8));
+        return RestClient.builder().requestFactory(requestFactory).build();
     }
 
     @Bean
