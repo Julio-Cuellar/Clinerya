@@ -9,5 +9,9 @@ public record AppointmentRescheduledEvent(
         UUID appointmentId,
         LocalDateTime newStart,
         LocalDateTime newEnd,
-        LocalDateTime rescheduledAt
+        LocalDateTime rescheduledAt,
+        UUID patientId,
+        UUID doctorStaffId,
+        LocalDateTime previousStart,
+        LocalDateTime previousEnd
 ) {}

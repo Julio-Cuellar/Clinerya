@@ -155,7 +155,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED, new AppointmentScheduledEvent(
                 UUID.randomUUID(), clinicId, saved.getId(), saved.getDoctorStaffId(),
-                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now()));
+                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now(), null));
 
         materialReservationSchedulingService.processReservation(saved);
 
@@ -237,7 +237,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
         Appointment saved = appointmentRepository.save(appointment);
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_RESCHEDULED, new AppointmentRescheduledEvent(
-                UUID.randomUUID(), clinicId, appointmentId, newStart, newEnd, LocalDateTime.now()));
+                UUID.randomUUID(), clinicId, appointmentId, newStart, newEnd, LocalDateTime.now(), null, null, null, null));
 
         materialReservationSchedulingService.processReservation(saved);
 
@@ -273,7 +273,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         if (targetStatus == AppointmentStatus.CANCELLED) {
             eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_CANCELLED, new AppointmentCancelledEvent(
-                    UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now()));
+                    UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now(), null, null, null, null));
         }
 
         return saved;

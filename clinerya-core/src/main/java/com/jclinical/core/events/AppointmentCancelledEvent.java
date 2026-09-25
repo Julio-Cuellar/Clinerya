@@ -7,5 +7,9 @@ public record AppointmentCancelledEvent(
         UUID eventId,
         UUID clinicId,
         UUID appointmentId,
-        LocalDateTime cancelledAt
+        LocalDateTime cancelledAt,
+        UUID patientId,
+        UUID doctorStaffId,
+        LocalDateTime scheduledStart,
+        String cancellationReason
 ) {}

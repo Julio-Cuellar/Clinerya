@@ -73,6 +73,6 @@ class OutboxDomainEventPublisherTest {
         return new AppointmentScheduledEvent(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 LocalDateTime.of(2026, 9, 30, 16, 0), LocalDateTime.of(2026, 9, 30, 16, 45),
-                LocalDateTime.of(2026, 9, 24, 9, 30));
+                LocalDateTime.of(2026, 9, 24, 9, 30), UUID.randomUUID());
     }
 }

@@ -47,7 +47,7 @@ class OutboxRelayTest {
         UUID appointmentId = UUID.randomUUID();
         publisher.publish(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED, OutboxDomainEventPublisherTest.scheduledEvent());
         publisher.publish(DomainEventRoutingKeys.APPOINTMENT_CANCELLED,
-                new AppointmentCancelledEvent(UUID.randomUUID(), UUID.randomUUID(), appointmentId, LocalDateTime.now()));
+                new AppointmentCancelledEvent(UUID.randomUUID(), UUID.randomUUID(), appointmentId, LocalDateTime.now(), null, null, null, null));
 
         relay.relay(10);
 
@@ -59,7 +59,7 @@ class OutboxRelayTest {
     void stopsAtTheFirstBrokerFailureSoNoLaterEventOvertakesIt() {
         publisher.publish(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED, OutboxDomainEventPublisherTest.scheduledEvent());
         publisher.publish(DomainEventRoutingKeys.APPOINTMENT_CANCELLED,
-                new AppointmentCancelledEvent(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), LocalDateTime.now()));
+                new AppointmentCancelledEvent(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), LocalDateTime.now(), null, null, null, null));
         sender.failNext = true;
 
         int delivered = relay.relay(10);

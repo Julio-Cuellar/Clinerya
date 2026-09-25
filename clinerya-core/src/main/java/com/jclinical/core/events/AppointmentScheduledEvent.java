@@ -10,5 +10,6 @@ public record AppointmentScheduledEvent(
         UUID doctorStaffId,
         LocalDateTime scheduledStart,
         LocalDateTime scheduledEnd,
-        LocalDateTime scheduledAt
+        LocalDateTime scheduledAt,
+        UUID patientId
 ) {}
