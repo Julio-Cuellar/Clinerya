@@ -2,12 +2,15 @@ package com.jclinical.automation.infra.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
+import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
 import com.jclinical.automation.domain.ports.out.IntentInterpreterPort;
 import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
+import com.jclinical.automation.domain.ports.out.SlotAvailabilityPort;
 import com.jclinical.automation.infra.adapters.out.crossmodule.DoctorDirectoryAdapter;
 import com.jclinical.automation.infra.adapters.out.crossmodule.PatientDirectoryAdapter;
+import com.jclinical.automation.infra.adapters.out.crossmodule.SlotAvailabilityAdapter;
 import com.jclinical.automation.infra.adapters.out.gemini.GeminiIntentInterpreter;
 import com.jclinical.automation.infra.adapters.out.persistence.ConversationOptionsCodec;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcConversationRepository;
@@ -49,6 +52,11 @@ public class AutomationConfig {
     @Bean
     public DoctorDirectoryPort automationDoctorDirectory(ManageAppointmentsUseCase appointments) {
         return new DoctorDirectoryAdapter(appointments);
+    }
+
+    @Bean
+    public SlotAvailabilityPort automationSlotAvailability(OnlineBookingUseCase onlineBooking) {
+        return new SlotAvailabilityAdapter(onlineBooking);
     }
 
     @Bean

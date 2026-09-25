@@ -49,10 +49,32 @@ public class AgendaDomainConfig {
             DomainEventPublisherPort eventPublisher,
             com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort roomBlockRepository,
             com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator,
-            StaffPermissionCheckerPort permissionChecker) {
+            StaffPermissionCheckerPort permissionChecker,
+            com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort slotHoldRepository) {
         return new AppointmentService(
                 appointmentRepository, clinicScheduleService, patientValidator, staffValidator, quotationValidator,
-                materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator, permissionChecker);
+                materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator, permissionChecker,
+                slotHoldRepository);
+    }
+
+    @Bean
+    public com.jclinical.agenda.domain.service.OnlineBookingSettingsService onlineBookingSettingsService(
+            com.jclinical.agenda.domain.ports.out.OnlineBookingSettingsRepositoryPort settingsRepository,
+            StaffValidatorPort staffValidator,
+            StaffPermissionCheckerPort permissionChecker) {
+        return new com.jclinical.agenda.domain.service.OnlineBookingSettingsService(
+                settingsRepository, staffValidator, permissionChecker);
+    }
+
+    @Bean
+    public com.jclinical.agenda.domain.service.OnlineBookingService onlineBookingService(
+            ClinicScheduleService clinicScheduleService,
+            AppointmentRepositoryPort appointmentRepository,
+            com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort slotHoldRepository,
+            com.jclinical.agenda.domain.service.OnlineBookingSettingsService settings,
+            StaffValidatorPort staffValidator) {
+        return new com.jclinical.agenda.domain.service.OnlineBookingService(clinicScheduleService, appointmentRepository,
+                slotHoldRepository, settings, staffValidator, java.time.Clock.systemDefaultZone());
     }
 
     @Bean
