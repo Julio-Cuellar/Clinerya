@@ -1,6 +1,8 @@
 package com.jclinical.agenda.domain.service;
 
+import com.jclinical.agenda.domain.model.Appointment;
 import com.jclinical.agenda.domain.model.BookableSlot;
+import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.model.SlotHold;
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
@@ -10,28 +12,102 @@ import com.jclinical.agenda.domain.ports.out.StaffValidatorPort;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Cupos para citas en linea y apartado temporal. Un cupo es valido si cae dentro del horario de la
+ * clinica, dura lo que la clinica configuro, empieza despues de la anticipacion minima del medico y
+ * no choca con sus citas activas ni con un apartado vigente. Apartar revalida todo eso despues de
+ * bloquear la agenda del medico, asi que dos pacientes nunca apartan el mismo horario.
+ */
 public class OnlineBookingService implements OnlineBookingUseCase {
+
+    private final ClinicScheduleService clinicScheduleService;
+    private final AppointmentRepositoryPort appointments;
+    private final SlotHoldRepositoryPort holds;
+    private final OnlineBookingSettingsPort settings;
+    private final StaffValidatorPort staffValidator;
+    private final Clock clock;
 
     public OnlineBookingService(ClinicScheduleService clinicScheduleService, AppointmentRepositoryPort appointments,
                                 SlotHoldRepositoryPort holds, OnlineBookingSettingsPort settings,
                                 StaffValidatorPort staffValidator, Clock clock) {
+        this.clinicScheduleService = clinicScheduleService;
+        this.appointments = appointments;
+        this.holds = holds;
+        this.settings = settings;
+        this.staffValidator = staffValidator;
+        this.clock = clock;
     }
 
     @Override
     public List<BookableSlot> findAvailableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit) {
-        throw new UnsupportedOperationException("pendiente");
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime earliest = now.plusMinutes(settings.minLeadMinutes(clinicId, doctorStaffId));
+        int slotMinutes = settings.slotMinutes(clinicId);
+        List<BookableSlot> available = new ArrayList<>();
+
+        for (int offset = 0; offset < days && available.size() < limit; offset++) {
+            LocalDate date = from.plusDays(offset);
+            ClinicSchedule day = clinicScheduleService.getEffectiveDay(clinicId, date.getDayOfWeek());
+            if (!day.isOpen() || day.getStartTime() == null || day.getEndTime() == null) {
+                continue;
+            }
+            LocalDateTime dayStart = date.atTime(day.getStartTime());
+            LocalDateTime dayEnd = date.atTime(day.getEndTime());
+            List<Appointment> busy = appointments.findActiveByDoctorAndRange(doctorStaffId, clinicId, dayStart, dayEnd);
+            List<SlotHold> held = holds.findActiveByDoctorAndRange(doctorStaffId, clinicId, dayStart, dayEnd, now);
+
+            for (LocalDateTime start = dayStart;
+                 !start.plusMinutes(slotMinutes).isAfter(dayEnd) && available.size() < limit;
+                 start = start.plusMinutes(slotMinutes)) {
+                LocalDateTime end = start.plusMinutes(slotMinutes);
+                if (!start.isBefore(earliest) && isFree(start, end, busy, held)) {
+                    available.add(new BookableSlot(start, end));
+                }
+            }
+        }
+        return available;
     }
 
     @Override
     public SlotHold holdSlot(HoldSlotCommand command) {
-        throw new UnsupportedOperationException("pendiente");
+        if (staffValidator.findActiveDoctor(command.doctorStaffId(), command.clinicId()).isEmpty()) {
+            throw new SlotUnavailableException("El médico ya no atiende en esta clínica.");
+        }
+        holds.lockDoctorSchedule(command.clinicId(), command.doctorStaffId());
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (!isOfferable(command)) {
+            throw new SlotUnavailableException("El horario elegido ya no está disponible.");
+        }
+        return holds.save(new SlotHold(UUID.randomUUID(), command.clinicId(), command.doctorStaffId(),
+                command.start(), command.end(), now.plusMinutes(command.holdMinutes()), command.reference(),
+                SlotHold.Status.ACTIVE, now));
     }
 
     @Override
     public void releaseHold(UUID clinicId, UUID holdId) {
-        throw new UnsupportedOperationException("pendiente");
+        holds.findByIdAndClinicId(holdId, clinicId)
+                .filter(hold -> hold.status() == SlotHold.Status.ACTIVE)
+                .ifPresent(hold -> holds.save(hold.withStatus(SlotHold.Status.RELEASED)));
+    }
+
+    /**
+     * Un cupo se puede apartar si es exactamente uno de los que se ofrecerian ese dia: misma rejilla,
+     * mismas reglas. Asi un id de cupo viejo o manipulado nunca aparta un horario arbitrario.
+     */
+    private boolean isOfferable(HoldSlotCommand command) {
+        LocalDate date = command.start().toLocalDate();
+        return findAvailableSlots(command.clinicId(), command.doctorStaffId(), date, 1, Integer.MAX_VALUE).stream()
+                .anyMatch(slot -> slot.start().equals(command.start()) && slot.end().equals(command.end()));
+    }
+
+    private static boolean isFree(LocalDateTime start, LocalDateTime end, List<Appointment> busy, List<SlotHold> held) {
+        return busy.stream().noneMatch(appointment -> appointment.overlapsWith(start, end))
+                && held.stream().noneMatch(hold -> hold.overlaps(start, end));
     }
 }
