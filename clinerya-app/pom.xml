@@ -81,6 +81,10 @@
         </dependency>
         <dependency>
             <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-automation-infra</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.jclinical</groupId>
             <artifactId>clinerya-collaboration-infra</artifactId>
         </dependency>
 
