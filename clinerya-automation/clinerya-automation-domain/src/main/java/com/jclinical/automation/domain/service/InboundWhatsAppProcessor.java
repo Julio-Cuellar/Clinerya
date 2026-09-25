@@ -9,6 +9,7 @@ import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
 import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
 import com.jclinical.automation.domain.ports.in.ProcessInboundWhatsAppUseCase;
 import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
+import com.jclinical.automation.domain.ports.out.DoctorReplyPort;
 import com.jclinical.automation.domain.ports.out.OutboundMessageQueuePort;
 
 import java.util.List;
@@ -31,7 +32,7 @@ public class InboundWhatsAppProcessor implements ProcessInboundWhatsAppUseCase {
     private final ChatHistoryPort history;
 
     public InboundWhatsAppProcessor(HandleInboundMessageUseCase conversations, OutboundMessageQueuePort outbound,
-                                    ChatHistoryPort history) {
+                                    ChatHistoryPort history, DoctorReplyPort doctors) {
         this.conversations = conversations;
         this.outbound = outbound;
         this.history = history;

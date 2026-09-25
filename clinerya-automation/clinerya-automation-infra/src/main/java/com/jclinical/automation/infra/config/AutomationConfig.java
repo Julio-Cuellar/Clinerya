@@ -147,7 +147,7 @@ public class AutomationConfig {
     public AppointmentRequestService automationAppointmentRequestService(
             AppointmentRequestRepositoryPort requests, SlotBookingPort booking, SlotAvailabilityPort slots,
             DomainEventPublisherPort events) {
-        return new AppointmentRequestService(requests, booking, slots, events, Clock.systemDefaultZone());
+        return new AppointmentRequestService(requests, booking, slots, events, request -> { }, Clock.systemDefaultZone());
     }
 
     @Bean
@@ -239,7 +239,7 @@ public class AutomationConfig {
     @Bean
     public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
                                                              OutboundMessageQueuePort outbound, ChatHistoryPort chatHistory) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory);
+        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory, (clinicId, phone) -> false);
     }
 
     @Bean

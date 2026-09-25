@@ -29,6 +29,7 @@ class InboundWhatsAppProcessorTest {
     private final List<PatientNotification> queued = new ArrayList<>();
     private final List<ChatMessage> recorded = new ArrayList<>();
     private List<OutboundReply> replies = List.of();
+    private final List<String> doctorPhones = new ArrayList<>();
 
     private final InboundWhatsAppProcessor processor = new InboundWhatsAppProcessor(
             message -> {
@@ -36,7 +37,8 @@ class InboundWhatsAppProcessorTest {
                 return replies;
             },
             queued::add,
-            new RecordingHistory());
+            new RecordingHistory(),
+            (clinic, phone) -> doctorPhones.contains(phone));
 
     @Test
     void textGoesToTheConversationAndEveryReplyIsQueuedInOrder() {
@@ -78,6 +80,17 @@ class InboundWhatsAppProcessorTest {
         assertTrue(recorded.stream().allMatch(message -> message.direction() == ChatMessage.Direction.INBOUND));
         assertEquals("5215512345678", recorded.get(0).phone());
         assertEquals(NOW, recorded.get(0).at());
+    }
+
+    @Test
+    void aDoctorWritingOnWhatsAppDoesNotStartAPatientConversation() {
+        doctorPhones.add("5215512345678");
+
+        processor.process(event(Kind.TEXT, "Acepto la cita", null));
+
+        assertTrue(handled.isEmpty(), "el medico responde en Clinerya, no por el chat");
+        assertTrue(queued.isEmpty(), "el aviso al medico no sale como mensaje de paciente");
+        assertTrue(recorded.isEmpty(), "no entra al historial de pacientes");
     }
 
     private final class RecordingHistory implements ChatHistoryPort {

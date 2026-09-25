@@ -57,6 +57,7 @@ class AppointmentRequestServiceTest {
     private final FakeBooking booking = new FakeBooking();
     private final FakeSlots slots = new FakeSlots();
     private final List<Published> events = new ArrayList<>();
+    private final List<AppointmentRequest> alerted = new ArrayList<>();
 
     private AppointmentRequestService service;
 
@@ -85,11 +86,19 @@ class AppointmentRequestServiceTest {
     }
 
     @Test
+    void submittingAlertsTheDoctor() {
+        UUID requestId = service.submit(newRequest(doctorId, START));
+
+        assertEquals(List.of(requests.byId.get(requestId)), alerted);
+    }
+
+    @Test
     void aSlotTakenMeanwhileIsNotSubmitted() {
         booking.taken.add(START);
 
         assertThrows(SlotNoLongerAvailableException.class, () -> service.submit(newRequest(doctorId, START)));
         assertTrue(requests.byId.isEmpty());
+        assertTrue(alerted.isEmpty(), "sin solicitud no hay aviso");
     }
 
     // ---- bandeja del medico -----------------------------------------------------------------
@@ -360,7 +369,7 @@ class AppointmentRequestServiceTest {
 
     private AppointmentRequestService serviceAt(LocalDateTime now) {
         return new AppointmentRequestService(requests, booking, slots,
-                (routingKey, payload) -> events.add(new Published(routingKey, payload)),
+                (routingKey, payload) -> events.add(new Published(routingKey, payload)), alerted::add,
                 Clock.fixed(now.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
     }
 

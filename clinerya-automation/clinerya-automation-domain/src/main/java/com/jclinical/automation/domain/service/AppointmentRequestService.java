@@ -10,6 +10,7 @@ import com.jclinical.automation.domain.ports.in.ExpireAppointmentRequestsUseCase
 import com.jclinical.automation.domain.ports.in.RespondAppointmentRequestUseCase;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestRepositoryPort;
+import com.jclinical.automation.domain.ports.out.DoctorAlertPort;
 import com.jclinical.automation.domain.ports.out.SlotAvailabilityPort;
 import com.jclinical.automation.domain.ports.out.SlotBookingPort;
 import com.jclinical.core.events.DomainEventPublisherPort;
@@ -46,7 +47,8 @@ public class AppointmentRequestService
     private final Clock clock;
 
     public AppointmentRequestService(AppointmentRequestRepositoryPort requests, SlotBookingPort booking,
-                                     SlotAvailabilityPort slots, DomainEventPublisherPort events, Clock clock) {
+                                     SlotAvailabilityPort slots, DomainEventPublisherPort events, DoctorAlertPort alerts,
+                                     Clock clock) {
         this.requests = requests;
         this.booking = booking;
         this.slots = slots;
