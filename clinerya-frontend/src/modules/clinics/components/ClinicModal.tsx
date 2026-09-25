@@ -3,15 +3,18 @@ import { IconBuildingHospital, IconX } from "@tabler/icons-react";
 import { clinicsApi, getFriendlyError } from "@shared/api/api";
 import type { ClinicResponse, CreateClinicRequest, UpdateClinicRequest } from "@modules/clinics/types";
 import { ClinicFields } from "@modules/clinics/components/ClinicFields";
+import { ResponsibleDoctorFields, readResponsibleDoctor } from "@modules/clinics/components/ResponsibleDoctorFields";
 
 export function ClinicModal({
   mode,
   clinic,
+  accountHolderName,
   onClose,
   onSaved
 }: {
   mode: "create" | "edit";
   clinic?: ClinicResponse;
+  accountHolderName: string;
   onClose: () => void;
   onSaved: (clinic: ClinicResponse) => void;
 }) {
@@ -41,8 +44,7 @@ export function ClinicModal({
           addressZip: value("addressZip") || undefined,
           phone: value("phone") || undefined,
           cofeprisPermitNumber: value("cofeprisPermitNumber") || undefined,
-          responsibleDoctorName: value("responsibleDoctorName") || undefined,
-          responsibleDoctorProfessionalLicense: value("responsibleDoctorProfessionalLicense") || undefined
+          ...readResponsibleDoctor(form)
         };
         const created = await clinicsApi.create(body);
         onSaved(created);
@@ -85,7 +87,8 @@ export function ClinicModal({
           </button>
         </div>
         <form className="profile-form" onSubmit={submit}>
-          <ClinicFields clinic={clinic} requireEmail={mode === "create"} />
+          <ClinicFields clinic={clinic} requireEmail={mode === "create"} withoutResponsibleDoctor={mode === "create"} />
+          {mode === "create" && <ResponsibleDoctorFields accountHolderName={accountHolderName} />}
 
           {error && <p className="alert error">{error}</p>}
           <div className="form-actions">

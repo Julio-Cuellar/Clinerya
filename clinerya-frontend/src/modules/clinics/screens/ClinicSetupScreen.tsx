@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { IconBuildingHospital } from "@tabler/icons-react";
 import { ClinicFields } from "@modules/clinics/components/ClinicFields";
-import { clinicsApi, getFriendlyError, sessionStore } from "@shared/api/api";
+import { ResponsibleDoctorFields, readResponsibleDoctor } from "@modules/clinics/components/ResponsibleDoctorFields";
+import { authApi, clinicsApi, getFriendlyError, sessionStore } from "@shared/api/api";
 import type { UserProfile } from "@modules/auth/types";
-import type { ClinicResponse, UpdateClinicRequest } from "@modules/clinics/types";
+import type { ClinicResponse, CompleteClinicSetupRequest } from "@modules/clinics/types";
 
 export function ClinicSetupScreen({ user, onDone }: { user: UserProfile; onDone: (user: UserProfile) => void }) {
   const clinicId = user.clinics[0]?.id;
@@ -33,7 +34,7 @@ export function ClinicSetupScreen({ user, onDone }: { user: UserProfile; onDone:
     const value = (name: string) => String(form.get(name) ?? "").trim();
 
     try {
-      const body: UpdateClinicRequest = {
+      const body: CompleteClinicSetupRequest = {
         name: value("name"),
         email: value("email") || undefined,
         timezone: value("timezone") || undefined,
@@ -48,16 +49,13 @@ export function ClinicSetupScreen({ user, onDone }: { user: UserProfile; onDone:
         phone: value("phone") || undefined,
         logoUrl: value("logoUrl") || undefined,
         cofeprisPermitNumber: value("cofeprisPermitNumber") || undefined,
-        responsibleDoctorName: value("responsibleDoctorName") || undefined,
-        responsibleDoctorProfessionalLicense: value("responsibleDoctorProfessionalLicense") || undefined
+        ...readResponsibleDoctor(form)
       };
-      const updated = await clinicsApi.update(clinicId, body);
-      const updatedUser: UserProfile = {
-        ...user,
-        clinics: user.clinics.map((item) => (item.id === updated.id ? { ...item, name: updated.name } : item))
-      };
-      sessionStore.setUser(updatedUser);
-      onDone(updatedUser);
+      await clinicsApi.completeSetup(clinicId, body);
+      // El papel del titular cambia sus permisos (atiende pacientes o no): hay que volver a pedirlos.
+      const refreshed = await authApi.me();
+      sessionStore.setUser(refreshed);
+      onDone(refreshed);
     } catch (caught) {
       setError(getFriendlyError(caught));
     } finally {
@@ -81,7 +79,8 @@ export function ClinicSetupScreen({ user, onDone }: { user: UserProfile; onDone:
           <p>Cargando datos de la clínica...</p>
         ) : (
           <form className="profile-form" onSubmit={submit}>
-            <ClinicFields clinic={clinic} requireEmail />
+            <ClinicFields clinic={clinic} requireEmail withoutResponsibleDoctor />
+            <ResponsibleDoctorFields accountHolderName={user.fullName} clinic={clinic} />
             {error && <p className="alert error">{error}</p>}
             <div className="form-actions">
               <button className="btn primary" disabled={loading} type="submit">

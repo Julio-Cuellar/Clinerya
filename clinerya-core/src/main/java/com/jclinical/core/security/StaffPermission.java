@@ -1,5 +1,8 @@
 package com.jclinical.core.security;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 public enum StaffPermission {
     VIEW_DASHBOARD,
     VIEW_DASHBOARD_METRICS,
@@ -67,5 +70,29 @@ public enum StaffPermission {
     MANAGE_INTEGRATIONS,
     MANAGE_CLINIC_BACKUPS,
     MANAGE_PAYROLL,
-    VIEW_PAYROLL
+    VIEW_PAYROLL;
+
+    /**
+     * Permisos que tocan la atencion de un paciente: expediente, notas, recetas, visitas y
+     * presupuestos. Un administrador solo los tiene si ademas atiende pacientes; el catalogo de
+     * tratamientos y las plantillas de historia quedan fuera porque son configuracion.
+     */
+    public static final Set<StaffPermission> CLINICAL = EnumSet.of(
+            VIEW_MEDICAL_RECORDS,
+            EDIT_MEDICAL_RECORDS,
+            CREATE_CLINICAL_NOTES,
+            EDIT_CLINICAL_NOTES,
+            VIEW_RECORD_DOCUMENTS,
+            VIEW_PATIENT_CARE,
+            MANAGE_PATIENT_CARE,
+            CREATE_VISITS,
+            EDIT_VISITS,
+            MANAGE_PRESCRIPTIONS,
+            MANAGE_TREATMENTS,
+            MANAGE_QUOTATIONS,
+            MANAGE_PROCEDURES);
+
+    public boolean isClinical() {
+        return CLINICAL.contains(this);
+    }
 }

@@ -12,12 +12,18 @@ export function TratamientosScreen({
   clinicId,
   clinic,
   hasClinic,
-  patients
+  patients,
+  canSeeQuotations
 }: {
   clinicId?: string;
   clinic?: ClinicResponse;
   hasClinic: boolean;
   patients: PatientResponse[];
+  /**
+   * Los presupuestos son parte del expediente (el backend exige VIEW_MEDICAL_RECORDS). Quien no
+   * atiende pacientes, como un administrador que solo gestiona, trabaja únicamente el catálogo.
+   */
+  canSeeQuotations: boolean;
 }) {
   const profile = getClinicProfileFor(clinic);
   const [tab, setTab] = useState<Tab>("catalogo");
@@ -38,18 +44,20 @@ export function TratamientosScreen({
 
   return (
     <section className="dashboard-grid">
-      <div className="tab-switch">
-        <button className={tab === "catalogo" ? "active" : ""} type="button" onClick={() => setTab("catalogo")}>
-          Catálogo
-        </button>
-        <button className={tab === "cotizaciones" ? "active" : ""} type="button" onClick={() => setTab("cotizaciones")}>
-          Cotizaciones
-        </button>
-      </div>
+      {canSeeQuotations && (
+        <div className="tab-switch">
+          <button className={tab === "catalogo" ? "active" : ""} type="button" onClick={() => setTab("catalogo")}>
+            Catálogo
+          </button>
+          <button className={tab === "cotizaciones" ? "active" : ""} type="button" onClick={() => setTab("cotizaciones")}>
+            Cotizaciones
+          </button>
+        </div>
+      )}
 
       {tab === "catalogo" && <TreatmentCatalogPanel clinicId={clinicId} hasClinic={hasClinic} profile={profile} />}
 
-      {tab === "cotizaciones" &&
+      {tab === "cotizaciones" && canSeeQuotations &&
         (selectedPatient && clinicId ? (
           <QuotationsPanel
             clinicId={clinicId}

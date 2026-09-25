@@ -51,9 +51,10 @@ public class ClinicDomainConfig {
             ClinicRepositoryPort clinicRepository,
             ClinicStaffRepositoryPort clinicStaffRepository,
             DoctorProfileRepositoryPort doctorProfileRepository,
-            com.jclinical.core.security.StaffPermissionCheckerPort permissionChecker) {
+            com.jclinical.core.security.StaffPermissionCheckerPort permissionChecker,
+            com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase clinicStaffUseCase) {
         return new ManageClinicService(
-                clinicRepository, clinicStaffRepository, doctorProfileRepository, permissionChecker);
+                clinicRepository, clinicStaffRepository, doctorProfileRepository, permissionChecker, clinicStaffUseCase);
     }
 
     @Bean

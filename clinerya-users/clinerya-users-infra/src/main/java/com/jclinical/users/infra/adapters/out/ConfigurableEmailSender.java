@@ -60,7 +60,9 @@ public class ConfigurableEmailSender implements EmailSenderPort {
     @Override
     public void sendStaffInvitation(String email, String role, String invitationUrl, LocalDateTime expiresAt) {
         if (!emailEnabled) {
-            log.info("Invitacion de personal no enviada porque el correo esta deshabilitado para '{}'.", email);
+            // Sin correo (desarrollo) la liga solo existe aqui: sin ella no se puede probar el alta del invitado.
+            log.info(">>>> [INVITACION-DEV] Liga para '{}' como {} (válida hasta {}): {}",
+                    email, role, expiresAt.format(EXPIRATION_FORMAT), invitationUrl);
             return;
         }
 
@@ -81,7 +83,8 @@ public class ConfigurableEmailSender implements EmailSenderPort {
     @Override
     public void sendPasswordReset(String email, String fullName, String resetUrl, LocalDateTime expiresAt) {
         if (!emailEnabled) {
-            log.info("Recuperacion de contrasena no enviada porque el correo esta deshabilitado para '{}'.", email);
+            log.info(">>>> [RECUPERACION-DEV] Liga para '{}' (válida hasta {}): {}",
+                    email, expiresAt.format(EXPIRATION_FORMAT), resetUrl);
             return;
         }
 

@@ -4,7 +4,17 @@ import { Field } from "@shared/ui/Field";
 
 const regimenFiscalOptions = regimenesFiscales.map((regimen) => ({ value: regimen.code, label: regimen.label }));
 
-export function ClinicFields({ clinic, requireEmail }: { clinic?: ClinicResponse; requireEmail?: boolean }) {
+// withoutResponsibleDoctor: el alta (pantalla inicial y "Nueva clínica") los pide con
+// ResponsibleDoctorFields, que además pregunta el papel del titular.
+export function ClinicFields({
+  clinic,
+  requireEmail,
+  withoutResponsibleDoctor
+}: {
+  clinic?: ClinicResponse;
+  requireEmail?: boolean;
+  withoutResponsibleDoctor?: boolean;
+}) {
   return (
     <>
       <Field name="name" label="Nombre de la clínica" defaultValue={clinic?.name} required />
@@ -36,18 +46,22 @@ export function ClinicFields({ clinic, requireEmail }: { clinic?: ClinicResponse
         defaultValue={clinic?.cofeprisPermitNumber}
         placeholder="Ej. 263300201A0123"
       />
-      <Field
-        name="responsibleDoctorName"
-        label="Nombre del médico responsable"
-        defaultValue={clinic?.responsibleDoctorName}
-        placeholder="Ej. Dr. Juan Pérez"
-      />
-      <Field
-        name="responsibleDoctorProfessionalLicense"
-        label="Cédula profesional del responsable"
-        defaultValue={clinic?.responsibleDoctorProfessionalLicense}
-        placeholder="Ej. 12345678"
-      />
+      {!withoutResponsibleDoctor && (
+        <>
+          <Field
+            name="responsibleDoctorName"
+            label="Nombre del médico responsable"
+            defaultValue={clinic?.responsibleDoctorName}
+            placeholder="Ej. Dr. Juan Pérez"
+          />
+          <Field
+            name="responsibleDoctorProfessionalLicense"
+            label="Cédula profesional del responsable"
+            defaultValue={clinic?.responsibleDoctorProfessionalLicense}
+            placeholder="Ej. 12345678"
+          />
+        </>
+      )}
     </>
   );
 }

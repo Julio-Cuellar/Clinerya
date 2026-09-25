@@ -1,6 +1,7 @@
 package com.jclinical.app.dev;
 
 import com.jclinical.clinics.domain.model.Clinic;
+import com.jclinical.clinics.domain.model.ResponsibleDoctorSetup;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
 import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.inventory.domain.model.Material;
@@ -50,6 +51,8 @@ import java.util.UUID;
 @Slf4j
 @Order(100)
 public class DevDataSeeder implements ApplicationRunner {
+
+    private static final String DEMO_CEDULA_PROFESIONAL = "7654321";
 
     private final RegisterUserUseCase registerUserUseCase;
     private final VerifyUserEmailUseCase verifyUserEmailUseCase;
@@ -101,6 +104,13 @@ public class DevDataSeeder implements ApplicationRunner {
         }
 
         UUID clinicId = clinics.get(0).getId();
+
+        // Igual que en la pantalla "Completa los datos de tu clinica": la cuenta demo es una
+        // doctora que ademas es la medica responsable, asi que atiende pacientes con su cedula.
+        clinicUseCase.completeSetup(user.getId(), clinicId,
+                new ManageClinicUseCase.ClinicSetupDetails(clinicName, email, null, null, null, null,
+                        null, null, null, null, null, null, null, null),
+                new ResponsibleDoctorSetup(true, fullName, DEMO_CEDULA_PROFESIONAL, null, null));
 
         // Las clinicas nacen en SIN_CONFIGURAR y ambas siembras son demos odontologicas:
         // sin declarar el perfil, las partidas con numero de diente serian rechazadas.

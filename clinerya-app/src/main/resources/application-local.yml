@@ -22,3 +22,14 @@ medicloud:
 google:
   oauth:
     state-secret: local-dev-only-google-oauth-state-secret
+
+# Fase de pruebas: cada arranque borra la base de datos, la recrea con las migraciones y vuelve a
+# sembrar las cuentas demo y showcase (ver DevDatabaseResetConfig). Si necesitas conservar datos
+# entre reinicios, arranca con APP_FLYWAY_RESET_ON_STARTUP=false.
+app:
+  flyway:
+    reset-on-startup: ${APP_FLYWAY_RESET_ON_STARTUP:true}
+  dev-seed:
+    enabled: true
+  showcase-seed:
+    enabled: true

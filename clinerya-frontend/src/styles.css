@@ -380,6 +380,140 @@ h2 {
   border: 1px solid var(--color-border);
 }
 
+/* Alta: médico responsable y papel del titular (ResponsibleDoctorFields) */
+.responsible-doctor {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.responsible-doctor h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.responsible-doctor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.responsible-doctor-role {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.responsible-doctor-role legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.responsible-doctor-note {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+}
+
+.choice-card {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-card);
+  cursor: pointer;
+}
+
+.choice-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.choice-card input {
+  margin-top: 2px;
+  accent-color: var(--color-primary);
+}
+
+.choice-card strong {
+  display: block;
+  font-size: 13px;
+}
+
+.choice-card small {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.field-hint {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+.required-mark {
+  color: var(--color-error);
+}
+
+@media (max-width: 720px) {
+  .responsible-doctor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Personal > detalle: tarjeta "Práctica clínica" (ClinicalPracticeCard) */
+.clinical-practice-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.clinical-practice-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.clinical-practice-toggle strong {
+  display: block;
+  font-size: 13px;
+}
+
+.clinical-practice-toggle small {
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.clinical-practice-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
+.clinical-practice-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
 /* Alta guiada de la clinica */
 .onboarding-banner {
   display: flex;

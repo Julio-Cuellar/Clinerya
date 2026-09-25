@@ -91,6 +91,7 @@ public class StaffDomainConfig {
                         .endDate(domain.getEndDate())
                         .notes(domain.getNotes())
                         .active(domain.isActive())
+                        .attendsPatients(domain.isAttendsPatients())
                         .createdAt(domain.getCreatedAt())
                         .updatedAt(domain.getUpdatedAt())
                         .build();
@@ -111,6 +112,7 @@ public class StaffDomainConfig {
                         .endDate(entity.getEndDate())
                         .notes(entity.getNotes())
                         .active(entity.isActive())
+                        .attendsPatients(entity.isAttendsPatients())
                         .createdAt(entity.getCreatedAt())
                         .updatedAt(entity.getUpdatedAt())
                         .build();

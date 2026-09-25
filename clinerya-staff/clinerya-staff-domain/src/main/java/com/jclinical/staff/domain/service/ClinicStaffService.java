@@ -1,5 +1,6 @@
 package com.jclinical.staff.domain.service;
 
+import com.jclinical.core.domain.CedulaProfesional;
 import com.jclinical.staff.domain.model.ClinicStaff;
 import com.jclinical.staff.domain.model.ClinicStaffInvitation;
 import com.jclinical.staff.domain.model.DoctorCredentialStatus;
@@ -57,6 +58,15 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         return clinicStaffRepository.findByClinicId(clinicId).stream()
                 .filter(ClinicStaff::isActive)
                 .filter(staff -> role == null || staff.getRole() == role)
+                .map(this::toSummary)
+                .toList();
+    }
+
+    @Override
+    public List<StaffSummary> listPractitioners(UUID clinicId) {
+        return clinicStaffRepository.findByClinicId(clinicId).stream()
+                .filter(ClinicStaff::isActive)
+                .filter(ClinicStaff::isPractitioner)
                 .map(this::toSummary)
                 .toList();
     }
@@ -186,6 +196,15 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         if (staff.getRole() == StaffRole.ADMIN && role != StaffRole.ADMIN) {
             throw new IllegalStateException("El superadministrador no puede cambiar de rol.");
         }
+        // Un doctor con cedula que pasa a administrar la clinica sigue atendiendo a sus pacientes;
+        // sin esto desapareceria de la agenda con citas ya asignadas.
+        if (staff.getRole() == StaffRole.DOCTOR && (role == StaffRole.ADMIN || role == StaffRole.CLINIC_ADMIN)) {
+            boolean hasCedula = doctorProfileRepository.findByClinicStaffId(staffId)
+                    .map(DoctorProfile::getCedulaProfesional)
+                    .filter(cedula -> !cedula.isBlank())
+                    .isPresent();
+            staff.setAttendsPatients(hasCedula);
+        }
         staff.setRole(role);
         staff.setUpdatedAt(LocalDateTime.now());
         clinicStaffRepository.save(staff);
@@ -218,12 +237,18 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
 
         List<ManageClinicStaffUseCase.PermissionItem> items = List.of(StaffPermission.values()).stream()
                 .map(permission -> {
-                    StaffPermissionOverrideState state = superAdmin
-                            ? StaffPermissionOverrideState.INHERIT
-                            : overrides.getOrDefault(permission, StaffPermissionOverrideState.INHERIT);
-                    boolean enabled = superAdmin || state == StaffPermissionOverrideState.GRANTED
+                    // Un administrador ve lo clinico solo si atiende pacientes, y eso no se puede
+                    // torcer con overrides: si no, bastaria con otorgarse VIEW_MEDICAL_RECORDS.
+                    boolean clinicalForAdmin = staff.isAdministrative() && permission.isClinical();
+                    if (superAdmin || clinicalForAdmin) {
+                        boolean enabled = !permission.isClinical() || staff.isPractitioner();
+                        return new ManageClinicStaffUseCase.PermissionItem(
+                                permission, StaffPermissionOverrideState.INHERIT, enabled, true);
+                    }
+                    StaffPermissionOverrideState state = overrides.getOrDefault(permission, StaffPermissionOverrideState.INHERIT);
+                    boolean enabled = state == StaffPermissionOverrideState.GRANTED
                             || (state == StaffPermissionOverrideState.INHERIT && defaults.contains(permission));
-                    return new ManageClinicStaffUseCase.PermissionItem(permission, state, enabled);
+                    return new ManageClinicStaffUseCase.PermissionItem(permission, state, enabled, false);
                 })
                 .toList();
 
@@ -235,6 +260,15 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         ClinicStaff staff = findActiveStaff(clinicId, staffId);
         if (staff.getRole() == StaffRole.ADMIN) {
             throw new IllegalStateException("Los permisos del superadministrador no se pueden modificar.");
+        }
+        if (changes != null && staff.isAdministrative()) {
+            boolean overridesClinical = changes.stream()
+                    .anyMatch(change -> change != null && change.permission() != null && change.permission().isClinical()
+                            && change.state() != null && change.state() != StaffPermissionOverrideState.INHERIT);
+            if (overridesClinical) {
+                throw new IllegalStateException(
+                        "Los permisos clínicos de un administrador dependen de si atiende pacientes; actívalo desde su ficha de personal.");
+            }
         }
         if (changes != null) {
             for (PermissionChange change : changes) {
@@ -264,6 +298,45 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
     }
 
     @Override
+    public ClinicalPracticeSummary getClinicalPractice(UUID clinicId, UUID staffId) {
+        ClinicStaff staff = findActiveStaff(clinicId, staffId);
+        return toClinicalPracticeSummary(staff, doctorProfileRepository.findByClinicStaffId(staffId).orElse(null));
+    }
+
+    @Override
+    public ClinicalPracticeSummary updateClinicalPractice(UUID clinicId, UUID staffId, boolean attendsPatients,
+                                                          String cedulaProfesional) {
+        ClinicStaff staff = findActiveStaff(clinicId, staffId);
+        if (!staff.isAdministrative()) {
+            throw new IllegalStateException(
+                    "Solo los administradores eligen si atienden pacientes; un doctor los atiende por su rol.");
+        }
+        DoctorProfile profile = doctorProfileRepository.findByClinicStaffId(staffId).orElse(null);
+        if (attendsPatients) {
+            profile = registerCedula(staff, profile, CedulaProfesional.require(cedulaProfesional));
+        }
+        staff.setAttendsPatients(attendsPatients);
+        staff.setUpdatedAt(LocalDateTime.now());
+        clinicStaffRepository.save(staff);
+        return toClinicalPracticeSummary(staff, profile);
+    }
+
+    // El perfil medico se conserva al dejar de atender pacientes: volver a activarlo no deberia
+    // obligar a recapturar los datos profesionales.
+    private DoctorProfile registerCedula(ClinicStaff staff, DoctorProfile existing, String cedula) {
+        DoctorProfile profile = existing != null ? existing : DoctorProfile.builder()
+                .id(UUID.randomUUID())
+                .clinicId(staff.getClinicId())
+                .clinicStaffId(staff.getId())
+                .credentialStatus(DoctorCredentialStatus.EN_TRAMITE)
+                .createdAt(LocalDateTime.now())
+                .build();
+        profile.setCedulaProfesional(cedula);
+        profile.setUpdatedAt(LocalDateTime.now());
+        return doctorProfileRepository.save(profile);
+    }
+
+    @Override
     public void removeStaff(UUID clinicId, UUID staffId) {
         ClinicStaff staff = clinicStaffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Miembro del personal no encontrado"));
@@ -284,7 +357,10 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
 
     private Set<StaffPermission> defaultPermissions(StaffRole role) {
         if (role == StaffRole.ADMIN || role == StaffRole.CLINIC_ADMIN) {
-            return EnumSet.allOf(StaffPermission.class);
+            // Lo clinico de un administrador no sale del rol sino de si atiende pacientes.
+            EnumSet<StaffPermission> administrative = EnumSet.allOf(StaffPermission.class);
+            administrative.removeAll(StaffPermission.CLINICAL);
+            return administrative;
         }
         return switch (role) {
             case DOCTOR -> EnumSet.of(
@@ -394,6 +470,17 @@ public class ClinicStaffService implements ManageClinicStaffUseCase {
         String fullName = userDirectory.findUser(staff.getUserId())
                 .map(UserDirectoryPort.UserSummary::fullName)
                 .orElse("Usuario desconocido");
-        return new StaffSummary(staff.getId(), staff.getClinicId(), staff.getUserId(), staff.getRole(), fullName);
+        return new StaffSummary(staff.getId(), staff.getClinicId(), staff.getUserId(), staff.getRole(), fullName,
+                staff.isAttendsPatients(), staff.isPractitioner());
+    }
+
+    private ClinicalPracticeSummary toClinicalPracticeSummary(ClinicStaff staff, DoctorProfile profile) {
+        return new ClinicalPracticeSummary(
+                staff.getId(),
+                staff.getRole(),
+                staff.isAttendsPatients(),
+                staff.isPractitioner(),
+                profile != null ? profile.getCedulaProfesional() : null,
+                profile != null && profile.getCredentialStatus() != null ? profile.getCredentialStatus().name() : null);
     }
 }

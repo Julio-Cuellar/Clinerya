@@ -46,7 +46,8 @@ public class AuthMeController {
                                     .map(item -> item.permission().name())
                                     .toList())
                             .orElse(List.of());
-                    return new ClinicDto(c.getId(), c.getName(), role, permissions);
+                    boolean attendsPatients = staff.map(ManageClinicStaffUseCase.StaffSummary::practitioner).orElse(false);
+                    return new ClinicDto(c.getId(), c.getName(), role, permissions, attendsPatients);
                 })
                 .toList();
 

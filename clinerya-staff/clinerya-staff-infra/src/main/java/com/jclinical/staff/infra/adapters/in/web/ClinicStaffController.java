@@ -141,6 +141,30 @@ public class ClinicStaffController {
         return ResponseEntity.ok(manageClinicStaffUseCase.updatePermissions(clinicId, staffId, changes));
     }
 
+    @GetMapping("/{staffId}/clinical-practice")
+    public ResponseEntity<ManageClinicStaffUseCase.ClinicalPracticeSummary> getClinicalPractice(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID staffId) {
+        require(clinicId, StaffPermission.VIEW_STAFF,
+                "No tienes permiso para consultar el personal de esta clinica.");
+        return ResponseEntity.ok(manageClinicStaffUseCase.getClinicalPractice(clinicId, staffId));
+    }
+
+    // Activarlo da acceso a los expedientes, por eso pide el mismo permiso que cambiar permisos.
+    @PutMapping("/{staffId}/clinical-practice")
+    public ResponseEntity<ManageClinicStaffUseCase.ClinicalPracticeSummary> updateClinicalPractice(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID staffId,
+            @RequestBody UpdateClinicalPracticeRequest request) {
+        require(clinicId, StaffPermission.MANAGE_STAFF_PERMISSIONS,
+                "No tienes permiso para gestionar los permisos del personal de esta clinica.");
+        if (request == null || request.attendsPatients() == null) {
+            throw new IllegalArgumentException("Indica si el miembro del personal atiende pacientes.");
+        }
+        return ResponseEntity.ok(manageClinicStaffUseCase.updateClinicalPractice(
+                clinicId, staffId, request.attendsPatients(), request.cedulaProfesional()));
+    }
+
     @DeleteMapping("/{staffId}")
     public ResponseEntity<Void> removeStaff(
             @PathVariable UUID clinicId,
@@ -167,6 +191,11 @@ public class ClinicStaffController {
     public record PermissionChangeRequest(
             String permission,
             String state
+    ) {}
+
+    public record UpdateClinicalPracticeRequest(
+            Boolean attendsPatients,
+            String cedulaProfesional
     ) {}
 
     private ManageClinicStaffUseCase.PermissionChange toPermissionChange(PermissionChangeRequest request) {

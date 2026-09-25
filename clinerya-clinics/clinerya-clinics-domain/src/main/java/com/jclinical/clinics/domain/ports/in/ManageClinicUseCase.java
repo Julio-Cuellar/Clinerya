@@ -1,6 +1,7 @@
 package com.jclinical.clinics.domain.ports.in;
 
 import com.jclinical.clinics.domain.model.Clinic;
+import com.jclinical.clinics.domain.model.ResponsibleDoctorSetup;
 import com.jclinical.core.domain.ClinicSpecialty;
 
 import java.util.List;
@@ -23,9 +24,15 @@ public interface ManageClinicUseCase {
             String addressZip,
             String phone,
             String cofeprisPermitNumber,
-            String responsibleDoctorName,
-            String responsibleDoctorProfessionalLicense
+            ResponsibleDoctorSetup responsibleDoctor
     );
+
+    /**
+     * Cierra el alta de una clinica recien registrada: guarda sus datos, su medico responsable y
+     * si el titular atiende pacientes (con su cedula) o solo gestiona la cuenta. Solo el dueño.
+     */
+    Clinic completeSetup(UUID ownerUserId, UUID clinicId, ClinicSetupDetails details,
+                         ResponsibleDoctorSetup responsibleDoctor);
 
     Clinic updateClinic(
             UUID ownerUserId,
@@ -59,4 +66,21 @@ public interface ManageClinicUseCase {
     Clinic getClinic(UUID ownerUserId, UUID clinicId);
 
     List<Clinic> getClinicsByOwner(UUID ownerUserId);
+
+    record ClinicSetupDetails(
+            String name,
+            String email,
+            String timezone,
+            String legalName,
+            String rfc,
+            String taxRegimeCode,
+            String addressStreet,
+            String addressColonia,
+            String addressMunicipality,
+            String addressState,
+            String addressZip,
+            String phone,
+            String logoUrl,
+            String cofeprisPermitNumber
+    ) {}
 }

@@ -10,6 +10,7 @@ import type {
 import type {
   ClinicResponse,
   ClinicRoomStaffAssignmentResponse,
+  CompleteClinicSetupRequest,
   CreateClinicRequest,
   UpdateClinicRequest,
   UpdateClinicSpecialtyRequest
@@ -253,6 +254,8 @@ export const clinicsApi = {
     request<ClinicResponse>("/v1/clinics", { method: "POST", body: JSON.stringify(body) }),
   update: (clinicId: string, body: UpdateClinicRequest) =>
     request<ClinicResponse>(`/v1/clinics/${clinicId}`, { method: "PUT", body: JSON.stringify(body) }),
+  completeSetup: (clinicId: string, body: CompleteClinicSetupRequest) =>
+    request<ClinicResponse>(`/v1/clinics/${clinicId}/setup`, { method: "PUT", body: JSON.stringify(body) }),
   updateSpecialty: (clinicId: string, body: UpdateClinicSpecialtyRequest) =>
     request<ClinicResponse>(`/v1/clinics/${clinicId}/specialty`, {
       method: "PUT",
@@ -923,6 +926,17 @@ export const staffApi = {
       method: "PUT",
       body: JSON.stringify({ permissions })
     }),
+  getClinicalPractice: (clinicId: string, staffId: string) =>
+    request<ClinicalPracticeResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/clinical-practice`),
+  updateClinicalPractice: (
+    clinicId: string,
+    staffId: string,
+    body: { attendsPatients: boolean; cedulaProfesional?: string }
+  ) =>
+    request<ClinicalPracticeResponse>(`/v1/clinics/${clinicId}/staff/${staffId}/clinical-practice`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    }),
   remove: (clinicId: string, staffId: string) =>
     request<void>(`/v1/clinics/${clinicId}/staff/${staffId}`, {
       method: "DELETE"
@@ -1019,6 +1033,19 @@ export interface ClinicStaffResponse {
   userId: string;
   role: string;
   fullName: string;
+  /** Solo significa algo para roles administrativos; un DOCTOR atiende pacientes por su rol. */
+  attendsPatients: boolean;
+  /** Atiende pacientes (DOCTOR, o administrador con la bandera): agenda, consultorios y expediente. */
+  practitioner: boolean;
+}
+
+export interface ClinicalPracticeResponse {
+  staffId: string;
+  role: string;
+  attendsPatients: boolean;
+  practitioner: boolean;
+  cedulaProfesional?: string | null;
+  credentialStatus?: string | null;
 }
 
 export type StaffPermission =
@@ -1095,6 +1122,8 @@ export interface StaffPermissionItem {
   permission: StaffPermission;
   overrideState: StaffPermissionOverrideState;
   enabled: boolean;
+  /** No admite ajuste manual: superadministrador, o permiso clínico de un administrador. */
+  locked: boolean;
 }
 
 export interface StaffPermissionSummary {

@@ -11,6 +11,7 @@ import {
   type StaffPayrollPeriodResponse
 } from "@shared/api/api";
 import { StaffPermissionsScreen } from "@modules/staff/screens/StaffPermissionsScreen";
+import { ClinicalPracticeCard } from "@modules/staff/components/ClinicalPracticeCard";
 
 const staffRoleLabels: Record<string, string> = {
   ADMIN: "Administrador de sistema",
@@ -63,12 +64,16 @@ export function StaffDetailScreen({
   staff,
   staffId,
   staffLoading,
+  canManagePermissions,
+  onStaffChanged,
   onBack
 }: {
   clinicId: string;
   staff: ClinicStaffResponse[];
   staffId: string;
   staffLoading: boolean;
+  canManagePermissions: boolean;
+  onStaffChanged: () => void;
   onBack: () => void;
 }) {
   const employee = staff.find((member) => member.staffId === staffId);
@@ -131,6 +136,15 @@ export function StaffDetailScreen({
     window.history.pushState({ module: "personal", staffId, page: "permisos" }, "", `/personal/${staffId}/permisos`);
   };
 
+  // Atender pacientes cambia sus permisos clinicos: se recargan para "Accesos efectivos".
+  const handlePracticeSaved = () => {
+    staffApi
+      .getPermissions(clinicId, staffId)
+      .then(setPermissions)
+      .catch((caught) => setError(getFriendlyError(caught)));
+    onStaffChanged();
+  };
+
   const closePermissions = () => {
     setPermissionsPage(false);
     window.history.pushState({ module: "personal", staffId }, "", `/personal/${staffId}`);
@@ -189,7 +203,10 @@ export function StaffDetailScreen({
         <div>
           <p className="eyebrow">Personal / Detalle del empleado</p>
           <h2>{employee.fullName}</h2>
-          <p className="description">{staffRoleLabels[employee.role] || employee.role} · Activo</p>
+          <p className="description">
+            {staffRoleLabels[employee.role] || employee.role}
+            {employee.role !== "DOCTOR" && employee.practitioner ? " · Atiende pacientes" : ""} · Activo
+          </p>
         </div>
         <span className="badge success">Activo</span>
       </div>
@@ -258,6 +275,15 @@ export function StaffDetailScreen({
             <p className="description">No tiene accesos habilitados.</p>
           )}
         </article>
+
+        {(employee.role === "ADMIN" || employee.role === "CLINIC_ADMIN") && (
+          <ClinicalPracticeCard
+            clinicId={clinicId}
+            employee={employee}
+            canManage={canManagePermissions}
+            onSaved={handlePracticeSaved}
+          />
+        )}
 
         <article className="panel staff-detail-card">
           <div className="panel-heading">

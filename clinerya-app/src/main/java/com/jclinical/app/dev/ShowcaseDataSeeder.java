@@ -18,11 +18,9 @@ import com.jclinical.cash.domain.ports.in.ManageCashSessionUseCase;
 import com.jclinical.cash.domain.ports.in.ManageTicketsUseCase;
 import com.jclinical.clinics.domain.model.Clinic;
 import com.jclinical.staff.domain.model.StaffRole;
-import com.jclinical.staff.domain.model.StaffPermissionOverrideState;
 import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
 import com.jclinical.core.domain.ClinicSpecialty;
-import com.jclinical.core.security.StaffPermission;
 import com.jclinical.inventory.domain.model.Material;
 import com.jclinical.inventory.domain.model.MovementType;
 import com.jclinical.inventory.domain.model.PurchaseOrder;
@@ -89,7 +87,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +102,8 @@ import java.util.UUID;
 @Slf4j
 @Order(110)
 public class ShowcaseDataSeeder implements ApplicationRunner {
+
+    private static final String SHOWCASE_CEDULA_PROFESIONAL = "9876543";
 
     private static final String STUDIES_ELEMENT_ID = "patient_studies";
     private static final String USER_AGENT = "Clinerya showcase seeder";
@@ -193,7 +192,10 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 .map(ManageClinicStaffUseCase.StaffSummary::staffId)
                 .orElseThrow(() -> new IllegalStateException("No se encontro el perfil medico de la cuenta showcase."));
 
-        promoteShowcaseOwnerToDoctor(clinicId, staffId);
+        // La Dra. Martinez no es la responsable sanitaria (lo es la Dra. Morales), pero administra
+        // su clinica y ademas atiende pacientes: con su cedula cuenta como doctora para la agenda
+        // sin dejar de ser CLINIC_ADMIN (caja, contabilidad, personal).
+        clinicStaffUseCase.updateClinicalPractice(clinicId, staffId, true, SHOWCASE_CEDULA_PROFESIONAL);
 
         seedSchedule(clinicId);
         BankAccount operatingBank = seedAccounting(user.getId(), clinicId);
@@ -367,27 +369,6 @@ public class ShowcaseDataSeeder implements ApplicationRunner {
                 emergency("Lucia Hernandez", "Hija", "2225553190")));
 
         return new PatientFixture(primary, pediatric, geriatric);
-    }
-
-    /**
-     * La cuenta showcase es "Dra. Elena Martinez": una doctora que ademas es dueña de su clinica.
-     * El alta la registra como {@code CLINIC_ADMIN}, pero la agenda solo acepta citas cuyo staff
-     * tenga rol {@code DOCTOR} (ver AgendaStaffValidatorAdapter), asi que sin esto el seeder no
-     * puede crear ni una sola cita y la aplicacion no arranca.
-     *
-     * <p>El rol es un unico valor, no una lista: pasarla a DOCTOR le quita los permisos que solo
-     * trae CLINIC_ADMIN —entre ellos {@code MANAGE_CASH_CUTS} y {@code MANAGE_EXPENSES}, que
-     * {@code seedCash} necesita mas abajo—, asi que cambiar el rol a secas solo mueve el fallo de
-     * la agenda a la caja. Por eso se le devuelve el conjunto completo mediante overrides, que es
-     * justamente el mecanismo que el producto ofrece para "este rol, mas estos permisos extra".
-     */
-    private void promoteShowcaseOwnerToDoctor(UUID clinicId, UUID staffId) {
-        clinicStaffUseCase.updateStaff(clinicId, staffId, StaffRole.DOCTOR);
-        clinicStaffUseCase.updatePermissions(clinicId, staffId,
-                EnumSet.allOf(StaffPermission.class).stream()
-                        .map(permission -> new ManageClinicStaffUseCase.PermissionChange(
-                                permission, StaffPermissionOverrideState.GRANTED))
-                        .toList());
     }
 
     private void seedPersonnel(UUID clinicId) {

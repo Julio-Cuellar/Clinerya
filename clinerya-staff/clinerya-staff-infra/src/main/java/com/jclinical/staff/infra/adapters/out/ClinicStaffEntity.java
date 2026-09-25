@@ -49,6 +49,9 @@ public class ClinicStaffEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
+    @Column(name = "attends_patients", nullable = false)
+    private boolean attendsPatients;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

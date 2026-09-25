@@ -66,6 +66,8 @@ class ClinicStaffServiceTest {
         assertEquals("Dra. Ana Lopez", summary.fullName());
         assertEquals(1, doctorProfileRepository.profiles.size());
         assertEquals(1, service.listStaffByClinic(clinicId, StaffRole.DOCTOR).size());
+        assertTrue(summary.practitioner());
+        assertEquals(1, service.listPractitioners(clinicId).size());
         assertTrue(service.getActiveStaffByUserAndClinic(userId, clinicId).isPresent());
         assertTrue(service.getActiveStaffById(summary.staffId(), clinicId).isPresent());
     }
@@ -167,16 +169,126 @@ class ClinicStaffServiceTest {
     }
 
     @Test
-    void adminPermissionsAreAlwaysEnabledAndCannotBeOverridden() {
+    void adminNonClinicalPermissionsAreAlwaysEnabledAndCannotBeOverridden() {
         UUID clinicId = UUID.randomUUID();
         ClinicStaff admin = staff(clinicId, userDirectory.addUser("root@clinerya.com", "Root"), StaffRole.ADMIN);
         staffRepository.save(admin);
 
         PermissionSummary summary = service.getPermissions(clinicId, admin.getId());
 
-        assertTrue(summary.permissions().stream().allMatch(item -> item.enabled()));
+        assertTrue(summary.permissions().stream()
+                .filter(item -> !item.permission().isClinical())
+                .allMatch(item -> item.enabled() && item.locked()));
+        assertTrue(summary.permissions().stream()
+                .filter(item -> item.permission().isClinical())
+                .noneMatch(item -> item.enabled()));
         assertThrows(IllegalStateException.class, () -> service.updatePermissions(clinicId, admin.getId(), List.of(
                 new PermissionChange(StaffPermission.VIEW_AGENDA, StaffPermissionOverrideState.REVOKED))));
+    }
+
+    @Test
+    void clinicAdminWhoDoesNotAttendPatientsHasNoClinicalAccessButKeepsTheCatalog() {
+        UUID clinicId = UUID.randomUUID();
+        ClinicStaff owner = staff(clinicId, userDirectory.addUser("duena@clinerya.com", "Duena"), StaffRole.CLINIC_ADMIN);
+        staffRepository.save(owner);
+
+        PermissionSummary summary = service.getPermissions(clinicId, owner.getId());
+
+        assertFalse(enabled(summary, StaffPermission.VIEW_MEDICAL_RECORDS));
+        assertFalse(enabled(summary, StaffPermission.EDIT_MEDICAL_RECORDS));
+        assertFalse(enabled(summary, StaffPermission.MANAGE_QUOTATIONS));
+        assertFalse(enabled(summary, StaffPermission.CREATE_VISITS));
+        assertTrue(enabled(summary, StaffPermission.MANAGE_TREATMENT_CATALOG));
+        assertTrue(enabled(summary, StaffPermission.VIEW_TREATMENTS));
+        assertTrue(enabled(summary, StaffPermission.CREATE_APPOINTMENTS));
+        assertTrue(enabled(summary, StaffPermission.MANAGE_STAFF_PERMISSIONS));
+        assertTrue(service.listPractitioners(clinicId).isEmpty());
+    }
+
+    @Test
+    void clinicAdminWhoAttendsPatientsIsAPractitionerWithClinicalAccess() {
+        UUID clinicId = UUID.randomUUID();
+        ClinicStaff owner = staff(clinicId, userDirectory.addUser("dra@clinerya.com", "Dra. Duena"), StaffRole.CLINIC_ADMIN);
+        staffRepository.save(owner);
+
+        var practice = service.updateClinicalPractice(clinicId, owner.getId(), true, " 1234 5678 ");
+
+        assertTrue(practice.attendsPatients());
+        assertTrue(practice.practitioner());
+        assertEquals("12345678", practice.cedulaProfesional());
+        assertEquals("EN_TRAMITE", practice.credentialStatus());
+        PermissionSummary summary = service.getPermissions(clinicId, owner.getId());
+        assertTrue(enabled(summary, StaffPermission.VIEW_MEDICAL_RECORDS));
+        assertTrue(enabled(summary, StaffPermission.EDIT_MEDICAL_RECORDS));
+        assertTrue(enabled(summary, StaffPermission.MANAGE_QUOTATIONS));
+        List<StaffSummary> practitioners = service.listPractitioners(clinicId);
+        assertEquals(1, practitioners.size());
+        assertTrue(practitioners.get(0).practitioner());
+
+        service.updateClinicalPractice(clinicId, owner.getId(), false, null);
+
+        assertFalse(enabled(service.getPermissions(clinicId, owner.getId()), StaffPermission.VIEW_MEDICAL_RECORDS));
+        assertTrue(service.listPractitioners(clinicId).isEmpty());
+        assertEquals("12345678", doctorProfileRepository.profiles.get(0).getCedulaProfesional());
+    }
+
+    @Test
+    void attendingPatientsRequiresAValidCedula() {
+        UUID clinicId = UUID.randomUUID();
+        ClinicStaff owner = staff(clinicId, userDirectory.addUser("sin-cedula@clinerya.com", "Sin cedula"), StaffRole.CLINIC_ADMIN);
+        staffRepository.save(owner);
+
+        assertThrows(IllegalArgumentException.class, () -> service.updateClinicalPractice(clinicId, owner.getId(), true, null));
+        assertThrows(IllegalArgumentException.class, () -> service.updateClinicalPractice(clinicId, owner.getId(), true, "12AB"));
+        assertFalse(staffRepository.findById(owner.getId()).orElseThrow().isAttendsPatients());
+    }
+
+    @Test
+    void onlyAdministratorsChooseWhetherTheyAttendPatients() {
+        UUID clinicId = UUID.randomUUID();
+        StaffSummary receptionist = service.addStaff(
+                clinicId,
+                emailFor(userDirectory.addUser("recepcionista@clinerya.com", "Recepcionista")),
+                StaffRole.RECEPTIONIST);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.updateClinicalPractice(clinicId, receptionist.staffId(), true, "1234567"));
+    }
+
+    @Test
+    void clinicalPermissionsOfAnAdministratorCannotBeGrantedByHand() {
+        UUID clinicId = UUID.randomUUID();
+        ClinicStaff owner = staff(clinicId, userDirectory.addUser("admin-clinica@clinerya.com", "Admin"), StaffRole.CLINIC_ADMIN);
+        staffRepository.save(owner);
+
+        assertThrows(IllegalStateException.class, () -> service.updatePermissions(clinicId, owner.getId(), List.of(
+                new PermissionChange(StaffPermission.VIEW_MEDICAL_RECORDS, StaffPermissionOverrideState.GRANTED))));
+
+        // La pantalla de permisos reenvia la lista completa: lo clinico llega como INHERIT y no debe estorbar.
+        PermissionSummary updated = service.updatePermissions(clinicId, owner.getId(), List.of(
+                new PermissionChange(StaffPermission.VIEW_MEDICAL_RECORDS, StaffPermissionOverrideState.INHERIT),
+                new PermissionChange(StaffPermission.MANAGE_ACCOUNTING, StaffPermissionOverrideState.REVOKED)));
+
+        assertFalse(enabled(updated, StaffPermission.VIEW_MEDICAL_RECORDS));
+        assertFalse(enabled(updated, StaffPermission.MANAGE_ACCOUNTING));
+        assertTrue(updated.permissions().stream()
+                .filter(item -> item.permission() == StaffPermission.VIEW_MEDICAL_RECORDS)
+                .findFirst().orElseThrow().locked());
+    }
+
+    @Test
+    void doctorWithCedulaPromotedToClinicAdminKeepsAttendingPatients() {
+        UUID clinicId = UUID.randomUUID();
+        StaffSummary doctor = service.addStaff(
+                clinicId,
+                emailFor(userDirectory.addUser("doctor-admin@clinerya.com", "Doctor")),
+                StaffRole.DOCTOR);
+        doctorProfileRepository.profiles.get(0).setCedulaProfesional("7654321");
+
+        StaffSummary promoted = service.updateStaff(clinicId, doctor.staffId(), StaffRole.CLINIC_ADMIN);
+
+        assertTrue(promoted.practitioner());
+        assertEquals(1, service.listPractitioners(clinicId).size());
     }
 
     private static boolean enabled(PermissionSummary summary, StaffPermission permission) {

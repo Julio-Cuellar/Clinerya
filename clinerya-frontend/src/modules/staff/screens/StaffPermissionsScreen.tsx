@@ -158,6 +158,7 @@ export function StaffPermissionsScreen({
   );
   const currentModule = modules.find((module) => module.module === selectedModule) ?? modules[0];
   const isSuperAdmin = summary?.role === "ADMIN" || employee?.role === "ADMIN";
+  const isClinicAdmin = !isSuperAdmin && (summary?.role === "CLINIC_ADMIN" || employee?.role === "CLINIC_ADMIN");
   const summaryByPermission = new Map(summary?.permissions.map((item) => [item.permission, item]) ?? []);
   const currentPermissions = currentModule?.permissions ?? [];
   const activePermissions = currentPermissions.filter((item) => summaryByPermission.get(item.permission)?.enabled);
@@ -206,12 +207,15 @@ export function StaffPermissionsScreen({
         <div className="staff-permission-control">
           {item.enabled ? (
             <span className="badge success"><IconCheck size={13} aria-hidden="true" /> Activo</span>
+          ) : item.locked ? (
+            <span className="badge neutral"><IconLock size={13} aria-hidden="true" /> Bloqueado</span>
           ) : (
             <span className="badge neutral">Disponible</span>
           )}
           <select
             value={item.overrideState}
-            disabled={loading || saving || Boolean(isSuperAdmin)}
+            disabled={loading || saving || Boolean(isSuperAdmin) || item.locked}
+            title={item.locked && !isSuperAdmin ? "Depende de \"Atiende pacientes\" en la ficha del empleado" : undefined}
             aria-label={`Estado de ${definition.label}`}
             onChange={(event) => updatePermissionState(definition.permission, event.target.value as StaffPermissionOverrideState)}
           >
@@ -258,6 +262,19 @@ export function StaffPermissionsScreen({
           <div>
             <strong>Superadministrador protegido</strong>
             <span>El usuario Administrador tiene acceso total al sistema y sus permisos no se pueden agregar, modificar ni revocar.</span>
+          </div>
+        </div>
+      )}
+
+      {isClinicAdmin && (
+        <div className="staff-super-admin-notice">
+          <IconLock size={18} aria-hidden="true" />
+          <div>
+            <strong>Los permisos clínicos dependen de "Atiende pacientes"</strong>
+            <span>
+              Para un administrador, expedientes, notas, recetas, presupuestos y visitas no se otorgan a mano: se
+              activan con su cédula desde la ficha del empleado, en "Práctica clínica".
+            </span>
           </div>
         </div>
       )}

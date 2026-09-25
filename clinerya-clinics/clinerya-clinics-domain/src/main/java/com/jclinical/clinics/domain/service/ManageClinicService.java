@@ -8,14 +8,11 @@ import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.StaffPermission;
 import com.jclinical.core.security.StaffPermissionCheckerPort;
+import com.jclinical.staff.domain.model.ClinicStaff;
+import com.jclinical.staff.domain.ports.in.ManageClinicStaffUseCase;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
-import com.jclinical.staff.domain.model.ClinicStaff;
-import com.jclinical.staff.domain.model.DoctorCredentialStatus;
-import com.jclinical.staff.domain.model.DoctorProfile;
-import com.jclinical.staff.domain.model.StaffRole;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,15 +24,18 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
     private final ClinicStaffRepositoryPort clinicStaffRepository;
     private final DoctorProfileRepositoryPort doctorProfileRepository;
     private final StaffPermissionCheckerPort permissionChecker;
+    private final ManageClinicStaffUseCase clinicStaffUseCase;
 
     public ManageClinicService(ClinicRepositoryPort clinicRepository,
                                ClinicStaffRepositoryPort clinicStaffRepository,
                                DoctorProfileRepositoryPort doctorProfileRepository,
-                               StaffPermissionCheckerPort permissionChecker) {
+                               StaffPermissionCheckerPort permissionChecker,
+                               ManageClinicStaffUseCase clinicStaffUseCase) {
         this.clinicRepository = clinicRepository;
         this.clinicStaffRepository = clinicStaffRepository;
         this.doctorProfileRepository = doctorProfileRepository;
         this.permissionChecker = permissionChecker;
+        this.clinicStaffUseCase = clinicStaffUseCase;
     }
 
     @Override
@@ -54,12 +54,12 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
             String addressZip,
             String phone,
             String cofeprisPermitNumber,
-            String responsibleDoctorName,
-            String responsibleDoctorProfessionalLicense) {
+            ResponsibleDoctorSetup responsibleDoctor) {
 
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre de la clínica es obligatorio");
         }
+        ResponsibleDoctorSetup.Resolved responsible = responsibleDoctor.resolve();
 
         // 1. Crear Clínica activa
         Clinic clinic = Clinic.builder()
@@ -79,43 +79,63 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
                 .addressZip(addressZip != null ? addressZip.trim() : null)
                 .phone(phone != null ? phone.trim() : null)
                 .cofeprisPermitNumber(cofeprisPermitNumber != null ? cofeprisPermitNumber.trim() : null)
-                .responsibleDoctorName(responsibleDoctorName != null ? responsibleDoctorName.trim() : null)
-                .responsibleDoctorProfessionalLicense(responsibleDoctorProfessionalLicense != null ? responsibleDoctorProfessionalLicense.trim() : null)
+                .responsibleDoctorName(responsible.responsibleDoctorName())
+                .responsibleDoctorProfessionalLicense(responsible.responsibleDoctorProfessionalLicense())
                 .active(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        // 2. El propietario administra la clinica; su perfil medico puede existir aparte.
-        ClinicStaff staff = ClinicStaff.builder()
-                .id(UUID.randomUUID())
-                .clinicId(clinic.getId())
-                .userId(ownerUserId)
-                .role(StaffRole.CLINIC_ADMIN)
-                .active(true)
-                .hireDate(LocalDate.now())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        // 2. El propietario administra la clinica; si ademas atiende pacientes, con su cedula.
+        ClinicOwnerStaff owner = ClinicOwnerStaff.create(clinic.getId(), ownerUserId, true,
+                responsible.ownerAttendsPatients(), responsible.ownerCedulaProfesional());
 
-        // 3. Crear DoctorProfile pendiente
-        DoctorProfile doctorProfile = DoctorProfile.builder()
-                .id(UUID.randomUUID())
-                .clinicId(clinic.getId())
-                .clinicStaffId(staff.getId())
-                .credentialStatus(DoctorCredentialStatus.EN_TRAMITE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        // 3. Asignar representante legal
+        clinic.assignLegalRepresentative(owner.staff().getId());
 
-        // 4. Asignar representante legal
-        clinic.assignLegalRepresentative(staff.getId());
-
-        // 5. Guardar todo
+        // 4. Guardar todo
         clinicRepository.save(clinic);
-        clinicStaffRepository.save(staff);
-        doctorProfileRepository.save(doctorProfile);
+        clinicStaffRepository.save(owner.staff());
+        owner.doctorProfile().ifPresent(doctorProfileRepository::save);
 
+        return clinic;
+    }
+
+    @Override
+    public Clinic completeSetup(UUID ownerUserId, UUID clinicId, ClinicSetupDetails details,
+                                ResponsibleDoctorSetup responsibleDoctor) {
+        // Se valida todo antes de escribir: una cedula mal capturada no debe dejar guardada la
+        // clinica a medias.
+        ResponsibleDoctorSetup.Resolved responsible = responsibleDoctor.resolve();
+        if (details.name() == null || details.name().trim().isEmpty()) {
+            throw new IllegalArgumentException("El nombre de la clínica es obligatorio");
+        }
+        Clinic clinic = updateClinic(
+                ownerUserId,
+                clinicId,
+                details.name(),
+                details.legalName(),
+                details.rfc(),
+                details.taxRegimeCode(),
+                details.addressStreet(),
+                details.addressColonia(),
+                details.addressMunicipality(),
+                details.addressState(),
+                details.addressZip(),
+                details.phone(),
+                details.email(),
+                details.logoUrl(),
+                details.timezone(),
+                null,
+                details.cofeprisPermitNumber(),
+                responsible.responsibleDoctorName(),
+                responsible.responsibleDoctorProfessionalLicense(),
+                null);
+
+        ClinicStaff owner = clinicStaffRepository.findByClinicIdAndUserId(clinicId, ownerUserId)
+                .orElseThrow(() -> new IllegalStateException("El titular no está registrado como personal de la clínica."));
+        clinicStaffUseCase.updateClinicalPractice(clinicId, owner.getId(),
+                responsible.ownerAttendsPatients(), responsible.ownerCedulaProfesional());
         return clinic;
     }
 

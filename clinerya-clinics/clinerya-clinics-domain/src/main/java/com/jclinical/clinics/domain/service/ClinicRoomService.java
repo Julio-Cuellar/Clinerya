@@ -9,7 +9,6 @@ import com.jclinical.core.security.ClinicAccessDeniedException;
 import com.jclinical.core.security.StaffPermission;
 import com.jclinical.core.security.StaffPermissionCheckerPort;
 import com.jclinical.staff.domain.model.ClinicStaff;
-import com.jclinical.staff.domain.model.StaffRole;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 
 import java.time.LocalDateTime;
@@ -149,8 +148,8 @@ public class ClinicRoomService implements ManageClinicRoomsUseCase {
         if (!clinicId.equals(staff.getClinicId()) || !staff.isActive()) {
             throw new IllegalArgumentException("El miembro del personal no pertenece a la clinica activa.");
         }
-        if (staff.getRole() != StaffRole.DOCTOR) {
-            throw new IllegalArgumentException("Solo se pueden asignar doctores a un consultorio.");
+        if (!staff.isPractitioner()) {
+            throw new IllegalArgumentException("Solo se puede asignar a un consultorio a quien atiende pacientes.");
         }
 
         ClinicRoomStaffAssignment assignment = assignmentRepository

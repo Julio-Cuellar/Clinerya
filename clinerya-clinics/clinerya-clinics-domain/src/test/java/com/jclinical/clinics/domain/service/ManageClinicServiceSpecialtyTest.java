@@ -38,7 +38,7 @@ class ManageClinicServiceSpecialtyTest {
     @BeforeEach
     void setUp() {
         grantsManageClinic = false;
-        service = new ManageClinicService(clinicRepository, null, null, permissionChecker);
+        service = new ManageClinicService(clinicRepository, null, null, permissionChecker, null);
         clinicRepository.save(Clinic.builder()
                 .id(clinicId)
                 .ownerUserId(ownerUserId)

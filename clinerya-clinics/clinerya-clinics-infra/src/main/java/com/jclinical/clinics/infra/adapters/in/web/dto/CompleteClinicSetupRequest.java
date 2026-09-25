@@ -1,6 +1,6 @@
 package com.jclinical.clinics.infra.adapters.in.web.dto;
 
-public record CreateClinicRequest(
+public record CompleteClinicSetupRequest(
     String name,
     String email,
     String timezone,
@@ -13,6 +13,7 @@ public record CreateClinicRequest(
     String addressState,
     String addressZip,
     String phone,
+    String logoUrl,
     String cofeprisPermitNumber,
     String responsibleDoctorName,
     String responsibleDoctorProfessionalLicense,

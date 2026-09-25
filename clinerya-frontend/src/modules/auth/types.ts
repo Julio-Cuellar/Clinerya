@@ -5,6 +5,8 @@ export interface UserClinicSummary {
   name: string;
   role: string;
   permissions?: string[];
+  /** Atiende pacientes en esta clínica (DOCTOR, o administrador que además atiende). */
+  attendsPatients?: boolean;
 }
 
 export interface UserProfile {

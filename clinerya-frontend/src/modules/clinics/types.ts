@@ -38,7 +38,20 @@ export interface UpdateClinicSpecialtyRequest {
   specialty: ClinicSpecialty;
 }
 
-export interface CreateClinicRequest {
+/**
+ * Quién es el médico responsable de la clínica y qué papel tiene el titular de la cuenta. Si el
+ * titular es el responsable, su cédula es la del responsable; si no, indica si atiende pacientes
+ * (con su propia cédula) o solo gestiona la cuenta.
+ */
+export interface ResponsibleDoctorRequest {
+  ownerIsResponsibleDoctor: boolean;
+  responsibleDoctorName: string;
+  responsibleDoctorProfessionalLicense: string;
+  ownerAttendsPatients?: boolean;
+  ownerCedulaProfesional?: string;
+}
+
+export interface CreateClinicRequest extends ResponsibleDoctorRequest {
   name: string;
   email: string;
   timezone: string;
@@ -52,8 +65,23 @@ export interface CreateClinicRequest {
   addressZip?: string;
   phone?: string;
   cofeprisPermitNumber?: string;
-  responsibleDoctorName?: string;
-  responsibleDoctorProfessionalLicense?: string;
+}
+
+export interface CompleteClinicSetupRequest extends ResponsibleDoctorRequest {
+  name: string;
+  email?: string;
+  timezone?: string;
+  legalName?: string;
+  rfc?: string;
+  taxRegimeCode?: string;
+  addressStreet?: string;
+  addressColonia?: string;
+  addressMunicipality?: string;
+  addressState?: string;
+  addressZip?: string;
+  phone?: string;
+  logoUrl?: string;
+  cofeprisPermitNumber?: string;
 }
 
 export interface UpdateClinicRequest {

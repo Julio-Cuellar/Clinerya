@@ -121,7 +121,18 @@ function stubPatientFromGrant(grant: ExternalAccessGrantResponse): PatientRespon
   };
 }
 
-export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string; clinicId?: string; hasClinic: boolean }) {
+export function PersonalScreen({
+  userId,
+  clinicId,
+  hasClinic,
+  onAccessChanged
+}: {
+  userId: string;
+  clinicId?: string;
+  hasClinic: boolean;
+  /** Se llama cuando cambia quién atiende pacientes: el propio acceso del usuario pudo cambiar. */
+  onAccessChanged?: () => void;
+}) {
   const [granted, setGranted] = useState<ExternalAccessGrantResponse[]>([]);
   const [received, setReceived] = useState<ExternalAccessGrantResponse[]>([]);
   const [staff, setStaff] = useState<ClinicStaffResponse[]>([]);
@@ -380,6 +391,11 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
         staff={staff}
         staffId={selectedStaffId}
         staffLoading={loading}
+        canManagePermissions={canManageStaffPermissions}
+        onStaffChanged={() => {
+          load();
+          onAccessChanged?.();
+        }}
         onBack={closeStaffDetail}
       />
     );
@@ -466,6 +482,9 @@ export function PersonalScreen({ userId, clinicId, hasClinic }: { userId: string
                     <span>{staffRoleLabels[member.role] || member.role}</span>
                   </div>
                   <div className="clinic-row-actions">
+                    {member.role !== "DOCTOR" && member.practitioner && (
+                      <span className="badge neutral">Atiende pacientes</span>
+                    )}
                     <span className="badge success">Activo</span>
                     {(canManageStaff || canManageStaffPermissions) && (
                       <button

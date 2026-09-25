@@ -195,22 +195,26 @@ export function AppShell({
     }
   };
 
-  const handleClinicSaved = (saved: ClinicResponse) => {
+  // Rol y permisos por clínica los decide el backend (p. ej. si el titular atiende pacientes);
+  // suponerlos aquí dejaba ver módulos a los que después respondía 403.
+  const refreshProfile = async () => {
+    try {
+      const refreshed = await authApi.me();
+      sessionStore.setUser(refreshed);
+      setUser(refreshed);
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    }
+  };
+
+  const handleClinicSaved = async (saved: ClinicResponse) => {
     setClinics((prev) => {
       const exists = prev.some((clinic) => clinic.id === saved.id);
       return exists ? prev.map((clinic) => (clinic.id === saved.id ? saved : clinic)) : [...prev, saved];
     });
-    const updatedUser: UserProfile = {
-      ...user,
-      clinics: [
-        ...user.clinics.filter((clinic) => clinic.id !== saved.id),
-        { id: saved.id, name: saved.name, role: "DOCTOR" }
-      ]
-    };
-    sessionStore.setUser(updatedUser);
-    setUser(updatedUser);
     setClinicModal(null);
     setStatus(clinicModal?.mode === "create" ? "Clínica creada correctamente." : "Datos de la clínica actualizados.");
+    await refreshProfile();
   };
 
   useEffect(() => {
@@ -255,6 +259,11 @@ export function AppShell({
   const userRole = activeClinicSummary?.role ?? "DOCTOR";
   const userPermissions = activeClinicSummary?.permissions;
   const allowedModules = getAllowedModulesForUser(userRole, userPermissions);
+  // Sin permisos cargados (sesión vieja) se deja pasar, igual que getAllowedModulesForUser: el
+  // backend responde 403 de todos modos. Un administrador que no atiende pacientes no los tiene.
+  const hasPermission = (permission: string) => !userPermissions || userPermissions.includes(permission);
+  const canAttendPatients = hasPermission("VIEW_PATIENT_CARE");
+  const canSeeMedicalRecords = hasPermission("VIEW_MEDICAL_RECORDS");
   // El alta guiada escribe datos de la clinica, su especialidad y el catalogo. Quien no puede
   // hacer nada de eso no deberia ver el aviso: lo unico que conseguiria es una fila de 403.
   const canConfigureClinic =
@@ -373,11 +382,11 @@ export function AppShell({
               clinicId={activeClinicId}
               hasClinic={Boolean(activeClinicId)}
               patients={patients}
-              onStartCare={handleStartCare}
+              onStartCare={canAttendPatients ? handleStartCare : undefined}
             />
           ) : active === "consultorios" ? (
             <ConsultoriosScreen clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} />
-          ) : active === "atencion" ? (
+          ) : active === "atencion" && canAttendPatients ? (
             carePatient && activeClinicId ? (
               <PatientCareScreen
                 clinicId={activeClinicId}
@@ -452,6 +461,7 @@ export function AppShell({
               clinic={clinics[0]}
               hasClinic={Boolean(activeClinicId)}
               patients={patients}
+              canSeeQuotations={canSeeMedicalRecords}
             />
           ) : active === "caja" ? (
             <CajaScreen
@@ -464,7 +474,12 @@ export function AppShell({
         ) : active === "contabilidad" ? (
           <ContabilidadScreen clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} />
         ) : active === "personal" ? (
-          <PersonalScreen userId={user.id} clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} />
+          <PersonalScreen
+            userId={user.id}
+            clinicId={activeClinicId}
+            hasClinic={Boolean(activeClinicId)}
+            onAccessChanged={refreshProfile}
+          />
         ) : active === "configuracion" ? (
           <SettingsScreen
             clinicId={activeClinicId}
@@ -568,6 +583,7 @@ export function AppShell({
         <ClinicModal
           mode={clinicModal.mode}
           clinic={clinicModal.clinic}
+          accountHolderName={user.fullName}
           onClose={() => setClinicModal(null)}
           onSaved={handleClinicSaved}
         />
@@ -586,7 +602,7 @@ export function AppShell({
         />
       )}
 
-      {carePatient && activeClinicId && (
+      {carePatient && activeClinicId && canAttendPatients && (
         <PatientCareScreen
           clinicId={activeClinicId}
           patient={carePatient}

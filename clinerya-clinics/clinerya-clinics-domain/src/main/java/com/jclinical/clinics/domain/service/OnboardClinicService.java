@@ -6,12 +6,7 @@ import com.jclinical.clinics.domain.ports.out.ClinicRepositoryPort;
 import com.jclinical.core.domain.ClinicSpecialty;
 import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
-import com.jclinical.staff.domain.model.ClinicStaff;
-import com.jclinical.staff.domain.model.DoctorCredentialStatus;
-import com.jclinical.staff.domain.model.DoctorProfile;
-import com.jclinical.staff.domain.model.StaffRole;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -44,35 +39,17 @@ public class OnboardClinicService implements OnboardClinicUseCase {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        // 2. Crear miembro Staff inactivo
-        ClinicStaff staff = ClinicStaff.builder()
-                .id(UUID.randomUUID())
-                .clinicId(clinic.getId())
-                .userId(ownerUserId)
-                .role(StaffRole.CLINIC_ADMIN)
-                .active(false)
-                .hireDate(LocalDate.now())
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        // 2. Crear al dueño como personal inactivo. Nace solo administrando: si atiende pacientes
+        // lo indica, con su cédula, al completar los datos de la clínica (completeSetup).
+        ClinicOwnerStaff owner = ClinicOwnerStaff.create(clinic.getId(), ownerUserId, false, false, null);
 
-        // 3. Crear DoctorProfile pendiente
-        DoctorProfile doctorProfile = DoctorProfile.builder()
-                .id(UUID.randomUUID())
-                .clinicId(clinic.getId())
-                .clinicStaffId(staff.getId())
-                .credentialStatus(DoctorCredentialStatus.EN_TRAMITE)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+        // 3. Asignar representante legal
+        clinic.assignLegalRepresentative(owner.staff().getId());
 
-        // 4. Asignar representante legal
-        clinic.assignLegalRepresentative(staff.getId());
-
-        // 5. Guardar todo
+        // 4. Guardar todo
         clinicRepository.save(clinic);
-        clinicStaffRepository.save(staff);
-        doctorProfileRepository.save(doctorProfile);
+        clinicStaffRepository.save(owner.staff());
+        owner.doctorProfile().ifPresent(doctorProfileRepository::save);
     }
 
     @Override

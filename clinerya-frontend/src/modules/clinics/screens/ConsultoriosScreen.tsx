@@ -31,10 +31,11 @@ export function ConsultoriosScreen({ clinicId, hasClinic }: { clinicId?: string;
   const loadRooms = () => {
     if (!clinicId) return Promise.resolve();
     setLoading(true);
-    return Promise.all([clinicRoomsApi.getRooms(clinicId), staffApi.list(clinicId, "DOCTOR")])
-      .then(([data, doctorList]) => {
+    return Promise.all([clinicRoomsApi.getRooms(clinicId), staffApi.list(clinicId)])
+      .then(([data, staffList]) => {
         setRooms(data);
-        setDoctors(doctorList);
+        // Consultorio lo ocupa quien atiende pacientes: doctores y administradores que atienden.
+        setDoctors(staffList.filter((member) => member.practitioner));
         setSelectedRoomId((current) => current && data.some((room) => room.id === current) ? current : data[0]?.id);
       })
       .catch((caught) => setError(getFriendlyError(caught)))

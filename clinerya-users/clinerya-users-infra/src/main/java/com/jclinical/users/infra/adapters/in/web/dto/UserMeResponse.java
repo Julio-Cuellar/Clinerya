@@ -18,6 +18,7 @@ public record UserMeResponse(
         UUID id,
         String name,
         String role,
-        List<String> permissions
+        List<String> permissions,
+        boolean attendsPatients
     ) {}
 }
