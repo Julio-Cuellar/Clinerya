@@ -22,6 +22,11 @@ import com.jclinical.automation.domain.ports.out.ChannelSettingsAuditPort;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsService;
 import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
+import com.jclinical.automation.domain.service.ChatHistoryService;
+import com.jclinical.automation.domain.service.RecordingOutboundQueue;
+import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatAccessLog;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatHistory;
 import com.jclinical.automation.domain.service.OutboundDispatcher;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcDeliveryStatusRecorder;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcOutboundDispatchRepository;
@@ -111,8 +116,10 @@ public class AutomationConfig {
 
     @Bean
     public OutboundMessageQueuePort outboundMessageQueue(JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec,
-                                                         ObjectMapper objectMapper) {
-        return new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, Clock.systemDefaultZone());
+                                                         ObjectMapper objectMapper, ChatHistoryPort chatHistory) {
+        Clock clock = Clock.systemDefaultZone();
+        return new RecordingOutboundQueue(new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, clock),
+                chatHistory, clock);
     }
 
     @Bean
@@ -157,14 +164,32 @@ public class AutomationConfig {
         return new RequestOutcomeProcessor(conversations, outbound);
     }
 
+    /** Cifrado de secretos y del historial de chats, con la misma llave que el resto de Clinerya. */
     @Bean
-    public ChannelSettingsRepositoryPort channelSettingsRepository(
-            JdbcTemplate jdbcTemplate,
+    public FieldCipher automationFieldCipher(
             @Value("${medicloud.security.encryption-key}") String encryptionKey,
             @Value("${medicloud.security.key-store-dir:/app/secrets}") String keyStoreDir) {
-        FieldCipher cipher = FieldCipher.fromConfiguration(
+        return FieldCipher.fromConfiguration(
                 encryptionKey, keyStoreDir == null || keyStoreDir.isBlank() ? null : Path.of(keyStoreDir));
-        return new JdbcChannelSettingsRepository(jdbcTemplate, cipher);
+    }
+
+    @Bean
+    public ChannelSettingsRepositoryPort channelSettingsRepository(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher) {
+        return new JdbcChannelSettingsRepository(jdbcTemplate, automationFieldCipher);
+    }
+
+    @Bean
+    public ChatHistoryPort chatHistory(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher, ObjectMapper objectMapper) {
+        return new JdbcChatHistory(jdbcTemplate, automationFieldCipher, objectMapper);
+    }
+
+    @Bean
+    public ChatHistoryService chatHistoryService(ChatHistoryPort chatHistory, JdbcTemplate jdbcTemplate,
+                                                 PatientDirectoryPort automationPatientDirectory,
+                                                 ChannelSettingsRepositoryPort settings,
+                                                 StaffPermissionCheckerPort permissions) {
+        return new ChatHistoryService(chatHistory, new JdbcChatAccessLog(jdbcTemplate), automationPatientDirectory,
+                settings, permissions, Clock.systemDefaultZone());
     }
 
     @Bean
@@ -213,8 +238,8 @@ public class AutomationConfig {
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
     @Bean
     public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
-                                                             OutboundMessageQueuePort outbound) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound, message -> { });
+                                                             OutboundMessageQueuePort outbound, ChatHistoryPort chatHistory) {
+        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory);
     }
 
     @Bean
