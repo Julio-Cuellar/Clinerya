@@ -47,6 +47,10 @@ import com.jclinical.automation.infra.adapters.out.crossmodule.DoctorDirectoryAd
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcDoctorChannelRepository;
 import com.jclinical.automation.domain.ports.out.DoctorChannelRepositoryPort;
 import com.jclinical.automation.domain.service.DoctorChannelService;
+import com.jclinical.automation.domain.ports.out.RealtimeNotifierPort;
+import com.jclinical.automation.domain.service.NotifyingChatHistory;
+import com.jclinical.automation.domain.service.RealtimeAccessPolicy;
+import com.jclinical.automation.infra.adapters.out.realtime.SpringRealtimeNotifier;
 import com.jclinical.automation.domain.service.DoctorNotificationService;
 import com.jclinical.automation.infra.adapters.out.crossmodule.PatientDirectoryAdapter;
 import com.jclinical.automation.infra.adapters.out.crossmodule.SlotAvailabilityAdapter;
@@ -55,6 +59,7 @@ import com.jclinical.automation.infra.adapters.out.persistence.ConversationOptio
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcConversationRepository;
 import com.jclinical.patients.domain.ports.in.GetPatientUseCase;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -183,8 +188,22 @@ public class AutomationConfig {
     }
 
     @Bean
-    public ChatHistoryPort chatHistory(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher, ObjectMapper objectMapper) {
-        return new JdbcChatHistory(jdbcTemplate, automationFieldCipher, objectMapper);
+    public ChatHistoryPort chatHistory(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher, ObjectMapper objectMapper,
+                                       RealtimeNotifierPort realtimeNotifier) {
+        return new NotifyingChatHistory(new JdbcChatHistory(jdbcTemplate, automationFieldCipher, objectMapper),
+                realtimeNotifier);
+    }
+
+    // ---- Tiempo real (entrega 5.7) ---------------------------------------------------------------
+
+    @Bean
+    public RealtimeNotifierPort realtimeNotifier(ApplicationEventPublisher events) {
+        return new SpringRealtimeNotifier(events);
+    }
+
+    @Bean
+    public RealtimeAccessPolicy realtimeAccessPolicy(StaffPermissionCheckerPort permissions, SlotBookingPort booking) {
+        return new RealtimeAccessPolicy(permissions, booking::doctorStaffIdOfUser);
     }
 
     @Bean
@@ -268,22 +287,12 @@ public class AutomationConfig {
     @Bean
     public DoctorNotificationService doctorNotificationService(
             DoctorChannelRepositoryPort doctorChannels, JdbcTemplate jdbcTemplate, ConversationOptionsCodec codec,
-            ObjectMapper objectMapper, JdbcAppointmentRequestRepository requests,
+            ObjectMapper objectMapper, JdbcAppointmentRequestRepository requests, RealtimeNotifierPort realtimeNotifier,
             @Value("${app.frontend-base-url:http://localhost:5173}") String frontendBaseUrl,
             @Value("${app.automation.doctor-inbox-path:/solicitudes-de-cita}") String inboxPath) {
         Clock clock = Clock.systemDefaultZone();
         return new DoctorNotificationService(doctorChannels,
-                new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, clock), requests,
-                new com.jclinical.automation.domain.ports.out.RealtimeNotifierPort() {
-                    @Override
-                    public void chatActivity(java.util.UUID clinicId, String phone, java.time.LocalDateTime at) {
-                    }
-
-                    @Override
-                    public void newAppointmentRequest(java.util.UUID clinicId, java.util.UUID doctorStaffId,
-                                                      java.util.UUID requestId) {
-                    }
-                },
+                new JdbcOutboundMessageQueue(jdbcTemplate, codec, objectMapper, clock), requests, realtimeNotifier,
                 frontendBaseUrl.replaceAll("/+$", "") + inboxPath, clock);
     }
 

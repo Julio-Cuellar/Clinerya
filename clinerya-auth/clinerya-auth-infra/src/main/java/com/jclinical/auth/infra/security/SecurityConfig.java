@@ -43,6 +43,9 @@ public class SecurityConfig {
                     "/api/v1/integrations/google-calendar/callback",
                     // Webhook de WhatsApp: Meta no manda JWT; lo protege la firma HMAC de cada clinica.
                     "/api/v1/public/whatsapp/**",
+                    // Handshake del WebSocket: el JWT se valida en el CONNECT de STOMP (StompAuthInterceptor).
+                    "/ws",
+                    "/ws/**",
                     "/api/v1/info",
                     "/actuator/health",
                     "/actuator/health/**"
