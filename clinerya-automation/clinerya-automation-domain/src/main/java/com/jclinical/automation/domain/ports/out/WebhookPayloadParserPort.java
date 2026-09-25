@@ -1,11 +1,9 @@
 package com.jclinical.automation.domain.ports.out;
 
-import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
+import com.jclinical.automation.domain.model.WebhookPayload;
 
-import java.util.List;
-
-/** Lee el JSON de Meta. Un cuerpo ilegible o sin mensajes (solo estados) devuelve una lista vacia. */
+/** Lee el JSON de Meta. Un cuerpo ilegible devuelve un payload vacio. */
 public interface WebhookPayloadParserPort {
 
-    List<WhatsAppInboundMessage> parse(byte[] rawBody);
+    WebhookPayload parse(byte[] rawBody);
 }

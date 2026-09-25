@@ -206,7 +206,7 @@ public class AutomationConfig {
                                                          JdbcInboundMessageLedger inboundMessageLedger,
                                                          DomainEventPublisherPort events) {
         return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
-                inboundMessageLedger, events, Clock.systemDefaultZone());
+                inboundMessageLedger, (clinicId, update) -> { }, events, Clock.systemDefaultZone());
     }
 
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */

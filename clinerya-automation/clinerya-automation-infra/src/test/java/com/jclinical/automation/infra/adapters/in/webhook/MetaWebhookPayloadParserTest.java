@@ -1,6 +1,8 @@
 package com.jclinical.automation.infra.adapters.in.webhook;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
+import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import org.junit.jupiter.api.Test;
@@ -77,20 +79,40 @@ class MetaWebhookPayloadParserTest {
     }
 
     @Test
-    void statusUpdatesAreNotMessages() {
-        String statuses = """
+    void statusUpdatesAreReadAsStatusesNotMessages() {
+        String json = """
                 {"object":"whatsapp_business_account","entry":[{"id":"102290129340398","changes":[{"field":"messages",
                  "value":{"messaging_product":"whatsapp","metadata":{"phone_number_id":"106540352242922"},
-                 "statuses":[{"id":"wamid.X","status":"delivered","timestamp":"1790330400","recipient_id":"5215512345678"}]}}]}]}
+                 "statuses":[
+                   {"id":"wamid.X","status":"delivered","timestamp":"1790330400","recipient_id":"5215512345678"},
+                   {"id":"wamid.Y","status":"failed","timestamp":"1790330400","recipient_id":"5215512345678",
+                    "errors":[{"code":131047,"title":"Re-engagement message"}]}]}}]}]}
                 """;
 
-        assertTrue(parse(statuses).isEmpty());
+        WebhookPayload payload = parser.parse(json.getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(payload.messages().isEmpty());
+        assertEquals(List.of(
+                new DeliveryStatusUpdate("106540352242922", "wamid.X", DeliveryStatusUpdate.Status.DELIVERED,
+                        LocalDateTime.of(2026, 9, 25, 10, 0), null),
+                new DeliveryStatusUpdate("106540352242922", "wamid.Y", DeliveryStatusUpdate.Status.FAILED,
+                        LocalDateTime.of(2026, 9, 25, 10, 0), "131047")), payload.statuses());
+    }
+
+    @Test
+    void anUnknownStatusIsIgnored() {
+        String json = """
+                {"entry":[{"changes":[{"value":{"metadata":{"phone_number_id":"1"},
+                 "statuses":[{"id":"wamid.Z","status":"deleted","timestamp":"1790330400"}]}}]}]}
+                """;
+
+        assertTrue(parser.parse(json.getBytes(StandardCharsets.UTF_8)).statuses().isEmpty());
     }
 
     @Test
     void aBodyThatIsNotJsonMeansNoMessages() {
-        assertTrue(parser.parse("no es json".getBytes(StandardCharsets.UTF_8)).isEmpty());
-        assertTrue(parser.parse(new byte[0]).isEmpty());
+        assertTrue(parser.parse("no es json".getBytes(StandardCharsets.UTF_8)).messages().isEmpty());
+        assertTrue(parser.parse(new byte[0]).messages().isEmpty());
     }
 
     @Test
@@ -109,7 +131,7 @@ class MetaWebhookPayloadParserTest {
     }
 
     private List<WhatsAppInboundMessage> parse(String json) {
-        return parser.parse(json.getBytes(StandardCharsets.UTF_8));
+        return parser.parse(json.getBytes(StandardCharsets.UTF_8)).messages();
     }
 
     private static String envelope(String message) {

@@ -2,6 +2,7 @@ package com.jclinical.automation.infra.adapters.in.webhook;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.ports.out.WebhookPayloadParserPort;
@@ -28,18 +29,18 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
     }
 
     @Override
-    public List<WhatsAppInboundMessage> parse(byte[] rawBody) {
+    public WebhookPayload parse(byte[] rawBody) {
         if (rawBody == null || rawBody.length == 0) {
-            return List.of();
+            return WebhookPayload.EMPTY;
         }
         JsonNode root;
         try {
             root = objectMapper.readTree(rawBody);
         } catch (IOException unreadable) {
-            return List.of();
+            return WebhookPayload.EMPTY;
         }
         if (root == null) {
-            return List.of();
+            return WebhookPayload.EMPTY;
         }
         List<WhatsAppInboundMessage> messages = new ArrayList<>();
         for (JsonNode entry : root.path("entry")) {
@@ -51,7 +52,7 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
                 }
             }
         }
-        return List.copyOf(messages);
+        return new WebhookPayload(messages, List.of());
     }
 
     private WhatsAppInboundMessage toMessage(String phoneNumberId, JsonNode message) {

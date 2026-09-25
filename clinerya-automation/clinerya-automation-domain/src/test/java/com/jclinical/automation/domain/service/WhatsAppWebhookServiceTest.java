@@ -1,6 +1,8 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
+import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WebhookSignature;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
@@ -44,6 +46,8 @@ class WhatsAppWebhookServiceTest {
     private final Set<String> seen = new HashSet<>();
     private final List<String> senders = new ArrayList<>();
     private final List<Object[]> published = new ArrayList<>();
+    private final List<DeliveryStatusUpdate> statuses = new ArrayList<>();
+    private final List<DeliveryStatusUpdate> recordedStatuses = new ArrayList<>();
 
     private WhatsAppWebhookService service;
 
@@ -52,11 +56,12 @@ class WhatsAppWebhookServiceTest {
         settings.save(ChannelSettings.unconfigured(clinicId).toBuilder()
                 .whatsappPhoneNumberId(PHONE_NUMBER_ID).whatsappAppSecret(APP_SECRET)
                 .webhookKey("llave-webhook").verifyToken("token-verificacion").enabled(true).build());
-        service = new WhatsAppWebhookService(settings, body -> List.copyOf(parsed),
+        service = new WhatsAppWebhookService(settings, body -> new WebhookPayload(parsed, statuses),
                 (clinic, waMessageId, fromPhone, at) -> {
                     senders.add(fromPhone);
                     return seen.add(waMessageId);
                 },
+                (clinic, update) -> recordedStatuses.add(update),
                 (routingKey, payload) -> published.add(new Object[]{routingKey, payload}),
                 Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
     }
@@ -159,6 +164,28 @@ class WhatsAppWebhookServiceTest {
 
         assertEquals(Receipt.ACCEPTED, service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET)));
         assertTrue(published.isEmpty());
+    }
+
+    @Test
+    void metaStatusesAboutOurMessagesAreRecorded() {
+        DeliveryStatusUpdate read = new DeliveryStatusUpdate(PHONE_NUMBER_ID, "wamid.OUT1",
+                DeliveryStatusUpdate.Status.READ, NOW, null);
+        statuses.add(read);
+        statuses.add(new DeliveryStatusUpdate("999999999999", "wamid.OTRO", DeliveryStatusUpdate.Status.DELIVERED, NOW, null));
+
+        assertEquals(Receipt.ACCEPTED, service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET)));
+
+        assertEquals(List.of(read), recordedStatuses, "solo los avisos del numero de la clinica");
+    }
+
+    @Test
+    void statusesOfAClinicWithTheAssistantOffAreNotRecorded() {
+        settings.save(settings.stored.get(clinicId).toBuilder().enabled(false).build());
+        statuses.add(new DeliveryStatusUpdate(PHONE_NUMBER_ID, "wamid.OUT1", DeliveryStatusUpdate.Status.READ, NOW, null));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertTrue(recordedStatuses.isEmpty());
     }
 
     private static WhatsAppInboundMessage text(String id, String body) {
