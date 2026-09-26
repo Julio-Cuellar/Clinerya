@@ -1,6 +1,7 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.AvailableSlot;
+import com.jclinical.automation.domain.model.ClinicInfo;
 import com.jclinical.automation.domain.model.Conversation;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.ConversationState;
@@ -59,6 +60,9 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     static final int MAX_OPTIONS = 10;
 
     private static final Set<String> RESTART_WORDS = Set.of("menu", "inicio", "reiniciar", "empezar de nuevo");
+    private static final List<ConversationOption> MENU_OPTIONS = List.of(
+            new ConversationOption(BOOK, "Agendar una cita"),
+            new ConversationOption(CLINIC_INFO, "Información de la clínica"));
 
     private final ConversationRepositoryPort conversations;
     private final PatientDirectoryPort patients;
@@ -66,6 +70,8 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     private final SlotAvailabilityPort slots;
     private final AppointmentRequestPort requests;
     private final IntentInterpreterPort interpreter;
+    private final ClinicInfoPort clinicInfo;
+    private final NewPatientRegistration registration;
     private final Clock clock;
 
     public ConversationService(ConversationRepositoryPort conversations, PatientDirectoryPort patients,
@@ -78,6 +84,8 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
         this.slots = slots;
         this.requests = requests;
         this.interpreter = interpreter;
+        this.clinicInfo = clinicInfo;
+        this.registration = registration;
         this.clock = clock;
     }
 
@@ -97,11 +105,18 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
             return List.of(OutboundReply.text("Tu solicitud con " + conversation.doctorName()
                     + " sigue pendiente. Te avisaremos por aquí en cuanto la revise."));
         }
-        if (conversation.patientId() != null && isRestart(message.text())) {
+        if (isRestart(message.text())) {
             if (conversation.state() == ConversationState.ELEGIR_OPCION_MEDICO) {
                 requests.declineOptions(conversation.clinicId(), conversation.requestId());
             }
+            if (registration.handles(conversation.state())) {
+                registration.discard(conversation.id());
+            }
             return List.of(showMenu(reset(conversation), now));
+        }
+        if (registration.handles(conversation.state())) {
+            // El alta captura texto libre (nombre, fecha, correo): no pasa por el interprete.
+            return List.of(continueRegistration(conversation, message, now));
         }
 
         String optionId = resolveOption(conversation, message);
@@ -191,7 +206,7 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     private OutboundReply transition(Conversation conversation, String optionId, LocalDateTime now) {
         return switch (conversation.state()) {
             case ELEGIR_PACIENTE -> showMenu(withPatient(conversation, optionId), now);
-            case MENU -> offerDoctors(conversation, now, null);
+            case MENU -> fromMenu(conversation, optionId, now);
             case ELEGIR_MEDICO -> chooseDoctor(conversation, optionId, now);
             case ELEGIR_CUPO -> submitRequest(conversation, optionId, now);
             case ELEGIR_OPCION_MEDICO -> chooseProposedOption(conversation, optionId, now);
@@ -202,9 +217,8 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     private OutboundReply identify(Conversation conversation, LocalDateTime now) {
         List<PatientContact> found = patients.findByPhone(conversation.clinicId(), conversation.phone());
         if (found.isEmpty()) {
-            save(conversation, ConversationState.CERRADA, List.of(), 0, now);
-            return OutboundReply.text("No encontramos un paciente registrado con este número en la clínica. "
-                    + "Por ahora, comunícate con la clínica para agendar tu cita.");
+            // Numero que no es paciente (CU-4): puede pedir informacion o registrarse para agendar.
+            return showMenu(conversation, now);
         }
         if (found.size() == 1) {
             PatientContact patient = found.get(0);
@@ -219,9 +233,44 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     }
 
     private OutboundReply showMenu(Conversation conversation, LocalDateTime now) {
-        List<ConversationOption> options = List.of(new ConversationOption(BOOK, "Agendar una cita"));
-        save(conversation, ConversationState.MENU, options, 0, now);
-        return new OutboundReply("Hola, " + conversation.patientName() + ". ¿Qué deseas hacer?", options);
+        save(conversation, ConversationState.MENU, MENU_OPTIONS, 0, now);
+        if (conversation.patientId() == null) {
+            String clinicName = clinicInfo.find(conversation.clinicId()).map(ClinicInfo::name).orElse("la clínica");
+            return new OutboundReply("Hola, gracias por escribir a " + clinicName + ". ¿En qué te podemos ayudar?",
+                    MENU_OPTIONS);
+        }
+        return new OutboundReply("Hola, " + conversation.patientName() + ". ¿Qué deseas hacer?", MENU_OPTIONS);
+    }
+
+    private OutboundReply fromMenu(Conversation conversation, String optionId, LocalDateTime now) {
+        if (CLINIC_INFO.equals(optionId)) {
+            return clinicInformation(conversation, now);
+        }
+        if (conversation.patientId() == null) {
+            String privacyNotice = clinicInfo.find(conversation.clinicId()).map(ClinicInfo::privacyNoticeUrl).orElse(null);
+            return registration.start(conversation, privacyNotice);
+        }
+        return offerDoctors(conversation, now, null);
+    }
+
+    /** Datos reales de la clinica, sin IA: si algo falta, simplemente no se dice. */
+    private OutboundReply clinicInformation(Conversation conversation, LocalDateTime now) {
+        save(conversation, ConversationState.MENU, MENU_OPTIONS, 0, now);
+        String info = clinicInfo.find(conversation.clinicId())
+                .map(ClinicInfoMessage::format)
+                .orElse("Por ahora no tengo los datos de la clínica a la mano.");
+        return new OutboundReply(info + "\n\n¿Te ayudo con algo más?", MENU_OPTIONS);
+    }
+
+    private OutboundReply continueRegistration(Conversation conversation, InboundMessage message, LocalDateTime now) {
+        NewPatientRegistration.Step step = registration.onMessage(conversation, message);
+        return switch (step) {
+            case NewPatientRegistration.Reply reply -> reply.reply();
+            case NewPatientRegistration.Declined declined ->
+                    showMenuWith(reset(conversation), now, "Entendido, no guardamos ningún dato.");
+            case NewPatientRegistration.Registered registered -> offerDoctors(registered.conversation(), now,
+                    "Gracias, " + registered.firstName() + ". Ya quedaste registrado como paciente.");
+        };
     }
 
     private OutboundReply offerDoctors(Conversation conversation, LocalDateTime now, String prefix) {
