@@ -1,10 +1,12 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.model.ChatMessage;
 import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
 import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WebhookSignature;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
+import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
 import com.jclinical.automation.domain.ports.in.ReceiveWhatsAppWebhookUseCase;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
@@ -20,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,11 +34,15 @@ import java.util.UUID;
 public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
 
     static final String SUBSCRIBE_MODE = "subscribe";
+    /** Como se ve en el historial un mensaje que no es texto (audio, imagen...). */
+    static final String UNSUPPORTED_PLACEHOLDER = "[Mensaje que no es texto]";
 
     private final ChannelSettingsRepositoryPort settings;
     private final WebhookPayloadParserPort parser;
     private final InboundMessageLedgerPort ledger;
     private final DeliveryStatusPort deliveryStatus;
+    private final ChatHistoryPort history;
+    private final DoctorChannelRepositoryPort doctorChannels;
     private final DomainEventPublisherPort events;
     private final Clock clock;
 
@@ -47,6 +54,8 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
         this.parser = parser;
         this.ledger = ledger;
         this.deliveryStatus = deliveryStatus;
+        this.history = history;
+        this.doctorChannels = doctorChannels;
         this.events = events;
         this.clock = clock;
     }
@@ -71,25 +80,42 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
         if (!WebhookSignature.isValid(rawBody, signatureHeader, clinic.whatsappAppSecret())) {
             return Receipt.INVALID_SIGNATURE;
         }
-        if (!clinic.enabled()) {
-            return Receipt.IGNORED;
-        }
         LocalDateTime now = LocalDateTime.now(clock);
         WebhookPayload payload = parser.parse(rawBody);
-        for (DeliveryStatusUpdate status : payload.statuses()) {
-            if (isForThisNumber(clinic, status.phoneNumberId())) {
-                deliveryStatus.record(clinic.clinicId(), status);
+        if (clinic.enabled()) {
+            for (DeliveryStatusUpdate status : payload.statuses()) {
+                if (isForThisNumber(clinic, status.phoneNumberId())) {
+                    deliveryStatus.record(clinic.clinicId(), status);
+                }
             }
         }
         for (WhatsAppInboundMessage message : payload.messages()) {
             boolean forThisNumber = isForThisNumber(clinic, message.phoneNumberId());
             if (forThisNumber && ledger.recordIfNew(clinic.clinicId(), message.waMessageId(), message.fromPhone(), now)) {
-                events.publish(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED, new WhatsAppMessageReceivedEvent(
-                        UUID.randomUUID(), clinic.clinicId(), message.waMessageId(), message.fromPhone(),
-                        message.kind(), message.text(), message.selectedOptionId(), now));
+                keepInHistory(clinic.clinicId(), message, now);
+                if (clinic.enabled()) {
+                    events.publish(DomainEventRoutingKeys.WHATSAPP_MESSAGE_RECEIVED, new WhatsAppMessageReceivedEvent(
+                            UUID.randomUUID(), clinic.clinicId(), message.waMessageId(), message.fromPhone(),
+                            message.kind(), message.text(), message.selectedOptionId(), now));
+                }
             }
         }
-        return Receipt.ACCEPTED;
+        return clinic.enabled() ? Receipt.ACCEPTED : Receipt.IGNORED;
+    }
+
+    /**
+     * El mensaje del paciente se guarda al recibirlo, en la misma transaccion que lo registra como
+     * recibido y antes de que corra el asistente: si el asistente esta apagado, Gemini falla o el
+     * procesamiento se revierte, el personal igual lo ve y puede responder. Los mensajes de un medico
+     * no entran al historial de pacientes (se le contesta que responda en Clinerya).
+     */
+    private void keepInHistory(UUID clinicId, WhatsAppInboundMessage message, LocalDateTime now) {
+        if (doctorChannels.findActiveByPhone(clinicId, message.fromPhone()).isPresent()) {
+            return;
+        }
+        String text = message.kind() == Kind.UNSUPPORTED ? UNSUPPORTED_PLACEHOLDER : message.text();
+        history.record(new ChatMessage(UUID.randomUUID(), clinicId, message.fromPhone(), ChatMessage.Direction.INBOUND,
+                text, List.of(), now));
     }
 
     private static boolean isForThisNumber(ChannelSettings clinic, String phoneNumberId) {

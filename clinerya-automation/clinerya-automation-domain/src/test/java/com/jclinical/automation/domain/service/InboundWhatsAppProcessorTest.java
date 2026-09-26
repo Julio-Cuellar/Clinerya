@@ -1,14 +1,11 @@
 package com.jclinical.automation.domain.service;
 
-import com.jclinical.automation.domain.model.ChatMessage;
-import com.jclinical.automation.domain.model.ChatSummary;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.InboundMessage;
 import com.jclinical.automation.domain.model.OutboundReply;
 import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
-import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -27,7 +24,6 @@ class InboundWhatsAppProcessorTest {
     private final UUID clinicId = UUID.randomUUID();
     private final List<InboundMessage> handled = new ArrayList<>();
     private final List<PatientNotification> queued = new ArrayList<>();
-    private final List<ChatMessage> recorded = new ArrayList<>();
     private List<OutboundReply> replies = List.of();
     private final List<String> doctorPhones = new ArrayList<>();
 
@@ -37,7 +33,6 @@ class InboundWhatsAppProcessorTest {
                 return replies;
             },
             queued::add,
-            new RecordingHistory(),
             (clinic, phone) -> doctorPhones.contains(phone));
 
     @Test
@@ -70,14 +65,6 @@ class InboundWhatsAppProcessorTest {
     }
 
     @Test
-    void theWebhookAlreadyKeptWhatThePatientWrote() {
-        processor.process(event(Kind.TEXT, "Hola", null));
-        processor.process(event(Kind.UNSUPPORTED, null, null));
-
-        assertTrue(recorded.isEmpty(), "se guarda al recibirlo; si esto falla y se revierte, el mensaje no se pierde");
-    }
-
-    @Test
     void aDoctorWritingOnWhatsAppDoesNotStartAPatientConversation() {
         doctorPhones.add("5215512345678");
 
@@ -85,29 +72,6 @@ class InboundWhatsAppProcessorTest {
 
         assertTrue(handled.isEmpty(), "el medico responde en Clinerya, no por el chat");
         assertTrue(queued.isEmpty(), "el aviso al medico no sale como mensaje de paciente");
-        assertTrue(recorded.isEmpty(), "no entra al historial de pacientes");
-    }
-
-    private final class RecordingHistory implements ChatHistoryPort {
-        @Override
-        public void record(ChatMessage message) {
-            recorded.add(message);
-        }
-
-        @Override
-        public List<ChatSummary> findChats(UUID clinicId, int limit) {
-            return List.of();
-        }
-
-        @Override
-        public List<ChatMessage> findMessages(UUID clinicId, String phone, LocalDateTime before, int limit) {
-            return List.of();
-        }
-
-        @Override
-        public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
-            return 0;
-        }
     }
 
     private WhatsAppMessageReceivedEvent event(Kind kind, String text, String optionId) {

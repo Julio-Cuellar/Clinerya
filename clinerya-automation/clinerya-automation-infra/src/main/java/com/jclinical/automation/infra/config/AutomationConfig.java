@@ -263,9 +263,9 @@ public class AutomationConfig {
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
     @Bean
     public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
-                                                             OutboundMessageQueuePort outbound, ChatHistoryPort chatHistory,
+                                                             OutboundMessageQueuePort outbound,
                                                              DoctorNotificationService doctorNotifications) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound, chatHistory, doctorNotifications);
+        return new InboundWhatsAppProcessor(automationConversationService, outbound, doctorNotifications);
     }
 
     // ---- Aviso al medico (entrega 5.6, D8) ------------------------------------------------------
