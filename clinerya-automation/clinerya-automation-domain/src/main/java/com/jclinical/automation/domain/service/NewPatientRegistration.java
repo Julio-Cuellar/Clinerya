@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 /**
  * CU-4: alta por WhatsApp de alguien que aun no es paciente. Primero autoriza el contacto (texto
  * versionado del modulo de pacientes y aviso de privacidad); luego da nombre, apellidos, fecha de
- * nacimiento y, si quiere, correo. Lo que escribe se guarda en un borrador hasta registrarlo. Estos
+ * nacimiento, sexo (con botones) y, si quiere, correo. Lo que escribe se guarda en un borrador hasta registrarlo. Estos
  * datos personales se validan aqui y nunca se mandan al interprete (Gemini).
  */
 public class NewPatientRegistration {
@@ -46,9 +46,12 @@ public class NewPatientRegistration {
 
     private static final Set<ConversationState> STATES = EnumSet.of(ConversationState.REGISTRO_CONSENTIMIENTO,
             ConversationState.REGISTRO_NOMBRE, ConversationState.REGISTRO_APELLIDOS,
-            ConversationState.REGISTRO_NACIMIENTO, ConversationState.REGISTRO_CORREO);
+            ConversationState.REGISTRO_NACIMIENTO, ConversationState.REGISTRO_SEXO, ConversationState.REGISTRO_CORREO);
     private static final List<ConversationOption> CONSENT_OPTIONS = List.of(
             new ConversationOption(ACCEPT, "Acepto"), new ConversationOption(DECLINE, "No acepto"));
+    private static final List<ConversationOption> SEX_OPTIONS = List.of(
+            new ConversationOption(SEX_FEMALE, "Mujer"), new ConversationOption(SEX_MALE, "Hombre"),
+            new ConversationOption(SEX_OTHER, "Otro"));
     private static final List<ConversationOption> EMAIL_OPTIONS = List.of(new ConversationOption(NO_EMAIL, "No tengo correo"));
     /** Particulas que forman parte del apellido siguiente: "de la Cruz", "del Valle". */
     private static final Set<String> SURNAME_PARTICLES = Set.of("de", "del", "la", "las", "los", "y", "san", "santa");
@@ -62,6 +65,7 @@ public class NewPatientRegistration {
     static final String ASK_LAST_NAMES = "¿Cuáles son tus apellidos?";
     static final String DATE_FORMAT_HINT = "Escríbela así: dd/mm/aaaa, por ejemplo 14/03/1990.";
     static final String ASK_BIRTH_DATE = "¿Cuál es tu fecha de nacimiento? " + DATE_FORMAT_HINT;
+    static final String ASK_SEX = "¿Cuál es tu sexo? Lo pide tu expediente clínico.";
     static final String ASK_EMAIL = "¿Cuál es tu correo electrónico? Si no tienes, elige \"No tengo correo\".";
 
     /** Resultado de un mensaje durante el alta. */
@@ -109,6 +113,7 @@ public class NewPatientRegistration {
             case REGISTRO_NOMBRE -> onFirstName(conversation, message.text());
             case REGISTRO_APELLIDOS -> onLastNames(conversation, message.text());
             case REGISTRO_NACIMIENTO -> onBirthDate(conversation, message.text());
+            case REGISTRO_SEXO -> onSex(conversation, message);
             case REGISTRO_CORREO -> onEmail(conversation, message);
             default -> throw new IllegalStateException("La conversación no está en el alta: " + conversation.state());
         };
@@ -165,6 +170,23 @@ public class NewPatientRegistration {
         RegistrationDraft draft = draftOf(conversation);
         drafts.save(new RegistrationDraft(draft.conversationId(), draft.clinicId(), draft.consentVersion(),
                 draft.firstName(), draft.lastNamePaterno(), draft.lastNameMaterno(), birthDate.get(), null, now()));
+        return ask(conversation, ConversationState.REGISTRO_SEXO, ASK_SEX, SEX_OPTIONS);
+    }
+
+    /** Solo con botones: el texto libre no se interpreta (ni con IA) para un dato del expediente. */
+    private Step onSex(Conversation conversation, InboundMessage message) {
+        PatientRegistrationPort.Sex sex = switch (message.selectedOptionId() == null ? "" : message.selectedOptionId()) {
+            case SEX_FEMALE -> PatientRegistrationPort.Sex.FEMALE;
+            case SEX_MALE -> PatientRegistrationPort.Sex.MALE;
+            case SEX_OTHER -> PatientRegistrationPort.Sex.OTHER;
+            default -> null;
+        };
+        if (sex == null) {
+            return new Reply(new OutboundReply("Elige una de las opciones, por favor.", SEX_OPTIONS));
+        }
+        RegistrationDraft draft = draftOf(conversation);
+        drafts.save(new RegistrationDraft(draft.conversationId(), draft.clinicId(), draft.consentVersion(),
+                draft.firstName(), draft.lastNamePaterno(), draft.lastNameMaterno(), draft.dateOfBirth(), sex, now()));
         return ask(conversation, ConversationState.REGISTRO_CORREO, ASK_EMAIL, EMAIL_OPTIONS);
     }
 
