@@ -259,6 +259,26 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   return payload as T;
 }
 
+/**
+ * Para respuestas que no son JSON (subidas multipart, descargas de archivos): pone el token,
+ * y ante un 401 renueva con la misma renovacion compartida y reintenta una vez.
+ */
+async function authorizedFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = sessionStore.getAccessToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, credentials: "include" });
+  if (!retry || !shouldRefresh(path, response.status)) {
+    return response;
+  }
+  try {
+    await refreshSession();
+  } catch {
+    return response;
+  }
+  return authorizedFetch(path, init, false);
+}
+
 export const authApi = {
   register: (body: RegisterRequest) =>
     request<UserProfile>("/v1/users/register", { method: "POST", body: JSON.stringify(body) }),
@@ -856,12 +876,9 @@ export const attachmentsApi = {
   upload: async (patientId: string, clinicId: string, elementId: string, file: File): Promise<AttachmentMeta> => {
     const formData = new FormData();
     formData.append("file", file);
-    const headers = new Headers();
-    const token = sessionStore.getAccessToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    const response = await fetch(
-      `${API_BASE_URL}/v1/patients/${patientId}/attachments?clinicId=${encodeURIComponent(clinicId)}&elementId=${encodeURIComponent(elementId)}`,
-      { method: "POST", headers, body: formData }
+    const response = await authorizedFetch(
+      `/v1/patients/${patientId}/attachments?clinicId=${encodeURIComponent(clinicId)}&elementId=${encodeURIComponent(elementId)}`,
+      { method: "POST", body: formData }
     );
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
@@ -873,10 +890,7 @@ export const attachmentsApi = {
   remove: (patientId: string, attachmentId: string) =>
     request<void>(`/v1/patients/${patientId}/attachments/${attachmentId}`, { method: "DELETE" }),
   downloadBlob: async (patientId: string, attachmentId: string): Promise<Blob> => {
-    const headers = new Headers();
-    const token = sessionStore.getAccessToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    const response = await fetch(`${API_BASE_URL}/v1/patients/${patientId}/attachments/${attachmentId}/content`, { headers });
+    const response = await authorizedFetch(`/v1/patients/${patientId}/attachments/${attachmentId}/content`);
     if (!response.ok) throw new ApiClientError("No se pudo descargar el archivo.", response.status);
     return response.blob();
   }
@@ -1468,10 +1482,7 @@ export const systemConfigsApi = {
       body: JSON.stringify({ value, description })
     }),
   downloadBackup: async (): Promise<Blob> => {
-    const headers = new Headers();
-    const token = sessionStore.getAccessToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    const response = await fetch(`${API_BASE_URL}/v1/system-configs/backups/trigger`, { method: "POST", headers });
+    const response = await authorizedFetch("/v1/system-configs/backups/trigger", { method: "POST" });
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
       throw new ApiClientError(payload?.message ?? "No se pudo descargar el respaldo.", response.status);
