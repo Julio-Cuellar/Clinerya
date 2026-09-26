@@ -7,12 +7,27 @@ export function shouldRefresh(path: string, status: number): boolean {
   return status === 401 && !SESSION_PATHS.has(path);
 }
 
-// Stub: se implementa en el GREEN.
+/**
+ * Lee el {@code exp} del JWT (sin validar la firma: eso lo hace el backend) para saber si hay que
+ * renovarlo antes de usarlo donde no se puede reintentar ante un 401, como el CONNECT del chat
+ * en vivo. Sin token o con uno ilegible devuelve true: que la renovacion decida.
+ */
 export function isTokenExpiring(token: string | null, nowMs: number, marginMs: number): boolean {
-  void token;
-  void nowMs;
-  void marginMs;
-  return false;
+  const exp = token ? readExpiration(token) : null;
+  return exp === null || exp * 1000 - marginMs <= nowMs;
+}
+
+function readExpiration(token: string): number | null {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+  try {
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const bytes = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
+    const claims = JSON.parse(new TextDecoder().decode(bytes)) as { exp?: unknown };
+    return typeof claims.exp === "number" ? claims.exp : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

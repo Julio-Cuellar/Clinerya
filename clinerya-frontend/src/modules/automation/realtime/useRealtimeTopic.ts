@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
-import { sessionStore } from "@shared/api/api";
+import { refreshSession, sessionStore } from "@shared/api/api";
+import { isTokenExpiring } from "@shared/api/sessionRefresh";
 import { realtimeUrl } from "./destinations";
 
 export type RealtimeStatus = "connecting" | "live" | "offline";
 
 const RECONNECT_DELAY_MS = 5_000;
 const HEARTBEAT_MS = 10_000;
+// Renueva un poco antes del vencimiento: evita conectar con un token que caduca en el camino.
+const TOKEN_MARGIN_MS = 30_000;
 
 /**
  * Escucha un canal STOMP mientras la pantalla esta abierta. El JWT viaja en el CONNECT (el navegador
@@ -34,7 +37,12 @@ export function useRealtimeTopic<T>(
       reconnectDelay: RECONNECT_DELAY_MS,
       heartbeatIncoming: HEARTBEAT_MS,
       heartbeatOutgoing: HEARTBEAT_MS,
-      beforeConnect: () => {
+      beforeConnect: async () => {
+        // El CONNECT no puede reintentarse ante un 401 como el REST: se renueva antes si hace falta.
+        // Si no se puede renovar, refreshSession cierra la sesion y la pantalla se desmonta.
+        if (isTokenExpiring(sessionStore.getAccessToken(), Date.now(), TOKEN_MARGIN_MS)) {
+          await refreshSession().catch(() => undefined);
+        }
         client.connectHeaders = { Authorization: `Bearer ${sessionStore.getAccessToken() ?? ""}` };
       },
       onConnect: () => {
