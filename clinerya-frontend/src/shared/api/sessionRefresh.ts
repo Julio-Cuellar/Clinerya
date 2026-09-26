@@ -7,6 +7,14 @@ export function shouldRefresh(path: string, status: number): boolean {
   return status === 401 && !SESSION_PATHS.has(path);
 }
 
+// Stub: se implementa en el GREEN.
+export function isTokenExpiring(token: string | null, nowMs: number, marginMs: number): boolean {
+  void token;
+  void nowMs;
+  void marginMs;
+  return false;
+}
+
 /**
  * Devuelve una funcion que renueva el token de acceso. Si varias peticiones vencen a la vez
  * (el dashboard lanza muchas juntas) comparten la misma llamada a /auth/refresh. Si la

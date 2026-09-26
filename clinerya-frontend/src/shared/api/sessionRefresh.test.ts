@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSessionRefresher, shouldRefresh } from "./sessionRefresh";
+import { createSessionRefresher, isTokenExpiring, shouldRefresh } from "./sessionRefresh";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -68,5 +68,41 @@ describe("createSessionRefresher", () => {
 
     await expect(refresh()).rejects.toThrow("red caida");
     expect(await refresh()).toBe("recuperado");
+  });
+});
+
+describe("isTokenExpiring", () => {
+  const NOW = Date.UTC(2026, 8, 26, 12, 0, 0);
+  const MARGIN = 30_000;
+
+  // Solo importa el payload: la firma la valida el backend, no el navegador.
+  function jwtExpiringAt(epochMs: number, extra: Record<string, string> = {}): string {
+    const payload = JSON.stringify({ sub: "u1", ...extra, exp: Math.floor(epochMs / 1000) });
+    const utf8 = String.fromCharCode(...new TextEncoder().encode(payload));
+    const base64url = btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `eyJhbGciOiJIUzM4NCJ9.${base64url}.firma`;
+  }
+
+  it("un token ya vencido hay que renovarlo antes de conectar el chat en vivo", () => {
+    expect(isTokenExpiring(jwtExpiringAt(NOW - 1_000), NOW, MARGIN)).toBe(true);
+  });
+
+  it("un token que vence dentro del margen tambien se renueva", () => {
+    expect(isTokenExpiring(jwtExpiringAt(NOW + 10_000), NOW, MARGIN)).toBe(true);
+  });
+
+  it("un token con vida de sobra se usa tal cual", () => {
+    expect(isTokenExpiring(jwtExpiringAt(NOW + 20 * 60_000), NOW, MARGIN)).toBe(false);
+  });
+
+  it("lee payloads codificados en base64url (con - y _)", () => {
+    const token = jwtExpiringAt(NOW + 20 * 60_000, { email: "ñandú>>>??@clinica.mx" });
+    expect(isTokenExpiring(token, NOW, MARGIN)).toBe(false);
+  });
+
+  it("sin token o con uno ilegible se intenta renovar", () => {
+    expect(isTokenExpiring(null, NOW, MARGIN)).toBe(true);
+    expect(isTokenExpiring("no-es-un-jwt", NOW, MARGIN)).toBe(true);
+    expect(isTokenExpiring("a.bm8tanNvbg.c", NOW, MARGIN)).toBe(true);
   });
 });
