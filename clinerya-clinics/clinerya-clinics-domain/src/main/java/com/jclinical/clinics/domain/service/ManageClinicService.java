@@ -15,6 +15,7 @@ import com.jclinical.staff.domain.ports.out.ClinicStaffRepositoryPort;
 import com.jclinical.staff.domain.ports.out.DoctorProfileRepositoryPort;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -269,6 +270,31 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
 
     @Override
     public Optional<ClinicPublicProfile> getPublicProfile(UUID clinicId) {
-        throw new UnsupportedOperationException("pendiente");
+        return clinicRepository.findById(clinicId)
+                .map(clinic -> new ClinicPublicProfile(clinic.getId(), clinic.getName(), publicAddress(clinic),
+                        blankToNull(clinic.getPhone()), blankToNull(clinic.getEmail()),
+                        blankToNull(clinic.getPrivacyNoticeUrl())));
+    }
+
+    /** "Calle, Col. Colonia, Municipio, Estado, C.P. 00000", sin las partes que falten. */
+    private static String publicAddress(Clinic clinic) {
+        List<String> parts = new ArrayList<>();
+        addIfPresent(parts, clinic.getAddressStreet(), "");
+        addIfPresent(parts, clinic.getAddressColonia(), "Col. ");
+        addIfPresent(parts, clinic.getAddressMunicipality(), "");
+        addIfPresent(parts, clinic.getAddressState(), "");
+        addIfPresent(parts, clinic.getAddressZip(), "C.P. ");
+        return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    private static void addIfPresent(List<String> parts, String value, String prefix) {
+        String clean = blankToNull(value);
+        if (clean != null) {
+            parts.add(prefix + clean);
+        }
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }
