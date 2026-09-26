@@ -1,5 +1,15 @@
 package com.jclinical.automation.infra.config;
 
+import com.jclinical.agenda.domain.ports.in.ManageClinicScheduleUseCase;
+import com.jclinical.automation.domain.ports.out.ClinicInfoPort;
+import com.jclinical.automation.domain.ports.out.PatientRegistrationPort;
+import com.jclinical.automation.domain.service.NewPatientRegistration;
+import com.jclinical.automation.infra.adapters.out.crossmodule.ClinicInfoAdapter;
+import com.jclinical.automation.infra.adapters.out.crossmodule.PatientRegistrationAdapter;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcRegistrationDraftRepository;
+import com.jclinical.clinics.domain.ports.in.GetClinicPublicProfileUseCase;
+import com.jclinical.patients.domain.ports.in.RecordContactConsentUseCase;
+import com.jclinical.patients.domain.ports.in.RegisterPatientUseCase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
@@ -162,10 +172,30 @@ public class AutomationConfig {
     @Bean
     public ConversationService automationConversationService(
             ConversationRepositoryPort conversations, PatientDirectoryPort patients, DoctorDirectoryPort doctors,
-            SlotAvailabilityPort slots, AppointmentRequestService requests, IntentInterpreterPort interpreter) {
-        return new ConversationService(conversations, patients, doctors, slots, requests, interpreter,
-                clinicId -> java.util.Optional.empty(), null,
-                Clock.systemDefaultZone());
+            SlotAvailabilityPort slots, AppointmentRequestService requests, IntentInterpreterPort interpreter,
+            ClinicInfoPort automationClinicInfo, PatientRegistrationPort automationPatientRegistration,
+            JdbcRegistrationDraftRepository registrationDrafts) {
+        Clock clock = Clock.systemDefaultZone();
+        return new ConversationService(conversations, patients, doctors, slots, requests, interpreter, automationClinicInfo,
+                new NewPatientRegistration(conversations, automationPatientRegistration, registrationDrafts, clock), clock);
+    }
+
+    // ---- Numeros que aun no son pacientes (CU-4) -----------------------------------------------
+
+    @Bean
+    public ClinicInfoPort automationClinicInfo(GetClinicPublicProfileUseCase profiles, ManageClinicScheduleUseCase schedules) {
+        return new ClinicInfoAdapter(profiles, schedules);
+    }
+
+    @Bean
+    public PatientRegistrationPort automationPatientRegistration(RegisterPatientUseCase registerPatient,
+                                                                 RecordContactConsentUseCase contactConsent) {
+        return new PatientRegistrationAdapter(registerPatient, contactConsent);
+    }
+
+    @Bean
+    public JdbcRegistrationDraftRepository registrationDrafts(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher) {
+        return new JdbcRegistrationDraftRepository(jdbcTemplate, automationFieldCipher);
     }
 
     @Bean
