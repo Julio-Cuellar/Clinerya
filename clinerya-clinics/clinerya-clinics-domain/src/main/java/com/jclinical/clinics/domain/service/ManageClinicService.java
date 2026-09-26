@@ -1,6 +1,7 @@
 package com.jclinical.clinics.domain.service;
 
 import com.jclinical.clinics.domain.model.*;
+import com.jclinical.clinics.domain.ports.in.GetClinicPublicProfileUseCase;
 import com.jclinical.clinics.domain.ports.in.GetClinicSettingsUseCase;
 import com.jclinical.clinics.domain.ports.in.ManageClinicUseCase;
 import com.jclinical.clinics.domain.ports.out.ClinicRepositoryPort;
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class ManageClinicService implements ManageClinicUseCase, GetClinicSettingsUseCase {
+public class ManageClinicService implements ManageClinicUseCase, GetClinicSettingsUseCase, GetClinicPublicProfileUseCase {
 
     private final ClinicRepositoryPort clinicRepository;
     private final ClinicStaffRepositoryPort clinicStaffRepository;
@@ -264,5 +265,10 @@ public class ManageClinicService implements ManageClinicUseCase, GetClinicSettin
                         clinic.getId(),
                         clinic.getMaterialReservationLeadDays() != null ? clinic.getMaterialReservationLeadDays() : 3,
                         clinic.getSpecialty() != null ? clinic.getSpecialty() : ClinicSpecialty.SIN_CONFIGURAR));
+    }
+
+    @Override
+    public Optional<ClinicPublicProfile> getPublicProfile(UUID clinicId) {
+        throw new UnsupportedOperationException("pendiente");
     }
 }
