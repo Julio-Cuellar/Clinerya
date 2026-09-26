@@ -8,7 +8,9 @@ import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
 import com.jclinical.automation.domain.ports.in.ReceiveWhatsAppWebhookUseCase;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
+import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import com.jclinical.automation.domain.ports.out.DeliveryStatusPort;
+import com.jclinical.automation.domain.ports.out.DoctorChannelRepositoryPort;
 import com.jclinical.automation.domain.ports.out.InboundMessageLedgerPort;
 import com.jclinical.automation.domain.ports.out.WebhookPayloadParserPort;
 import com.jclinical.core.events.DomainEventPublisherPort;
@@ -39,6 +41,7 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
 
     public WhatsAppWebhookService(ChannelSettingsRepositoryPort settings, WebhookPayloadParserPort parser,
                                   InboundMessageLedgerPort ledger, DeliveryStatusPort deliveryStatus,
+                                  ChatHistoryPort history, DoctorChannelRepositoryPort doctorChannels,
                                   DomainEventPublisherPort events, Clock clock) {
         this.settings = settings;
         this.parser = parser;

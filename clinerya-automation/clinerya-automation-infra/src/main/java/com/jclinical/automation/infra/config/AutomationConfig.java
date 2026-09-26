@@ -253,9 +253,11 @@ public class AutomationConfig {
     @Bean
     public WhatsAppWebhookService whatsAppWebhookService(ChannelSettingsRepositoryPort settings, ObjectMapper objectMapper,
                                                          JdbcInboundMessageLedger inboundMessageLedger,
-                                                         JdbcTemplate jdbcTemplate, DomainEventPublisherPort events) {
+                                                         JdbcTemplate jdbcTemplate, DomainEventPublisherPort events,
+                                                         ChatHistoryPort chatHistory, DoctorChannelRepositoryPort doctorChannels) {
         return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
-                inboundMessageLedger, new JdbcDeliveryStatusRecorder(jdbcTemplate), events, Clock.systemDefaultZone());
+                inboundMessageLedger, new JdbcDeliveryStatusRecorder(jdbcTemplate), chatHistory, doctorChannels, events,
+                Clock.systemDefaultZone());
     }
 
     /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */

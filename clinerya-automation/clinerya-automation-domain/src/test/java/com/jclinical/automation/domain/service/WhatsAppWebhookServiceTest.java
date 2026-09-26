@@ -1,6 +1,9 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.model.ChatMessage;
+import com.jclinical.automation.domain.model.ChatSummary;
+import com.jclinical.automation.domain.model.DoctorChannel;
 import com.jclinical.automation.domain.model.DeliveryStatusUpdate;
 import com.jclinical.automation.domain.model.WebhookPayload;
 import com.jclinical.automation.domain.model.WebhookSignature;
@@ -8,7 +11,9 @@ import com.jclinical.automation.domain.model.WhatsAppInboundMessage;
 import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
 import com.jclinical.automation.domain.ports.in.ReceiveWhatsAppWebhookUseCase.Receipt;
+import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsServiceTest.InMemorySettings;
+import com.jclinical.automation.domain.service.DoctorChannelServiceTest.InMemoryChannels;
 import com.jclinical.core.events.DomainEventRoutingKeys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +53,8 @@ class WhatsAppWebhookServiceTest {
     private final List<Object[]> published = new ArrayList<>();
     private final List<DeliveryStatusUpdate> statuses = new ArrayList<>();
     private final List<DeliveryStatusUpdate> recordedStatuses = new ArrayList<>();
+    private final List<ChatMessage> history = new ArrayList<>();
+    private final InMemoryChannels doctorChannels = new InMemoryChannels();
 
     private WhatsAppWebhookService service;
 
@@ -62,6 +69,8 @@ class WhatsAppWebhookServiceTest {
                     return seen.add(waMessageId);
                 },
                 (clinic, update) -> recordedStatuses.add(update),
+                new RecordingHistory(history),
+                doctorChannels,
                 (routingKey, payload) -> published.add(new Object[]{routingKey, payload}),
                 Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
     }
@@ -147,15 +156,56 @@ class WhatsAppWebhookServiceTest {
         service.receive("llave-webhook", BODY, signature);
 
         assertEquals(1, published.size());
+        assertEquals(1, history.size(), "un reintento de Meta no duplica el mensaje en el historial");
     }
 
     @Test
-    void aClinicWithTheAssistantOffAnswersMetaButProcessesNothing() {
+    void aClinicWithTheAssistantOffKeepsTheMessageForTheStaffButDoesNotAnswer() {
         settings.save(settings.stored.get(clinicId).toBuilder().enabled(false).build());
         parsed.add(text("wamid.1", "Hola"));
 
         assertEquals(Receipt.IGNORED, service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET)));
-        assertTrue(published.isEmpty());
+
+        assertTrue(published.isEmpty(), "el asistente apagado no contesta");
+        assertEquals(1, history.size(), "pero el personal ve que el paciente escribio");
+        assertEquals("Hola", history.get(0).text());
+        assertEquals(ChatMessage.Direction.INBOUND, history.get(0).direction());
+        assertEquals(List.of("5215512345678"), senders, "queda registrado (repetidos y ventana de 24 h)");
+    }
+
+    @Test
+    void everyMessageIsKeptInTheHistoryBeforeTheAssistantRuns() {
+        parsed.add(text("wamid.1", "Hola"));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertEquals(1, published.size());
+        assertEquals(1, history.size(), "si el asistente o Meta fallan despues, el mensaje ya esta guardado");
+        ChatMessage kept = history.get(0);
+        assertEquals(clinicId, kept.clinicId());
+        assertEquals("5215512345678", kept.phone());
+        assertEquals("Hola", kept.text());
+        assertEquals(NOW, kept.at());
+    }
+
+    @Test
+    void aMessageThatIsNotTextIsKeptAsAPlaceholder() {
+        parsed.add(new WhatsAppInboundMessage(PHONE_NUMBER_ID, "wamid.3", "5215512345678", Kind.UNSUPPORTED, null, null, NOW));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertEquals("[Mensaje que no es texto]", history.get(0).text());
+    }
+
+    @Test
+    void aDoctorsMessageStaysOutOfThePatientsHistory() {
+        doctorChannels.save(new DoctorChannel(clinicId, UUID.randomUUID(), "5215599990000", true, NOW, null, NOW));
+        parsed.add(new WhatsAppInboundMessage(PHONE_NUMBER_ID, "wamid.4", "5215599990000", Kind.TEXT, "Acepto", null, NOW));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertTrue(history.isEmpty());
+        assertEquals(1, published.size(), "el procesador le contesta que responda en Clinerya");
     }
 
     @Test
@@ -186,6 +236,35 @@ class WhatsAppWebhookServiceTest {
         service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
 
         assertTrue(recordedStatuses.isEmpty());
+    }
+
+    /** Historial en memoria: solo interesa lo que se guarda. */
+    static final class RecordingHistory implements ChatHistoryPort {
+        private final List<ChatMessage> recorded;
+
+        RecordingHistory(List<ChatMessage> recorded) {
+            this.recorded = recorded;
+        }
+
+        @Override
+        public void record(ChatMessage message) {
+            recorded.add(message);
+        }
+
+        @Override
+        public List<ChatSummary> findChats(UUID clinicId, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public List<ChatMessage> findMessages(UUID clinicId, String phone, LocalDateTime before, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
+            return 0;
+        }
     }
 
     private static WhatsAppInboundMessage text(String id, String body) {

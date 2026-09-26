@@ -70,16 +70,11 @@ class InboundWhatsAppProcessorTest {
     }
 
     @Test
-    void whatThePatientWroteIsKeptInTheChatHistory() {
+    void theWebhookAlreadyKeptWhatThePatientWrote() {
         processor.process(event(Kind.TEXT, "Hola", null));
-        processor.process(event(Kind.OPTION, "Agendar una cita", "action:book"));
         processor.process(event(Kind.UNSUPPORTED, null, null));
 
-        assertEquals(List.of("Hola", "Agendar una cita", "[Mensaje que no es texto]"),
-                recorded.stream().map(ChatMessage::text).toList());
-        assertTrue(recorded.stream().allMatch(message -> message.direction() == ChatMessage.Direction.INBOUND));
-        assertEquals("5215512345678", recorded.get(0).phone());
-        assertEquals(NOW, recorded.get(0).at());
+        assertTrue(recorded.isEmpty(), "se guarda al recibirlo; si esto falla y se revierte, el mensaje no se pierde");
     }
 
     @Test
