@@ -60,7 +60,10 @@ class ConversationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConversationService(conversations, patients, doctors, slots, requests, interpreter, clock);
+        service = new ConversationService(conversations, patients, doctors, slots, requests, interpreter,
+                new ConversationNewPatientTest.FakeClinicInfo(), new NewPatientRegistration(conversations,
+                new ConversationNewPatientTest.FakeRegistrations(), new ConversationNewPatientTest.InMemoryDrafts(), clock),
+                clock);
         patients.add(PHONE, patientId, "Ana López");
         doctors.add(lastDoctorId, "Dra. Beatriz Ramos");
         doctors.add(otherDoctorId, "Dr. Carlos Díaz");
@@ -92,15 +95,6 @@ class ConversationServiceTest {
 
         assertEquals(ConversationState.MENU, current().state());
         assertEquals(childId, current().patientId());
-    }
-
-    @Test
-    void anUnknownPhoneIsNotBookedAndTheConversationCloses() {
-        OutboundReply reply = send("5500000000", "Hola", null);
-
-        assertEquals(ConversationState.CERRADA, conversations.lastSaved.state());
-        assertTrue(reply.options().isEmpty());
-        assertTrue(requests.submitted.isEmpty(), "nunca se agenda a un paciente no registrado");
     }
 
     @Test
@@ -416,11 +410,13 @@ class ConversationServiceTest {
     static final class FakeInterpreter implements IntentInterpreterPort {
         String answer;
         boolean fail;
+        final List<String> calls = new ArrayList<>();
         UUID lastClinicId;
         List<ConversationOption> lastOptions = List.of();
 
         @Override
         public Optional<String> interpret(UUID clinicId, String text, List<ConversationOption> options) {
+            calls.add(text);
             lastClinicId = clinicId;
             lastOptions = options;
             if (fail) {

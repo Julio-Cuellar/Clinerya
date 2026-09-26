@@ -54,7 +54,10 @@ class ConversationRequestOutcomeTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConversationService(conversations, patients, doctors, slots, requests, new FakeInterpreter(), clock);
+        service = new ConversationService(conversations, patients, doctors, slots, requests, new FakeInterpreter(),
+                new ConversationNewPatientTest.FakeClinicInfo(), new NewPatientRegistration(conversations,
+                new ConversationNewPatientTest.FakeRegistrations(), new ConversationNewPatientTest.InMemoryDrafts(), clock),
+                clock);
         patients.add(PHONE, patientId, "Ana López");
         doctors.add(doctorId, "Dra. Beatriz Ramos");
         doctors.lastDoctor.put(patientId, doctorId);

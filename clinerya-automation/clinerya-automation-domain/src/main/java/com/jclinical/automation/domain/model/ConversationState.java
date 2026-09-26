@@ -14,6 +14,12 @@ public enum ConversationState {
     ESPERANDO_MEDICO,
     /** El medico propuso otros horarios; el paciente elige uno o los declina. */
     ELEGIR_OPCION_MEDICO,
+    /** Paciente nuevo (CU-4): autoriza o no el contacto antes de dar sus datos. */
+    REGISTRO_CONSENTIMIENTO,
+    REGISTRO_NOMBRE,
+    REGISTRO_APELLIDOS,
+    REGISTRO_NACIMIENTO,
+    REGISTRO_CORREO,
     CERRADA(true),
     EXPIRADA(true);
 

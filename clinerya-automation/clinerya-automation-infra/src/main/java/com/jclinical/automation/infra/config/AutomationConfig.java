@@ -164,6 +164,7 @@ public class AutomationConfig {
             ConversationRepositoryPort conversations, PatientDirectoryPort patients, DoctorDirectoryPort doctors,
             SlotAvailabilityPort slots, AppointmentRequestService requests, IntentInterpreterPort interpreter) {
         return new ConversationService(conversations, patients, doctors, slots, requests, interpreter,
+                clinicId -> java.util.Optional.empty(), null,
                 Clock.systemDefaultZone());
     }
 

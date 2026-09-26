@@ -12,6 +12,7 @@ import com.jclinical.automation.domain.model.PatientNotification;
 import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
 import com.jclinical.automation.domain.ports.in.HandleRequestOutcomeUseCase;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort;
+import com.jclinical.automation.domain.ports.out.ClinicInfoPort;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.NewAppointmentRequest;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.SlotNoLongerAvailableException;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
@@ -45,6 +46,7 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
     public static final String LAST_DOCTOR = "action:last-doctor";
     public static final String SHOW_DOCTORS = "action:show-doctors";
     public static final String DECLINE_OPTIONS = "action:decline-options";
+    public static final String CLINIC_INFO = "action:clinic-info";
 
     static final String PATIENT_PREFIX = "patient:";
     static final String DOCTOR_PREFIX = "doctor:";
@@ -68,7 +70,8 @@ public class ConversationService implements HandleInboundMessageUseCase, HandleR
 
     public ConversationService(ConversationRepositoryPort conversations, PatientDirectoryPort patients,
                                DoctorDirectoryPort doctors, SlotAvailabilityPort slots,
-                               AppointmentRequestPort requests, IntentInterpreterPort interpreter, Clock clock) {
+                               AppointmentRequestPort requests, IntentInterpreterPort interpreter,
+                               ClinicInfoPort clinicInfo, NewPatientRegistration registration, Clock clock) {
         this.conversations = conversations;
         this.patients = patients;
         this.doctors = doctors;
