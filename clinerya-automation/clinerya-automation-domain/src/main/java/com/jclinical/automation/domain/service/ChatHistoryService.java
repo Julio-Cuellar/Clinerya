@@ -16,6 +16,7 @@ import com.jclinical.core.security.StaffPermission;
 import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -31,6 +32,8 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
     static final int MAX_PAGE = 100;
     static final int MAX_CHATS = 200;
     static final int MAX_ACCESS_ROWS = 500;
+    /** Seguir un chat abierto no vuelve a auditarse si esa persona lo leyo en este lapso. */
+    static final Duration READ_AGAIN_AFTER = Duration.ofMinutes(30);
 
     private final ChatHistoryPort history;
     private final ChatAccessLogPort accessLog;
@@ -73,7 +76,20 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
 
     @Override
     public List<ChatMessage> readNewMessages(UUID actingUserId, UUID clinicId, String phone, LocalDateTime after) {
-        throw new UnsupportedOperationException("pendiente");
+        requireChatAccess(actingUserId, clinicId);
+        if (phone == null || phone.isBlank()) {
+            throw new IllegalArgumentException("Indica el chat que quieres leer.");
+        }
+        if (after == null) {
+            throw new IllegalArgumentException("Indica desde qué mensaje quieres leer.");
+        }
+        List<ChatMessage> messages = history.findMessagesAfter(clinicId, phone, after, MAX_PAGE);
+        LocalDateTime now = LocalDateTime.now(clock);
+        boolean readRecently = !accessLog.find(clinicId, phone, actingUserId, now.minus(READ_AGAIN_AFTER), null, 1).isEmpty();
+        if (!readRecently) {
+            accessLog.record(new ChatAccess(UUID.randomUUID(), clinicId, phone, actingUserId, now));
+        }
+        return messages;
     }
 
     @Override

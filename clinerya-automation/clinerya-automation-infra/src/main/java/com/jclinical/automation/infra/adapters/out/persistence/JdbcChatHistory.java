@@ -55,6 +55,13 @@ public class JdbcChatHistory implements ChatHistoryPort {
             LIMIT ?
             """;
 
+    private static final String AFTER_SQL = "SELECT " + COLUMNS + """
+             FROM automation.chat_messages
+            WHERE clinic_id = ? AND phone = ? AND created_at > ?
+            ORDER BY created_at
+            LIMIT ?
+            """;
+
     private static final String DELETE_SQL = "DELETE FROM automation.chat_messages WHERE clinic_id = ? AND created_at < ?";
 
     private final JdbcTemplate jdbcTemplate;
@@ -90,7 +97,7 @@ public class JdbcChatHistory implements ChatHistoryPort {
 
     @Override
     public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
-        throw new UnsupportedOperationException("pendiente");
+        return jdbcTemplate.query(AFTER_SQL, (row, rowNum) -> toMessage(row), clinicId, phone, Timestamp.valueOf(after), limit);
     }
 
     @Override

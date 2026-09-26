@@ -1506,10 +1506,11 @@ export const appointmentRequestsApi = {
 
 export const whatsAppChatsApi = {
   list: (clinicId: string) => request<ChatSummary[]>(`${automationBase(clinicId)}/chats`),
-  messages: (clinicId: string, phone: string, before?: string) =>
-    request<ChatMessage[]>(
-      `${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/messages${before ? `?before=${encodeURIComponent(before)}` : ""}`
-    ),
+  /** Sin opciones: la ultima pagina. {before}: mensajes anteriores. {after}: los que llegaron despues (chat abierto). */
+  messages: (clinicId: string, phone: string, page: { before?: string; after?: string } = {}) => {
+    const query = page.after ? `?after=${encodeURIComponent(page.after)}` : page.before ? `?before=${encodeURIComponent(page.before)}` : "";
+    return request<ChatMessage[]>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/messages${query}`);
+  },
   accessLog: (clinicId: string, filters: { phone?: string; userId?: string; from?: string; to?: string }) => {
     const query = new URLSearchParams(
       Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1]))

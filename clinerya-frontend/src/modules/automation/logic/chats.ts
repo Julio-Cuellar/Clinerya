@@ -23,8 +23,11 @@ export function applyChatActivity(chats: ChatListItem[], push: ChatActivityPush,
   return [updated, ...chats.filter((chat) => chat.phone !== push.phone)];
 }
 
-export function appendNewMessages(_shown: ChatMessage[], _incoming: ChatMessage[]): ChatMessage[] {
-  throw new Error("pendiente");
+/** Mensajes que llegaron con el chat abierto: al final, en orden, sin repetir ninguno. */
+export function appendNewMessages(shown: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const known = new Set(shown.map((message) => message.id));
+  const fresh = incoming.filter((message) => !known.has(message.id)).sort((a, b) => a.at.localeCompare(b.at));
+  return [...shown, ...fresh];
 }
 
 export function chatTitle(chat: { patientNames: string[] }): string {

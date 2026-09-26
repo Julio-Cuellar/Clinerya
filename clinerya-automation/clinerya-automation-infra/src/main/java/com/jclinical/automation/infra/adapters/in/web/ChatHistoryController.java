@@ -38,7 +38,13 @@ public class ChatHistoryController {
     public List<ChatMessage> readMessages(@PathVariable UUID clinicId, @PathVariable String phone,
                                           @RequestParam(required = false)
                                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime before,
-                                          @RequestParam(required = false) Integer limit) {
+                                          @RequestParam(required = false) Integer limit,
+                                          @RequestParam(required = false)
+                                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime after) {
+        if (after != null) {
+            // El chat abierto en pantalla pide lo que llego despues del ultimo mensaje que muestra.
+            return chats.readNewMessages(currentUserResolver.getCurrentUserId(), clinicId, phone, after);
+        }
         return chats.readMessages(currentUserResolver.getCurrentUserId(), clinicId, phone, before, limit);
     }
 

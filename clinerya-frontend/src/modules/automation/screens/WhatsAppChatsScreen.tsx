@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconLock } from "@tabler/icons-react";
 import { getFriendlyError, staffApi, whatsAppChatsApi, type ClinicStaffResponse } from "@shared/api/api";
 import type { ChatAccess, ChatActivityPush, ChatListItem, ChatMessage } from "../types";
-import { applyChatActivity, chatTitle, describeAccess } from "../logic/chats";
+import { appendNewMessages, applyChatActivity, chatTitle, describeAccess } from "../logic/chats";
 import { maskPhone } from "../logic/phone";
 import { receivedAgo } from "../logic/requests";
 import { chatsTopic } from "../realtime/destinations";
@@ -28,8 +28,10 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const [openPhone, setOpenPhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [openedAt, setOpenedAt] = useState<Date | null>(null);
+  // El aviso en vivo llega por un callback: con la ref siempre ve los mensajes que hay en pantalla.
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
-  const [newInOpen, setNewInOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
     (push) => {
       setChats((current) => applyChatActivity(current, push, openPhone ?? undefined));
       if (push.phone === openPhone) {
-        setNewInOpen(true);
+        void loadNewer(push.phone);
       }
     },
     () => void loadChats()
@@ -67,7 +69,6 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const openChat = async (phone: string) => {
     if (!clinicId) return;
     setOpenPhone(phone);
-    setNewInOpen(false);
     setChats((current) => current.map((chat) => (chat.phone === phone ? { ...chat, unread: false } : chat)));
     try {
       const page = await whatsAppChatsApi.messages(clinicId, phone);
@@ -80,16 +81,44 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
     }
   };
 
+  /**
+   * Un aviso en vivo dice que el chat abierto tuvo actividad: se piden solo los mensajes posteriores al
+   * ultimo que se muestra. El backend no vuelve a auditar si esta persona lo leyo hace poco.
+   */
+  const loadNewer = async (phone: string) => {
+    if (!clinicId) return;
+    const newest = messagesRef.current[messagesRef.current.length - 1];
+    if (!newest) {
+      await openChat(phone);
+      return;
+    }
+    try {
+      const fresh = await whatsAppChatsApi.messages(clinicId, phone, { after: newest.at });
+      setMessages((current) => appendNewMessages(current, fresh));
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    }
+  };
+
   const loadOlder = async () => {
     if (!clinicId || !openPhone || messages.length === 0) return;
     try {
-      const page = await whatsAppChatsApi.messages(clinicId, openPhone, messages[0].at);
+      const page = await whatsAppChatsApi.messages(clinicId, openPhone, { before: messages[0].at });
       setMessages((current) => [...[...page].reverse(), ...current]);
       setHasMoreOlder(page.length >= PAGE_SIZE);
     } catch (caught) {
       setError(getFriendlyError(caught));
     }
   };
+
+  useEffect(() => {
+    const previous = messagesRef.current;
+    messagesRef.current = messages;
+    // Solo baja al final cuando llega algo nuevo abajo, no al cargar mensajes anteriores arriba.
+    if (messages.length > 0 && previous[previous.length - 1]?.id !== messages[messages.length - 1].id) {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [messages]);
 
   const visibleChats = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -191,11 +220,7 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                     </div>
                   </div>
                 ))}
-                {newInOpen && (
-                  <button className="btn secondary" type="button" style={{ alignSelf: "center" }} onClick={() => openChat(openPhone)}>
-                    Ver mensajes nuevos
-                  </button>
-                )}
+                <div ref={bottomRef} />
               </div>
               <div className="wa-thread-foot">Solo lectura: aquí responde el asistente. Las citas se aprueban en Solicitudes de cita.</div>
             </div>
