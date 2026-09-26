@@ -39,6 +39,10 @@ export default function App() {
     }
   }, [colorPalette, user]);
 
+  // Si el token no pudo renovarse (cookie vencida o revocada), vuelve al login en vez de dejar
+  // la pantalla abierta sin sesion.
+  useEffect(() => sessionStore.onSessionExpired(() => setUser(null)), []);
+
   useEffect(() => {
     if (!sessionStore.getAccessToken()) return;
     authApi

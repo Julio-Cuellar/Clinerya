@@ -156,6 +156,7 @@ import type {
   CalendarConnectionStatusResponse,
   ExternalCalendarEventResponse
 } from "@modules/agenda/integrationsTypes";
+import { createSessionRefresher, shouldRefresh } from "./sessionRefresh";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 const ACCESS_TOKEN_KEY = "clinicloud.access_token";
@@ -186,8 +187,30 @@ export const sessionStore = {
   clear: () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+  },
+  /** Avisa cuando la sesion vence sin poder renovarse, para volver al login. Devuelve la baja. */
+  onSessionExpired: (listener: () => void) => {
+    expiryListeners.add(listener);
+    return () => {
+      expiryListeners.delete(listener);
+    };
   }
 };
+
+const expiryListeners = new Set<() => void>();
+
+/** Renovacion compartida: la usan request(), los fetch de archivos y el chat en vivo. */
+export const refreshSession = createSessionRefresher(
+  async () => {
+    const refreshed = await authApi.refresh();
+    sessionStore.setTokens(refreshed);
+    return refreshed.token;
+  },
+  () => {
+    sessionStore.clear();
+    expiryListeners.forEach((listener) => listener());
+  }
+);
 
 async function request<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(options.headers);
@@ -215,15 +238,18 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
 
   if (!response.ok) {
     // Ya no se puede saber desde JS si hay un refresh token (vive en una cookie
-    // HttpOnly): se intenta siempre y, si no hay cookie valida, el backend responde
-    // 400 y el catch limpia la sesion.
-    if (response.status === 401 && retry && path !== "/v1/auth/refresh") {
+    // HttpOnly): se intenta siempre y, si no hay cookie valida, refreshSession avisa
+    // que la sesion vencio y la app vuelve al login.
+    if (retry && shouldRefresh(path, response.status)) {
+      let renewed = false;
       try {
-        const refreshed = await authApi.refresh();
-        sessionStore.setTokens(refreshed);
-        return request<T>(path, options, false);
+        await refreshSession();
+        renewed = true;
       } catch {
-        sessionStore.clear();
+        // Sesion vencida: ya se aviso; se lanza el error original abajo.
+      }
+      if (renewed) {
+        return request<T>(path, options, false);
       }
     }
     const apiError = payload as ApiErrorBody | null;
