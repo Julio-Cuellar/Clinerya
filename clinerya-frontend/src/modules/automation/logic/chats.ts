@@ -1,4 +1,4 @@
-import type { ChatActivityPush, ChatListItem } from "../types";
+import type { ChatActivityPush, ChatListItem, ChatMessage } from "../types";
 
 const ROLE_LABELS: Record<string, string> = {
   DOCTOR: "Médico",
@@ -21,6 +21,10 @@ export function applyChatActivity(chats: ChatListItem[], push: ChatActivityPush,
     ? { ...current, lastMessageAt: push.at, messageCount: current.messageCount + 1, unread }
     : { phone: push.phone, patientNames: [], lastMessageAt: push.at, messageCount: 1, unread };
   return [updated, ...chats.filter((chat) => chat.phone !== push.phone)];
+}
+
+export function appendNewMessages(_shown: ChatMessage[], _incoming: ChatMessage[]): ChatMessage[] {
+  throw new Error("pendiente");
 }
 
 export function chatTitle(chat: { patientNames: string[] }): string {

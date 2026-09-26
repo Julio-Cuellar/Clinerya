@@ -135,6 +135,46 @@ class ChatHistoryServiceTest {
     }
 
     @Test
+    void theOpenChatReceivesOnlyTheMessagesThatArrivedAfterTheLastOneShown() {
+        for (int i = 0; i < 5; i++) {
+            history.record(message(Direction.INBOUND, "m" + i, NOW.minusMinutes(10 - i)));
+        }
+
+        List<ChatMessage> newer = service.readNewMessages(doctorUserId, clinicId, PHONE, NOW.minusMinutes(8));
+
+        assertEquals(List.of("m3", "m4"), newer.stream().map(ChatMessage::text).toList(), "el mas antiguo primero");
+    }
+
+    @Test
+    void followingAnOpenChatDoesNotFillTheAuditLog() {
+        history.record(message(Direction.INBOUND, "Hola", NOW.minusMinutes(3)));
+        service.readMessages(doctorUserId, clinicId, PHONE, null, null);
+
+        service.readNewMessages(doctorUserId, clinicId, PHONE, NOW.minusMinutes(3));
+        service.readNewMessages(doctorUserId, clinicId, PHONE, NOW.minusMinutes(3));
+
+        assertEquals(1, accessLog.entries.size(), "abrir el chat ya quedo registrado");
+    }
+
+    @Test
+    void newMessagesAreAuditedIfTheLastReadWasLongAgo() {
+        accessLog.record(new ChatAccess(UUID.randomUUID(), clinicId, PHONE, doctorUserId, NOW.minusMinutes(31)));
+
+        service.readNewMessages(doctorUserId, clinicId, PHONE, NOW.minusMinutes(40));
+
+        assertEquals(2, accessLog.entries.size());
+        assertEquals(NOW, accessLog.entries.get(1).accessedAt());
+    }
+
+    @Test
+    void readingNewMessagesAsksForPermissionAndAStartingPoint() {
+        assertThrows(ClinicAccessDeniedException.class,
+                () -> service.readNewMessages(strangerUserId, clinicId, PHONE, NOW.minusMinutes(1)));
+        assertThrows(IllegalArgumentException.class, () -> service.readNewMessages(doctorUserId, clinicId, PHONE, null));
+        assertTrue(accessLog.entries.isEmpty());
+    }
+
+    @Test
     void onlyTheAdministratorSeesWhoReadWhichChat() {
         service.readMessages(doctorUserId, clinicId, PHONE, null, null);
 
@@ -192,6 +232,17 @@ class ChatHistoryServiceTest {
         }
 
         @Override
+        public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
+            lastLimit = limit;
+            return messages.stream()
+                    .filter(m -> m.clinicId().equals(clinicId) && m.phone().equals(phone))
+                    .filter(m -> m.at().isAfter(after))
+                    .sorted(Comparator.comparing(ChatMessage::at))
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
         public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
             cutoffs.put(clinicId, cutoff);
             return 0;
@@ -212,6 +263,9 @@ class ChatHistoryServiceTest {
                     .filter(e -> e.clinicId().equals(clinicId))
                     .filter(e -> phone == null || e.phone().equals(phone))
                     .filter(e -> userId == null || e.userId().equals(userId))
+                    .filter(e -> from == null || !e.accessedAt().isBefore(from))
+                    .filter(e -> to == null || !e.accessedAt().isAfter(to))
+                    .limit(limit)
                     .toList();
         }
     }

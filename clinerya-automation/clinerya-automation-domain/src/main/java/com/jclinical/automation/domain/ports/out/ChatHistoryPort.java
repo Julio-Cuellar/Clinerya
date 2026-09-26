@@ -17,5 +17,8 @@ public interface ChatHistoryPort {
     /** Mensajes del hilo anteriores a {@code before} (o los ultimos si es null), el mas reciente primero. */
     List<ChatMessage> findMessages(UUID clinicId, String phone, LocalDateTime before, int limit);
 
+    /** Mensajes del hilo posteriores a {@code after}, el mas antiguo primero (para seguir el chat en vivo). */
+    List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit);
+
     int deleteOlderThan(UUID clinicId, LocalDateTime cutoff);
 }

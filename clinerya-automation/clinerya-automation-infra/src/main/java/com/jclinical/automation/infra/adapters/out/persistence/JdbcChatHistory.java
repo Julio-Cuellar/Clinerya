@@ -89,6 +89,11 @@ public class JdbcChatHistory implements ChatHistoryPort {
     }
 
     @Override
+    public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
+        throw new UnsupportedOperationException("pendiente");
+    }
+
+    @Override
     public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
         return jdbcTemplate.update(DELETE_SQL, clinicId, Timestamp.valueOf(cutoff));
     }

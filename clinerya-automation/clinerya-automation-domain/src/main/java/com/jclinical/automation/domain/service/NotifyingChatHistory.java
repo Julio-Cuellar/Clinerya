@@ -40,6 +40,11 @@ public class NotifyingChatHistory implements ChatHistoryPort {
     }
 
     @Override
+    public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
+        return history.findMessagesAfter(clinicId, phone, after, limit);
+    }
+
+    @Override
     public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
         return history.deleteOlderThan(clinicId, cutoff);
     }

@@ -18,5 +18,11 @@ public interface ReadChatHistoryUseCase {
 
     List<ChatMessage> readMessages(UUID actingUserId, UUID clinicId, String phone, LocalDateTime before, Integer limit);
 
+    /**
+     * Mensajes que llegaron despues de {@code after}, para el chat abierto en pantalla. Se audita como
+     * lectura salvo que esa persona ya haya leido ese chat hace poco (no llena la auditoria).
+     */
+    List<ChatMessage> readNewMessages(UUID actingUserId, UUID clinicId, String phone, LocalDateTime after);
+
     List<ChatAccess> accessLog(UUID actingUserId, UUID clinicId, String phone, UUID userId, LocalDateTime from, LocalDateTime to);
 }

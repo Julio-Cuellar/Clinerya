@@ -72,6 +72,11 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
     }
 
     @Override
+    public List<ChatMessage> readNewMessages(UUID actingUserId, UUID clinicId, String phone, LocalDateTime after) {
+        throw new UnsupportedOperationException("pendiente");
+    }
+
+    @Override
     public List<ChatAccess> accessLog(UUID actingUserId, UUID clinicId, String phone, UUID userId,
                                       LocalDateTime from, LocalDateTime to) {
         if (!can(actingUserId, clinicId, StaffPermission.MANAGE_CLINIC)) {

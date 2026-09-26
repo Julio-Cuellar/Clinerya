@@ -36,6 +36,12 @@ public class TransactionalChatHistoryUseCase implements ReadChatHistoryUseCase, 
     }
 
     @Override
+    @Transactional
+    public List<ChatMessage> readNewMessages(UUID actingUserId, UUID clinicId, String phone, LocalDateTime after) {
+        return chats.readNewMessages(actingUserId, clinicId, phone, after);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ChatAccess> accessLog(UUID actingUserId, UUID clinicId, String phone, UUID userId,
                                       LocalDateTime from, LocalDateTime to) {

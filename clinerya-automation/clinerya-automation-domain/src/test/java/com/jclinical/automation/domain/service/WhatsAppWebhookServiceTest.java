@@ -262,6 +262,11 @@ class WhatsAppWebhookServiceTest {
         }
 
         @Override
+        public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
+            return List.of();
+        }
+
+        @Override
         public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
             return 0;
         }

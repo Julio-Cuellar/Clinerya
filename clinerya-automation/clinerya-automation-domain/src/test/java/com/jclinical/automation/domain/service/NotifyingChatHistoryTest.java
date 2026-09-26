@@ -40,6 +40,11 @@ class NotifyingChatHistoryTest {
         }
 
         @Override
+        public List<ChatMessage> findMessagesAfter(UUID clinic, String phone, LocalDateTime after, int limit) {
+            return List.of();
+        }
+
+        @Override
         public int deleteOlderThan(UUID clinic, LocalDateTime cutoff) {
             return 7;
         }

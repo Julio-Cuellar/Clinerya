@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChatActivity, chatTitle, describeAccess } from "./chats";
+import { appendNewMessages, applyChatActivity, chatTitle, describeAccess } from "./chats";
 
 const chat = (phone: string, lastMessageAt: string, messageCount = 3, patientNames: string[] = ["Juan Pérez"]) => ({
   phone,
@@ -43,6 +43,25 @@ describe("applyChatActivity", () => {
     const list = [juan, maria];
     applyChatActivity(list, { phone: maria.phone, at: "2026-09-25T16:40:00" });
     expect(list[1].messageCount).toBe(14);
+  });
+});
+
+describe("appendNewMessages", () => {
+  const msg = (id: string, at: string) => ({ id, phone: "5215512345678", direction: "INBOUND" as const, text: id, optionLabels: [], at });
+
+  it("adds the new messages at the end, in order", () => {
+    const shown = [msg("a", "2026-09-25T16:30:00"), msg("b", "2026-09-25T16:31:00")];
+
+    expect(appendNewMessages(shown, [msg("d", "2026-09-25T16:33:00"), msg("c", "2026-09-25T16:32:00")]).map((m) => m.id))
+      .toEqual(["a", "b", "c", "d"]);
+    expect(shown).toHaveLength(2);
+  });
+
+  it("never shows the same message twice", () => {
+    const shown = [msg("a", "2026-09-25T16:30:00")];
+
+    expect(appendNewMessages(shown, [msg("a", "2026-09-25T16:30:00"), msg("b", "2026-09-25T16:31:00")]).map((m) => m.id))
+      .toEqual(["a", "b"]);
   });
 });
 
