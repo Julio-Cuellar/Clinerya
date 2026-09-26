@@ -37,6 +37,9 @@ public class NewPatientRegistration {
     public static final String ACCEPT = "action:accept-consent";
     public static final String DECLINE = "action:decline-consent";
     public static final String NO_EMAIL = "action:no-email";
+    public static final String SEX_FEMALE = "action:sex-female";
+    public static final String SEX_MALE = "action:sex-male";
+    public static final String SEX_OTHER = "action:sex-other";
 
     static final int MAX_NAME_LENGTH = 60;
     static final int MAX_AGE_YEARS = 120;
@@ -127,7 +130,7 @@ public class NewPatientRegistration {
             return new Reply(new OutboundReply("Para continuar elige \"Acepto\" o \"No acepto\".", CONSENT_OPTIONS));
         }
         drafts.save(new RegistrationDraft(conversation.id(), conversation.clinicId(),
-                registrations.consentText().version(), null, null, null, null, now()));
+                registrations.consentText().version(), null, null, null, null, null, now()));
         return ask(conversation, ConversationState.REGISTRO_NOMBRE, "Gracias. " + ASK_NAME, List.of());
     }
 
@@ -138,7 +141,7 @@ public class NewPatientRegistration {
         }
         RegistrationDraft draft = draftOf(conversation);
         drafts.save(new RegistrationDraft(draft.conversationId(), draft.clinicId(), draft.consentVersion(), name.get(),
-                null, null, null, now()));
+                null, null, null, null, now()));
         return ask(conversation, ConversationState.REGISTRO_APELLIDOS, ASK_LAST_NAMES, List.of());
     }
 
@@ -150,7 +153,7 @@ public class NewPatientRegistration {
         RegistrationDraft draft = draftOf(conversation);
         String materno = surnames.size() > 1 ? String.join(" ", surnames.subList(1, surnames.size())) : null;
         drafts.save(new RegistrationDraft(draft.conversationId(), draft.clinicId(), draft.consentVersion(),
-                draft.firstName(), surnames.get(0), materno, null, now()));
+                draft.firstName(), surnames.get(0), materno, null, null, now()));
         return ask(conversation, ConversationState.REGISTRO_NACIMIENTO, ASK_BIRTH_DATE, List.of());
     }
 
@@ -161,7 +164,7 @@ public class NewPatientRegistration {
         }
         RegistrationDraft draft = draftOf(conversation);
         drafts.save(new RegistrationDraft(draft.conversationId(), draft.clinicId(), draft.consentVersion(),
-                draft.firstName(), draft.lastNamePaterno(), draft.lastNameMaterno(), birthDate.get(), now()));
+                draft.firstName(), draft.lastNamePaterno(), draft.lastNameMaterno(), birthDate.get(), null, now()));
         return ask(conversation, ConversationState.REGISTRO_CORREO, ASK_EMAIL, EMAIL_OPTIONS);
     }
 
@@ -180,7 +183,7 @@ public class NewPatientRegistration {
     private Step register(Conversation conversation, String email) {
         RegistrationDraft draft = draftOf(conversation);
         UUID patientId = registrations.register(new NewPatient(draft.clinicId(), draft.firstName(),
-                draft.lastNamePaterno(), draft.lastNameMaterno(), draft.dateOfBirth(), conversation.phone(), email,
+                draft.lastNamePaterno(), draft.lastNameMaterno(), draft.dateOfBirth(), draft.sex(), conversation.phone(), email,
                 draft.consentVersion()));
         drafts.delete(conversation.id());
         Conversation withPatient = new Conversation(conversation.id(), conversation.clinicId(), conversation.phone(),

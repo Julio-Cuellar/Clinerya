@@ -19,6 +19,7 @@ public enum ConversationState {
     REGISTRO_NOMBRE,
     REGISTRO_APELLIDOS,
     REGISTRO_NACIMIENTO,
+    REGISTRO_SEXO,
     REGISTRO_CORREO,
     CERRADA(true),
     EXPIRADA(true);

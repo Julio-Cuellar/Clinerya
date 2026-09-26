@@ -142,14 +142,18 @@ class ConversationNewPatientTest {
         assertTrue(send(null, NewPatientRegistration.ACCEPT).text().contains("nombre"));
         assertTrue(send("  Juan  ").text().contains("apellidos"));
         assertTrue(send("Pérez López").text().contains("nacimiento"));
-        assertTrue(send("14/03/1990").text().contains("correo"));
+        OutboundReply askSex = send("14/03/1990");
+        assertTrue(askSex.text().contains("sexo"), askSex.text());
+        assertEquals(List.of(NewPatientRegistration.SEX_FEMALE, NewPatientRegistration.SEX_MALE,
+                NewPatientRegistration.SEX_OTHER), optionIds(askSex));
+        assertTrue(send(null, NewPatientRegistration.SEX_MALE).text().contains("correo"));
 
         OutboundReply reply = send("juan@correo.com");
 
         assertEquals(1, registrations.registered.size());
         PatientRegistrationPort.NewPatient patient = registrations.registered.get(0);
         assertEquals(new PatientRegistrationPort.NewPatient(clinicId, "Juan", "Pérez", "López", LocalDate.of(1990, 3, 14),
-                NEW_PHONE, "juan@correo.com", FakeRegistrations.CONSENT_VERSION), patient);
+                PatientRegistrationPort.Sex.MALE, NEW_PHONE, "juan@correo.com", FakeRegistrations.CONSENT_VERSION), patient);
         assertEquals(registrations.lastId, current().patientId());
         assertEquals("Juan Pérez", current().patientName());
         assertEquals(ConversationState.ELEGIR_MEDICO, current().state(), "sigue la cita como cualquier paciente");
@@ -178,7 +182,20 @@ class ConversationNewPatientTest {
             assertTrue(reply.text().contains("dd/mm/aaaa"), reply.text());
         }
         send("1-3-1990");
-        assertEquals(ConversationState.REGISTRO_CORREO, current().state(), "acepta guiones y un solo digito");
+        assertEquals(ConversationState.REGISTRO_SEXO, current().state(), "acepta guiones y un solo digito");
+    }
+
+    @Test
+    void theSexIsChosenWithButtonsOnly() {
+        registerUpTo("Pérez López");
+        send("14/03/1990");
+
+        OutboundReply reply = send("masculino");
+
+        assertEquals(ConversationState.REGISTRO_SEXO, current().state(), "texto libre no cuenta: solo botones");
+        assertEquals(3, reply.options().size());
+        send(null, NewPatientRegistration.SEX_FEMALE);
+        assertEquals(ConversationState.REGISTRO_CORREO, current().state());
     }
 
     @Test
@@ -196,6 +213,7 @@ class ConversationNewPatientTest {
     void compoundSurnamesAreKeptTogether() {
         registerUpTo("de la Cruz Pérez");
         send("14/03/1990");
+        send(null, NewPatientRegistration.SEX_FEMALE);
         send(null, NewPatientRegistration.NO_EMAIL);
 
         assertEquals("de la Cruz", registrations.registered.get(0).lastNamePaterno());
@@ -206,6 +224,7 @@ class ConversationNewPatientTest {
     void aSingleSurnameIsEnough() {
         registerUpTo("Pérez");
         send("14/03/1990");
+        send(null, NewPatientRegistration.SEX_OTHER);
         send(null, NewPatientRegistration.NO_EMAIL);
 
         assertEquals("Pérez", registrations.registered.get(0).lastNamePaterno());
@@ -248,6 +267,7 @@ class ConversationNewPatientTest {
     private void registerUpToEmail() {
         registerUpTo("Pérez López");
         send("14/03/1990");
+        send(null, NewPatientRegistration.SEX_FEMALE);
     }
 
     private OutboundReply send(String text) {

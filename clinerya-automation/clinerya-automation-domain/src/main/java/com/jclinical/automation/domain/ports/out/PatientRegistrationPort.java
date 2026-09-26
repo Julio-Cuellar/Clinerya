@@ -18,5 +18,8 @@ public interface PatientRegistrationPort {
     record ConsentText(String version, String text) {}
 
     record NewPatient(UUID clinicId, String firstName, String lastNamePaterno, String lastNameMaterno,
-                      LocalDate dateOfBirth, String phone, String email, String consentVersion) {}
+                      LocalDate dateOfBirth, Sex sex, String phone, String email, String consentVersion) {}
+
+    /** Sexo que el paciente eligio con botones (la ficha del paciente lo exige). */
+    enum Sex { FEMALE, MALE, OTHER }
 }

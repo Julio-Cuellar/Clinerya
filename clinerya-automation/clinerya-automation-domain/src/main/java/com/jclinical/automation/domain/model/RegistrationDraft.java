@@ -1,5 +1,7 @@
 package com.jclinical.automation.domain.model;
 
+import com.jclinical.automation.domain.ports.out.PatientRegistrationPort;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -10,4 +12,4 @@ import java.util.UUID;
  */
 public record RegistrationDraft(UUID conversationId, UUID clinicId, String consentVersion, String firstName,
                                 String lastNamePaterno, String lastNameMaterno, LocalDate dateOfBirth,
-                                LocalDateTime updatedAt) {}
+                                PatientRegistrationPort.Sex sex, LocalDateTime updatedAt) {}
