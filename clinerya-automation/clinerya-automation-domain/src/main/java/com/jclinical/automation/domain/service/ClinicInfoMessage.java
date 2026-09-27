@@ -14,7 +14,7 @@ import java.util.Objects;
  * Arma el mensaje de "Informacion de la clinica" con los datos tal como estan en Clinerya. Lo que
  * falta no se menciona; el horario agrupa dias seguidos iguales ("Lunes a viernes: 09:00 a 18:00").
  */
-final class ClinicInfoMessage {
+public final class ClinicInfoMessage {
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final List<String> DAY_NAMES =
@@ -43,7 +43,7 @@ final class ClinicInfoMessage {
         }
     }
 
-    private static List<String> scheduleLines(List<OpeningHours> hours) {
+    public static List<String> scheduleLines(List<OpeningHours> hours) {
         List<OpeningHours> week = hours.stream().sorted(Comparator.comparing(OpeningHours::day)).toList();
         List<String> lines = new ArrayList<>();
         int from = 0;

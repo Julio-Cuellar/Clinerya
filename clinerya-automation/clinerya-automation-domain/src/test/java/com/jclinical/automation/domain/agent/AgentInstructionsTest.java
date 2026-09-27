@@ -47,13 +47,13 @@ class AgentInstructionsTest {
     @Test
     void itKnowsTodayAndWhoIsWriting() {
         AgentPersona persona = new AgentPersona("Clínica Sonrisa", null, null);
-        LocalDateTime saturdayNight = LocalDateTime.of(2026, 9, 27, 21, 0);
+        LocalDateTime sundayNight = LocalDateTime.of(2026, 9, 27, 21, 0);
 
-        String registered = AgentInstructions.build(persona, saturdayNight, List.of("Ana López"));
-        String family = AgentInstructions.build(persona, saturdayNight, List.of("Ana López", "Luis López"));
-        String unknown = AgentInstructions.build(persona, saturdayNight, List.of());
+        String registered = AgentInstructions.build(persona, sundayNight, List.of("Ana López"));
+        String family = AgentInstructions.build(persona, sundayNight, List.of("Ana López", "Luis López"));
+        String unknown = AgentInstructions.build(persona, sundayNight, List.of());
 
-        assertTrue(registered.contains("sábado 27 de septiembre de 2026"), registered);
+        assertTrue(registered.contains("domingo 27 de septiembre de 2026"), registered);
         assertTrue(registered.contains("21:00"), registered);
         assertTrue(registered.contains("Ana López"), registered);
         assertTrue(family.contains("Luis López") && family.contains(AgentInstructions.SEVERAL_PATIENTS), family);

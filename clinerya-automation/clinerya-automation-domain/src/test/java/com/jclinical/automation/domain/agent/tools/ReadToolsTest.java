@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ReadToolsTest {
 
-    /** Sabado 27/09/2026 21:00. */
+    /** Domingo 27/09/2026 21:00. */
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 27, 21, 0);
 
     private final UUID clinicId = UUID.randomUUID();

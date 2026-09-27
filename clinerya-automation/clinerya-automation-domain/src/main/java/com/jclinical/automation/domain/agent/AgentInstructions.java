@@ -1,6 +1,9 @@
 package com.jclinical.automation.domain.agent;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Instruccion de sistema del agente. El tono de la clinica entra como preferencia de estilo; las
@@ -31,7 +34,32 @@ public final class AgentInstructions {
             "Cuando haya que elegir entre opciones (médicos, horarios, citas), escribe una frase breve que las introduzca; "
                     + "las opciones aparecen solas como lista o botones, no las enumeres.");
 
+    public static final String NOT_REGISTERED = "Quien escribe todavía no está registrado como paciente de la clínica.";
+    public static final String SEVERAL_PATIENTS = "Si hace falta saber de quién se trata, pregúntalo con naturalidad.";
+
+    private static final Locale SPANISH = Locale.forLanguageTag("es-MX");
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy", SPANISH);
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+
     private AgentInstructions() {
+    }
+
+    /** Con el contexto del turno: fecha y hora de la clinica y quien escribe (nombres de pacientes con ese celular). */
+    public static String build(AgentPersona persona, LocalDateTime now, List<String> patientNames) {
+        StringBuilder context = new StringBuilder("\n\nHoy es ").append(DATE.format(now)).append(" y son las ")
+                .append(TIME.format(now)).append(" en la clínica.\n");
+        if (patientNames.isEmpty()) {
+            context.append(NOT_REGISTERED);
+        } else if (patientNames.size() == 1) {
+            context.append("Quien escribe está registrado como paciente: ").append(patientNames.getFirst())
+                    .append(". Llámale por su nombre de pila.");
+        } else {
+            context.append("Este celular está registrado para varios pacientes: ").append(String.join(", ", patientNames))
+                    .append(". ").append(SEVERAL_PATIENTS);
+        }
+        String base = build(persona);
+        int rules = base.indexOf("\n\nReglas que siempre mandan");
+        return base.substring(0, rules) + context + base.substring(rules);
     }
 
     public static String build(AgentPersona persona) {

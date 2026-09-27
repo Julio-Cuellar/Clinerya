@@ -67,8 +67,9 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         List<PatientContact> contacts = patients.findByPhone(message.clinicId(), message.fromPhone());
         ToolContext context = new ToolContext(message.clinicId(), conversation.id(), message.fromPhone(), contacts,
                 conversation.offeredOptions(), now);
-        AgentOutcome outcome = agent.run(context, AgentInstructions.build(personas.apply(message.clinicId())),
-                transcript(message, conversation));
+        String instructions = AgentInstructions.build(personas.apply(message.clinicId()), now,
+                contacts.stream().map(PatientContact::displayName).toList());
+        AgentOutcome outcome = agent.run(context, instructions, transcript(message, conversation));
 
         int misunderstood = outcome.notUnderstood() ? conversation.unrecognizedCount() + 1 : 0;
         boolean tooManyMisunderstandings = misunderstood >= MAX_NOT_UNDERSTOOD;
