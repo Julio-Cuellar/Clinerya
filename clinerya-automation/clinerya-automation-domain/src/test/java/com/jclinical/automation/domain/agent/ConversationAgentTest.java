@@ -175,6 +175,24 @@ class ConversationAgentTest {
         assertEquals(slots, outcome.options());
     }
 
+    @Test
+    void aVerbatimTextFromAToolGoesOutAsItsOwnLastBubbleWithItsButtons() {
+        List<ConversationOption> buttons = List.of(new ConversationOption("consentimiento:acepto", "Acepto"),
+                new ConversationOption("consentimiento:no", "No acepto"));
+        String official = "¿Autoriza a la clínica a contactarle?\n\nAviso de privacidad: https://sonrisa.mx/privacidad";
+        RecordingTool consent = new RecordingTool("pedir_consentimiento",
+                ToolOutcome.of(Map.of("enviado", true)).withOptions(buttons).withVerbatim(official));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "pedir_consentimiento", Map.of()))),
+                new ModelStep.Reply(List.of("¡Con gusto te registro! Antes necesito tu autorización:")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(consent)).run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("¡Con gusto te registro! Antes necesito tu autorización:", official), outcome.bubbles());
+        assertEquals(buttons, outcome.options());
+        assertFalse(outcome.handoff(), "el enlace del texto oficial no lo escribio el modelo");
+    }
+
     // ---- guarda de datos ---------------------------------------------------------------------
 
     @Test
