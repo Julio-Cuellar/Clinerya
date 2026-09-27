@@ -5,6 +5,7 @@ import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
 import com.jclinical.treatments.domain.model.TreatmentCatalogSeeds;
 import com.jclinical.treatments.domain.ports.out.ClinicSpecialtyPort;
 import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase;
+import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort;
 import com.jclinical.treatments.domain.ports.out.InventoryMaterialPort.MaterialSnapshot;
 import com.jclinical.treatments.domain.ports.out.TreatmentCatalogRepositoryPort;
@@ -23,7 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
+public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, PublicTreatmentCatalogUseCase {
 
     private final TreatmentCatalogRepositoryPort catalogRepository;
     private final InventoryMaterialPort inventoryMaterialPort;
@@ -154,6 +155,15 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase {
         requirePermission(clinicId, actingUserId, StaffPermission.VIEW_TREATMENTS,
                 "No tienes permiso para consultar el catalogo de tratamientos de esta clinica.");
         return catalogRepository.findByClinicId(clinicId, includeInactive);
+    }
+
+    @Override
+    public List<PublicTreatment> activeTreatments(UUID clinicId) {
+        return catalogRepository.findByClinicId(clinicId, false).stream()
+                .filter(TreatmentCatalogItem::isActive)
+                .sorted(java.util.Comparator.comparing(item -> item.getName().toLowerCase(Locale.ROOT)))
+                .map(item -> new PublicTreatment(item.getName(), item.getCategory(), item.getDefaultPrice()))
+                .toList();
     }
 
     private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {

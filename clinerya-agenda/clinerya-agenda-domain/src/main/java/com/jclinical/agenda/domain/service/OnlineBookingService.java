@@ -1,6 +1,7 @@
 package com.jclinical.agenda.domain.service;
 
 import com.jclinical.agenda.domain.model.Appointment;
+import com.jclinical.agenda.domain.model.AppointmentStatus;
 import com.jclinical.agenda.domain.model.BookableSlot;
 import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.model.SlotHold;
@@ -130,6 +131,21 @@ public class OnlineBookingService implements OnlineBookingUseCase {
     @Override
     public Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId) {
         return staffValidator.staffIdOfUser(userId, clinicId);
+    }
+
+    @Override
+    public List<UpcomingAppointment> upcomingAppointments(UUID clinicId, UUID patientId, int limit) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        return appointments.findByPatientIdAndClinicId(patientId, clinicId).stream()
+                .filter(appointment -> appointment.getStatus() == AppointmentStatus.SCHEDULED
+                        || appointment.getStatus() == AppointmentStatus.CONFIRMED)
+                .filter(appointment -> appointment.getScheduledStart().isAfter(now))
+                .sorted(java.util.Comparator.comparing(Appointment::getScheduledStart))
+                .limit(Math.max(0, limit))
+                .map(appointment -> new UpcomingAppointment(appointment.getId(), appointment.getDoctorStaffId(),
+                        appointment.getScheduledStart(), appointment.getScheduledEnd(),
+                        appointment.getStatus() == AppointmentStatus.CONFIRMED))
+                .toList();
     }
 
     /**

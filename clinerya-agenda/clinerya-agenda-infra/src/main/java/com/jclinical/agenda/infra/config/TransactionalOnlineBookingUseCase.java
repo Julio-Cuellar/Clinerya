@@ -54,4 +54,10 @@ public class TransactionalOnlineBookingUseCase implements OnlineBookingUseCase {
     public Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId) {
         return onlineBookingService.doctorStaffIdOfUser(clinicId, userId);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UpcomingAppointment> upcomingAppointments(UUID clinicId, UUID patientId, int limit) {
+        return onlineBookingService.upcomingAppointments(clinicId, patientId, limit);
+    }
 }

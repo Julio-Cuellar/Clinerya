@@ -34,6 +34,17 @@ public interface OnlineBookingUseCase {
     /** Miembro del personal activo que corresponde al usuario en la clinica. */
     Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId);
 
+    /**
+     * Proximas citas vigentes (programadas o confirmadas) del paciente, la mas proxima primero. Ruta
+     * interna: quien pregunta es el paciente por WhatsApp, no un usuario del personal.
+     */
+    default List<UpcomingAppointment> upcomingAppointments(UUID clinicId, UUID patientId, int limit) {
+        throw new UnsupportedOperationException();
+    }
+
+    record UpcomingAppointment(UUID appointmentId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end,
+                               boolean confirmed) {}
+
     record HoldSlotCommand(UUID clinicId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end,
                            UUID reference, int holdMinutes) {}
 
