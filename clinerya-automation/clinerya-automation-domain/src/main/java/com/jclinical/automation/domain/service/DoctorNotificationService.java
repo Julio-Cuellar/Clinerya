@@ -56,6 +56,12 @@ public class DoctorNotificationService implements DoctorAlertPort, DoctorReplyPo
     }
 
     @Override
+    public void appointmentCancelled(UUID clinicId, UUID doctorStaffId, LocalDateTime start) {
+        channels.find(clinicId, doctorStaffId).filter(DoctorChannel::active).ifPresent(channel -> notices.enqueue(
+                notice(channel, "Se canceló la cita del " + SlotLabel.of(start) + " (la canceló el paciente por WhatsApp)")));
+    }
+
+    @Override
     public int remindPending() {
         LocalDateTime now = LocalDateTime.now(clock);
         int reminded = 0;

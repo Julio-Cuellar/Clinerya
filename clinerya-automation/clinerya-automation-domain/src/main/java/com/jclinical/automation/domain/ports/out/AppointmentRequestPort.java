@@ -34,8 +34,16 @@ public interface AppointmentRequestPort {
             LocalDateTime end,
             String patientPhone,
             String patientName,
-            String doctorName
-    ) {}
+            String doctorName,
+            /** La cita que esta solicitud reemplaza (reprogramar); se cancela cuando el medico aprueba. */
+            UUID replacesAppointmentId
+    ) {
+        public NewAppointmentRequest(UUID clinicId, UUID conversationId, UUID patientId, UUID doctorStaffId,
+                                     LocalDateTime start, LocalDateTime end, String patientPhone, String patientName,
+                                     String doctorName) {
+            this(clinicId, conversationId, patientId, doctorStaffId, start, end, patientPhone, patientName, doctorName, null);
+        }
+    }
 
     class SlotNoLongerAvailableException extends RuntimeException {
         public SlotNoLongerAvailableException() {

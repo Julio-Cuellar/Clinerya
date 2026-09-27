@@ -6,7 +6,9 @@ import com.jclinical.automation.domain.agent.ToolOutcome;
 import com.jclinical.automation.domain.agent.ToolSpec;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.PendingAction;
+import com.jclinical.automation.domain.ports.out.AppointmentCancellationPort;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort;
+import com.jclinical.automation.domain.ports.out.DoctorAlertPort;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.NewAppointmentRequest;
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.SlotNoLongerAvailableException;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
@@ -34,11 +36,16 @@ public final class ConfirmActionTool implements AgentTool {
     private final PendingActionPort pending;
     private final AppointmentRequestPort requests;
     private final ConversationRepositoryPort conversations;
+    private final AppointmentCancellationPort cancellation;
+    private final DoctorAlertPort alerts;
 
-    public ConfirmActionTool(PendingActionPort pending, AppointmentRequestPort requests, ConversationRepositoryPort conversations) {
+    public ConfirmActionTool(PendingActionPort pending, AppointmentRequestPort requests, ConversationRepositoryPort conversations,
+                             AppointmentCancellationPort cancellation, DoctorAlertPort alerts) {
         this.pending = pending;
         this.requests = requests;
         this.conversations = conversations;
+        this.cancellation = cancellation;
+        this.alerts = alerts;
     }
 
     @Override
@@ -61,18 +68,35 @@ public final class ConfirmActionTool implements AgentTool {
         if (action.proposedAt().plus(PROPOSAL_TTL).isBefore(context.now())) {
             return ToolOutcome.of(Map.of("error", "La propuesta venció; vuelve a proponer el horario."));
         }
-        if (action.kind() != PendingAction.Kind.BOOK) {
-            return ToolOutcome.of(Map.of("error", "Esa acción todavía no se puede hacer por aquí."));
-        }
+        return switch (action.kind()) {
+            case BOOK -> submit(context, action, null,
+                    "La cita queda en revisión del médico; el paciente recibirá la respuesta por este chat.");
+            case RESCHEDULE -> submit(context, action, action.appointmentId(),
+                    "La cita actual se conserva hasta que el médico apruebe el cambio; la respuesta llegará por este chat.");
+            case CANCEL -> cancel(context, action);
+            default -> ToolOutcome.of(Map.of("error", "No hay nada pendiente de confirmar."));
+        };
+    }
+
+    private ToolOutcome submit(ToolContext context, PendingAction action, UUID replaces, String note) {
         try {
             UUID requestId = requests.submit(new NewAppointmentRequest(context.clinicId(), context.conversationId(),
                     action.patientId(), action.doctorStaffId(), action.start(), action.end(), context.phone(),
-                    action.patientName(), action.doctorName()));
+                    action.patientName(), action.doctorName(), replaces));
             Conversations.setRequest(conversations, context.conversationId(), requestId);
         } catch (SlotNoLongerAvailableException taken) {
             return ToolOutcome.of(Map.of("error", "Ese horario se acaba de ocupar; hay que buscar otro."));
         }
-        return ToolOutcome.of(Map.of("solicitud_enviada", true,
-                "nota", "La cita queda en revisión del médico; el paciente recibirá la respuesta por este chat."));
+        return ToolOutcome.of(Map.of("solicitud_enviada", true, "nota", note));
+    }
+
+    private ToolOutcome cancel(ToolContext context, PendingAction action) {
+        try {
+            cancellation.cancel(context.clinicId(), action.appointmentId(), action.patientId(), action.note());
+        } catch (AppointmentCancellationPort.NotCancellableException gone) {
+            return ToolOutcome.of(Map.of("error", "Esa cita ya no se puede cancelar por aquí."));
+        }
+        alerts.appointmentCancelled(context.clinicId(), action.doctorStaffId(), action.start());
+        return ToolOutcome.of(Map.of("cita_cancelada", true));
     }
 }

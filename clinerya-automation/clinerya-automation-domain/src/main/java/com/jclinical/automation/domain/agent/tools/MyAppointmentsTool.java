@@ -4,6 +4,7 @@ import com.jclinical.automation.domain.agent.AgentTool;
 import com.jclinical.automation.domain.agent.ToolContext;
 import com.jclinical.automation.domain.agent.ToolOutcome;
 import com.jclinical.automation.domain.agent.ToolSpec;
+import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort.DoctorContact;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort;
@@ -34,7 +35,9 @@ public final class MyAppointmentsTool implements AgentTool {
 
     @Override
     public ToolSpec spec() {
-        return new ToolSpec(NAME, "Próximas citas del paciente que escribe: fecha, hora, médico y si ya está confirmada.", List.of());
+        return new ToolSpec(NAME, "Próximas citas del paciente que escribe: id, fecha, hora, médico y si ya está confirmada.",
+                List.of(new ToolSpec.Parameter("para", "string",
+                        "cancelar o reprogramar, si el paciente quiere cambiar una cita (muestra la lista para elegir).", false)));
     }
 
     @Override
@@ -45,12 +48,15 @@ public final class MyAppointmentsTool implements AgentTool {
         Map<UUID, String> doctorNames = doctors.listDoctors(context.clinicId()).stream()
                 .collect(Collectors.toMap(DoctorContact::staffId, DoctorContact::displayName, (first, second) -> first));
         List<Map<String, Object>> visits = new ArrayList<>();
+        List<ConversationOption> choices = new ArrayList<>();
         List<String> facts = new ArrayList<>();
         for (PatientContact patient : context.patients()) {
             for (UpcomingVisit visit : appointments.upcoming(context.clinicId(), patient.patientId(), PER_PATIENT)) {
                 String date = SlotLabel.of(visit.start());
                 String doctor = doctorNames.getOrDefault(visit.doctorStaffId(), "tu médico");
                 Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", OwnAppointments.PREFIX + visit.appointmentId());
+                choices.add(new ConversationOption(OwnAppointments.PREFIX + visit.appointmentId(), date + " · " + doctor));
                 row.put("paciente", patient.displayName());
                 row.put("fecha", date);
                 row.put("medico", doctor);
@@ -63,6 +69,8 @@ public final class MyAppointmentsTool implements AgentTool {
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("paciente_registrado", true);
         content.put("citas", List.copyOf(visits));
-        return new ToolOutcome(content, List.of(), facts);
+        String purpose = ToolArgs.normalize(ToolArgs.text(arguments, "para"));
+        boolean choosing = (purpose.equals("cancelar") || purpose.equals("reprogramar")) && choices.size() > 1;
+        return new ToolOutcome(content, choosing ? choices : List.of(), facts);
     }
 }

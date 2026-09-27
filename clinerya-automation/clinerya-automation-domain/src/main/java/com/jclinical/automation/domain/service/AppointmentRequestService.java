@@ -58,6 +58,29 @@ public class AppointmentRequestService
         this.clock = clock;
     }
 
+    /** Por omision no cancela nada (motor anterior sin reprogramacion); el agente conecta la agenda. */
+    private com.jclinical.automation.domain.ports.out.AppointmentCancellationPort cancellation = (clinic, appointment, patient, reason) -> { };
+
+    public void setAppointmentCancellation(com.jclinical.automation.domain.ports.out.AppointmentCancellationPort cancellation) {
+        this.cancellation = cancellation;
+    }
+
+    /**
+     * Reprogramar: cuando la nueva cita queda agendada, la original se cancela. Si la original ya no se
+     * puede cancelar (ya paso o ya estaba cancelada), la nueva cita sigue en pie: no hay nada que deshacer.
+     */
+    private void cancelReplaced(AppointmentRequest request, LocalDateTime newStart) {
+        if (request.replacesAppointmentId() == null) {
+            return;
+        }
+        try {
+            cancellation.cancel(request.clinicId(), request.replacesAppointmentId(), request.patientId(),
+                    "reprogramada al " + SlotLabel.of(newStart));
+        } catch (com.jclinical.automation.domain.ports.out.AppointmentCancellationPort.NotCancellableException alreadyGone) {
+            // La original ya no estaba vigente; la nueva cita es la que cuenta.
+        }
+    }
+
     // ---- paciente ---------------------------------------------------------------------------
 
     @Override
@@ -68,7 +91,7 @@ public class AppointmentRequestService
         AppointmentRequest saved = requests.save(new AppointmentRequest(requestId, request.clinicId(),
                 request.conversationId(), request.patientId(), request.patientName(), request.patientPhone(),
                 request.doctorStaffId(), request.doctorName(), request.start(), request.end(), holdId, Status.PENDING,
-                List.of(), null, null, now(), null));
+                List.of(), null, null, now(), null, request.replacesAppointmentId()));
         alerts.newRequest(saved);
         return requestId;
     }
@@ -89,6 +112,7 @@ public class AppointmentRequestService
                 .filter(option -> !option.holdId().equals(chosen.holdId()))
                 .forEach(option -> booking.release(clinicId, option.holdId()));
         requests.save(request.booked(appointmentId, now()));
+        cancelReplaced(request, start);
         return appointmentId;
     }
 
@@ -134,6 +158,7 @@ public class AppointmentRequestService
             throw new IllegalStateException(refused.getMessage());
         }
         AppointmentRequest booked = requests.save(request.booked(appointmentId, now()));
+        cancelReplaced(request, request.start());
         publish(booked, Outcome.BOOKED, List.of());
         return booked;
     }
