@@ -9,6 +9,10 @@ public enum ConversationState {
     IDENTIFICANDO,
     ELEGIR_PACIENTE,
     MENU,
+    /** Conversacion conducida por el agente: texto libre, listas o botones cuando hay que elegir. */
+    CONVERSANDO,
+    /** Una persona de la clinica atiende el chat; el agente no contesta. */
+    ATENCION_HUMANA,
     ELEGIR_MEDICO,
     ELEGIR_CUPO,
     ESPERANDO_MEDICO,

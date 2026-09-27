@@ -1,0 +1,143 @@
+package com.jclinical.automation.domain.agent;
+
+import com.jclinical.automation.domain.agent.AgentMessage.Assistant;
+import com.jclinical.automation.domain.agent.AgentMessage.User;
+import com.jclinical.automation.domain.model.ChatMessage;
+import com.jclinical.automation.domain.model.Conversation;
+import com.jclinical.automation.domain.model.ConversationOption;
+import com.jclinical.automation.domain.model.ConversationState;
+import com.jclinical.automation.domain.model.InboundMessage;
+import com.jclinical.automation.domain.model.OutboundReply;
+import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
+import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
+import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
+import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
+import com.jclinical.automation.domain.ports.out.PatientDirectoryPort.PatientContact;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
+
+/**
+ * La conversacion con el paciente conducida por el agente. El codigo guarda lo minimo: las opciones
+ * ofrecidas (para validar lo que se toque), cuantas veces seguidas no se entendio (3: pasa a una
+ * persona) y si el chat esta en atencion humana (el agente calla). La memoria es el propio chat.
+ */
+public final class AgentConversationService implements HandleInboundMessageUseCase {
+
+    public static final int MAX_NOT_UNDERSTOOD = 3;
+    public static final String HANDOFF_REPLY = "Perdona, no logro entenderte bien por aquí. "
+            + "Ya le avisé a alguien de la clínica para que te atienda en este mismo chat.";
+    public static final String STALE_OPTION = "(esa opción ya no está vigente)";
+
+    static final Duration IDLE_TIMEOUT = Duration.ofMinutes(30);
+    static final Duration MEMORY = Duration.ofHours(12);
+    static final int MEMORY_MESSAGES = 20;
+
+    private final ConversationRepositoryPort conversations;
+    private final ChatHistoryPort history;
+    private final PatientDirectoryPort patients;
+    private final Function<UUID, AgentPersona> personas;
+    private final ConversationAgent agent;
+    private final Clock clock;
+
+    public AgentConversationService(ConversationRepositoryPort conversations, ChatHistoryPort history,
+                                    PatientDirectoryPort patients, Function<UUID, AgentPersona> personas,
+                                    ConversationAgent agent, Clock clock) {
+        this.conversations = conversations;
+        this.history = history;
+        this.patients = patients;
+        this.personas = personas;
+        this.agent = agent;
+        this.clock = clock;
+    }
+
+    @Override
+    public List<OutboundReply> handle(InboundMessage message) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        Conversation conversation = activeOrNew(message.clinicId(), message.fromPhone(), now);
+        if (conversation.state() == ConversationState.ATENCION_HUMANA) {
+            return List.of();
+        }
+        List<PatientContact> contacts = patients.findByPhone(message.clinicId(), message.fromPhone());
+        ToolContext context = new ToolContext(message.clinicId(), conversation.id(), message.fromPhone(), contacts,
+                conversation.offeredOptions(), now);
+        AgentOutcome outcome = agent.run(context, AgentInstructions.build(personas.apply(message.clinicId())),
+                transcript(message, conversation));
+
+        int misunderstood = outcome.notUnderstood() ? conversation.unrecognizedCount() + 1 : 0;
+        boolean tooManyMisunderstandings = misunderstood >= MAX_NOT_UNDERSTOOD;
+        boolean handoff = outcome.handoff() || tooManyMisunderstandings;
+        List<String> bubbles = tooManyMisunderstandings && !outcome.handoff() ? List.of(HANDOFF_REPLY) : outcome.bubbles();
+        List<ConversationOption> options = handoff ? List.of() : outcome.options();
+        conversations.save(copy(conversation, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
+                options, handoff ? 0 : misunderstood, now));
+        return replies(bubbles, options);
+    }
+
+    /** Tras 30 min sin actividad empieza una conversacion nueva (la memoria del chat se conserva). */
+    private Conversation activeOrNew(UUID clinicId, String phone, LocalDateTime now) {
+        Optional<Conversation> active = conversations.findActive(clinicId, phone);
+        if (active.isPresent()) {
+            Conversation conversation = active.get();
+            boolean idle = conversation.lastActivityAt().plus(IDLE_TIMEOUT).isBefore(now);
+            if (conversation.state() == ConversationState.ATENCION_HUMANA || !idle) {
+                return conversation;
+            }
+            conversations.save(copy(conversation, ConversationState.EXPIRADA, List.of(), conversation.unrecognizedCount(),
+                    conversation.lastActivityAt()));
+        }
+        return conversations.save(new Conversation(UUID.randomUUID(), clinicId, phone, ConversationState.CONVERSANDO,
+                null, null, null, null, null, List.of(), 0, now, now));
+    }
+
+    /** Lo reciente del chat (hasta 12 h, 20 mensajes), del mas antiguo al mas nuevo, y el mensaje actual. */
+    private List<AgentMessage> transcript(InboundMessage message, Conversation conversation) {
+        LocalDateTime since = message.receivedAt().minus(MEMORY);
+        List<ChatMessage> recent = new ArrayList<>(history.findMessages(message.clinicId(), message.fromPhone(),
+                message.receivedAt(), MEMORY_MESSAGES));
+        java.util.Collections.reverse(recent);
+        List<AgentMessage> transcript = new ArrayList<>();
+        for (ChatMessage past : recent) {
+            if (past.at().isBefore(since) || past.text() == null || past.text().isBlank()) {
+                continue;
+            }
+            transcript.add(past.direction() == ChatMessage.Direction.INBOUND ? new User(past.text()) : new Assistant(past.text()));
+        }
+        transcript.add(new User(current(message, conversation)));
+        return List.copyOf(transcript);
+    }
+
+    /** Una opcion tocada llega con su etiqueta y su id; si ya no esta vigente, se dice asi. */
+    private static String current(InboundMessage message, Conversation conversation) {
+        if (message.selectedOptionId() == null) {
+            return message.text() == null ? "" : message.text();
+        }
+        return conversation.offeredOptions().stream().filter(option -> option.id().equals(message.selectedOptionId()))
+                .findFirst()
+                .map(option -> "Elegí \"" + option.label() + "\" [opción " + option.id() + "]")
+                .orElse("Elegí una opción " + STALE_OPTION + " [opción " + message.selectedOptionId() + "]");
+    }
+
+    /** Cada burbuja es un mensaje; las opciones viajan con la ultima (lista o botones de WhatsApp). */
+    private static List<OutboundReply> replies(List<String> bubbles, List<ConversationOption> options) {
+        List<OutboundReply> replies = new ArrayList<>();
+        for (int i = 0; i < bubbles.size(); i++) {
+            boolean last = i == bubbles.size() - 1;
+            replies.add(new OutboundReply(bubbles.get(i), last ? options : List.of()));
+        }
+        return List.copyOf(replies);
+    }
+
+    private static Conversation copy(Conversation conversation, ConversationState state, List<ConversationOption> options,
+                                     int unrecognized, LocalDateTime lastActivity) {
+        return new Conversation(conversation.id(), conversation.clinicId(), conversation.phone(), state,
+                conversation.patientId(), conversation.patientName(), conversation.doctorStaffId(), conversation.doctorName(),
+                conversation.requestId(), options, unrecognized, conversation.createdAt(), lastActivity);
+    }
+}
