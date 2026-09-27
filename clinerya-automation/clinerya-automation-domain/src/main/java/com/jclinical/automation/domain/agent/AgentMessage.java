@@ -12,6 +12,9 @@ public sealed interface AgentMessage {
 
     record Assistant(String text) implements AgentMessage {}
 
+    /** Aviso del codigo al modelo dentro del turno (por ejemplo, corregir un dato no respaldado). Nunca lo ve el paciente. */
+    record Note(String text) implements AgentMessage {}
+
     /** El modelo pide usar una herramienta. Sus argumentos nunca deciden de quien son los datos. */
     record ToolCall(String id, String name, Map<String, Object> arguments) implements AgentMessage {
         public ToolCall {

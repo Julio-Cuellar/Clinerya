@@ -22,6 +22,8 @@ public final class ConversationAgent {
     public static final int MAX_BUBBLES = 3;
     public static final String UNAVAILABLE_REPLY = "Perdona, en este momento no puedo responderte bien. "
             + "Ya le avisé a alguien de la clínica para que te atienda por este mismo chat.";
+    public static final String UNVERIFIED_REPLY = "Perdona, prefiero no darte un dato que no pude confirmar. "
+            + "Ya le pedí a alguien de la clínica que te lo confirme por este mismo chat.";
 
     /** Una falla se reintenta en silencio; la segunda ya se le dice al paciente. */
     private static final int MAX_FAILURES = 2;
@@ -43,8 +45,10 @@ public final class ConversationAgent {
         List<AgentMessage> working = new ArrayList<>(transcript);
         List<ToolSpec> specs = specs();
         List<ConversationOption> options = List.of();
+        List<String> facts = new ArrayList<>();
         boolean notUnderstood = false;
         boolean handoff = false;
+        boolean corrected = false;
         int failures = 0;
         for (int step = 0; step < MAX_STEPS; step++) {
             ModelStep next = ask(context, systemInstruction, working, specs);
@@ -62,6 +66,7 @@ public final class ConversationAgent {
                         if (!outcome.options().isEmpty()) {
                             options = outcome.options();
                         }
+                        facts.addAll(outcome.facts());
                         working.add(new ToolResult(toolCall.id(), toolCall.name(), outcome.content()));
                     }
                 }
@@ -69,7 +74,19 @@ public final class ConversationAgent {
             }
             List<String> bubbles = next instanceof ModelStep.Reply reply ? bubbles(reply.bubbles()) : List.of();
             if (!bubbles.isEmpty()) {
-                return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
+                List<String> invented = GroundingGuard.inventedFigures(String.join("\n", bubbles),
+                        trusted(systemInstruction, working, facts), patientSaid(working));
+                if (invented.isEmpty()) {
+                    return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
+                }
+                if (corrected) {
+                    return new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, true, false);
+                }
+                corrected = true;
+                working.add(new AgentMessage.Note("Tu respuesta incluía datos que no vienen de lo que consultaste ni de "
+                        + "la conversación: " + String.join(", ", invented) + ". Vuelve a escribirla usando solo datos "
+                        + "consultados; si no los tienes, consúltalos con una herramienta o di que lo verificas."));
+                continue;
             }
             if (++failures >= MAX_FAILURES) {
                 return unavailable();
@@ -98,6 +115,24 @@ public final class ConversationAgent {
             // El detalle tecnico no viaja al modelo (ni, por el, al paciente).
             return ToolOutcome.of(Map.of("error", "No se pudo completar la consulta en este momento."));
         }
+    }
+
+    /** Fuentes de confianza: la instruccion (fecha, clinica), lo que ya dijo la clinica y lo consultado. */
+    private static List<String> trusted(String systemInstruction, List<AgentMessage> working, List<String> facts) {
+        List<String> sources = new ArrayList<>(facts);
+        sources.add(systemInstruction);
+        for (AgentMessage message : working) {
+            if (message instanceof AgentMessage.Assistant assistant) {
+                sources.add(assistant.text());
+            } else if (message instanceof ToolResult result) {
+                sources.add(String.valueOf(result.content()));
+            }
+        }
+        return sources;
+    }
+
+    private static List<String> patientSaid(List<AgentMessage> working) {
+        return working.stream().filter(AgentMessage.User.class::isInstance).map(message -> ((AgentMessage.User) message).text()).toList();
     }
 
     private List<ToolSpec> specs() {
