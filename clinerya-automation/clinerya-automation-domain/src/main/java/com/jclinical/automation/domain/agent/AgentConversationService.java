@@ -65,8 +65,11 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
             return List.of();
         }
         List<PatientContact> contacts = patients.findByPhone(message.clinicId(), message.fromPhone());
+        // Las herramientas que dependen de lo que respondio el paciente (aceptar la autorizacion) leen su
+        // mensaje real, no la interpretacion del modelo.
+        String patientMessage = message.selectedOptionId() != null ? message.selectedOptionId() : message.text();
         ToolContext context = new ToolContext(message.clinicId(), conversation.id(), message.fromPhone(), contacts,
-                conversation.offeredOptions(), now);
+                conversation.offeredOptions(), now, patientMessage);
         String instructions = AgentInstructions.build(personas.apply(message.clinicId()), now,
                 contacts.stream().map(PatientContact::displayName).toList(), conversation.offeredOptions());
         AgentOutcome outcome = agent.run(context, instructions, transcript(message, conversation));

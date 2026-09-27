@@ -14,6 +14,10 @@ public record PendingAction(UUID conversationId, Kind kind, UUID patientId, Stri
     public enum Kind {
         BOOK,
         CANCEL,
-        RESCHEDULE
+        RESCHEDULE,
+        /** Se le mostro la autorizacion de contacto; falta su respuesta. */
+        CONSENT,
+        /** El paciente acepto la autorizacion; se puede registrar. */
+        CONSENT_ACCEPTED
     }
 }

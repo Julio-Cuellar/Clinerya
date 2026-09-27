@@ -103,6 +103,14 @@ public final class SlotsTool implements AgentTool {
         return new ToolOutcome(content, options, facts);
     }
 
+    /** Horario de una opcion "slot:medico|inicio|fin". */
+    record ChosenSlot(UUID doctorId, LocalDateTime start, LocalDateTime end) {}
+
+    static ChosenSlot parse(String optionId) {
+        String[] parts = optionId.substring(OPTION_PREFIX.length()).split("[|]");
+        return new ChosenSlot(UUID.fromString(parts[0]), LocalDateTime.parse(parts[1]), LocalDateTime.parse(parts[2]));
+    }
+
     private static UUID parseId(String requested) {
         String raw = requested.startsWith(DoctorsTool.OPTION_PREFIX)
                 ? requested.substring(DoctorsTool.OPTION_PREFIX.length()) : requested;

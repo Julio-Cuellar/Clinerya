@@ -216,7 +216,7 @@ public class NewPatientRegistration {
 
     // ---- validacion ---------------------------------------------------------------------------
 
-    static Optional<String> cleanName(String text) {
+    public static Optional<String> cleanName(String text) {
         if (text == null) {
             return Optional.empty();
         }
@@ -228,7 +228,7 @@ public class NewPatientRegistration {
     }
 
     /** Apellidos en orden; las particulas se unen al apellido que sigue ("de la Cruz"). */
-    static List<String> splitSurnames(String text) {
+    public static List<String> splitSurnames(String text) {
         Optional<String> clean = cleanName(text);
         if (clean.isEmpty()) {
             return List.of();
@@ -249,7 +249,7 @@ public class NewPatientRegistration {
     }
 
     /** dd/mm/aaaa (tambien con - o .); una fecha que existe, no futura y de hace menos de 120 anos. */
-    static Optional<LocalDate> parseBirthDate(String text, LocalDate today) {
+    public static Optional<LocalDate> parseBirthDate(String text, LocalDate today) {
         if (text == null) {
             return Optional.empty();
         }

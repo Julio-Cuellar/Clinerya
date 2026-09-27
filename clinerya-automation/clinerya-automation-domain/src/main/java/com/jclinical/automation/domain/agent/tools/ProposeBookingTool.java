@@ -62,10 +62,10 @@ public final class ProposeBookingTool implements AgentTool {
                     .withOptions(context.patients().stream()
                             .map(p -> new ConversationOption(PATIENT_PREFIX + p.patientId(), p.displayName())).toList());
         }
-        String[] parts = offered.get().id().substring(SlotsTool.OPTION_PREFIX.length()).split("[|]");
-        UUID doctorId = UUID.fromString(parts[0]);
-        LocalDateTime start = LocalDateTime.parse(parts[1]);
-        LocalDateTime end = LocalDateTime.parse(parts[2]);
+        SlotsTool.ChosenSlot slot = SlotsTool.parse(offered.get().id());
+        UUID doctorId = slot.doctorId();
+        LocalDateTime start = slot.start();
+        LocalDateTime end = slot.end();
         String doctorName = doctors.listDoctors(context.clinicId()).stream().filter(d -> d.staffId().equals(doctorId))
                 .map(DoctorContact::displayName).findFirst().orElse("tu médico");
         pending.save(new PendingAction(context.conversationId(), PendingAction.Kind.BOOK, patient.get().patientId(),

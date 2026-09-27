@@ -46,6 +46,8 @@ public final class ConversationAgent {
         List<ToolSpec> specs = specs();
         List<ConversationOption> options = List.of();
         List<String> facts = new ArrayList<>();
+        String verbatim = null;
+        List<ConversationOption> verbatimOptions = List.of();
         boolean notUnderstood = false;
         boolean handoff = false;
         boolean corrected = false;
@@ -67,6 +69,10 @@ public final class ConversationAgent {
                             options = outcome.options();
                         }
                         facts.addAll(outcome.facts());
+                        if (outcome.verbatim() != null && !outcome.verbatim().isBlank()) {
+                            verbatim = outcome.verbatim();
+                            verbatimOptions = outcome.options();
+                        }
                         working.add(new ToolResult(toolCall.id(), toolCall.name(), outcome.content()));
                     }
                 }
@@ -77,7 +83,13 @@ public final class ConversationAgent {
                 List<String> invented = GroundingGuard.inventedFigures(String.join("\n", bubbles),
                         trusted(systemInstruction, working, facts), patientSaid(working));
                 if (invented.isEmpty()) {
-                    return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
+                    if (verbatim == null) {
+                        return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
+                    }
+                    // El texto oficial lo escribe el codigo: va tal cual como ultima burbuja, con sus botones.
+                    List<String> withVerbatim = new ArrayList<>(bubbles);
+                    withVerbatim.add(verbatim);
+                    return new AgentOutcome(withVerbatim, verbatimOptions, notUnderstood, handoff, false);
                 }
                 if (corrected) {
                     return new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, true, false);
