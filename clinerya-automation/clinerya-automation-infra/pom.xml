@@ -30,6 +30,10 @@
             <artifactId>clinerya-agenda-domain</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.jclinical</groupId>
+            <artifactId>clinerya-treatments-domain</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
