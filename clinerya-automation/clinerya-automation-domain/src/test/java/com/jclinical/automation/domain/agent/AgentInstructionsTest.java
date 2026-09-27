@@ -1,5 +1,6 @@
 package com.jclinical.automation.domain.agent;
 
+import com.jclinical.automation.domain.model.ConversationOption;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -58,6 +59,14 @@ class AgentInstructionsTest {
         assertTrue(registered.contains("Ana López"), registered);
         assertTrue(family.contains("Luis López") && family.contains(AgentInstructions.SEVERAL_PATIENTS), family);
         assertTrue(unknown.contains(AgentInstructions.NOT_REGISTERED), unknown);
+    }
+
+    @Test
+    void theOptionsInViewAreListedWithTheirIdsSoTypedAnswersCanBeMatched() {
+        String text = AgentInstructions.build(new AgentPersona("Clínica Sonrisa", null, null), LocalDateTime.of(2026, 9, 27, 21, 0),
+                List.of(), List.of(new ConversationOption("slot:abc|2026-10-01T16:00|2026-10-01T16:30", "Jue 01/10 16:00")));
+
+        assertTrue(text.contains("Jue 01/10 16:00") && text.contains("slot:abc|2026-10-01T16:00|2026-10-01T16:30"), text);
     }
 
     @Test

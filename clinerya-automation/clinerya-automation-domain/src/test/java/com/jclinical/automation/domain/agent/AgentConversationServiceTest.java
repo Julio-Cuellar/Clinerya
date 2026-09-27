@@ -97,6 +97,28 @@ class AgentConversationServiceTest {
     }
 
     @Test
+    void whatAToolSavesInTheConversationIsNotOverwrittenByTheTurn() {
+        UUID requestId = UUID.randomUUID();
+        AgentTool confirm = new AgentTool() {
+            @Override public ToolSpec spec() { return new ToolSpec("confirmar_accion", "Confirma", List.of()); }
+            @Override public ToolOutcome run(ToolContext context, Map<String, Object> arguments) {
+                Conversation current = conversations.findById(context.conversationId()).orElseThrow();
+                conversations.save(new Conversation(current.id(), current.clinicId(), current.phone(), current.state(), null, null,
+                        null, null, requestId, current.offeredOptions(), current.unrecognizedCount(), current.createdAt(),
+                        current.lastActivityAt()));
+                return ToolOutcome.of(Map.of("solicitud_enviada", true));
+            }
+        };
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "confirmar_accion", Map.of()))),
+                new ModelStep.Reply(List.of("¡Listo! Ya le enviamos tu solicitud a la doctora.")));
+
+        send(service(model, confirm), "sí, agéndala");
+
+        assertEquals(requestId, current().requestId());
+    }
+
+    @Test
     void theToolsKnowWhoIsWritingWithoutTheModelSayingIt() {
         UUID patientId = UUID.randomUUID();
         patients.add(new PatientDirectoryPort.PatientContact(patientId, "Ana López"));
