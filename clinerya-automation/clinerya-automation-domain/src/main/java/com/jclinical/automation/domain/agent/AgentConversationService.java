@@ -68,7 +68,7 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         ToolContext context = new ToolContext(message.clinicId(), conversation.id(), message.fromPhone(), contacts,
                 conversation.offeredOptions(), now);
         String instructions = AgentInstructions.build(personas.apply(message.clinicId()), now,
-                contacts.stream().map(PatientContact::displayName).toList());
+                contacts.stream().map(PatientContact::displayName).toList(), conversation.offeredOptions());
         AgentOutcome outcome = agent.run(context, instructions, transcript(message, conversation));
 
         int misunderstood = outcome.notUnderstood() ? conversation.unrecognizedCount() + 1 : 0;
@@ -76,7 +76,9 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         boolean handoff = outcome.handoff() || tooManyMisunderstandings;
         List<String> bubbles = tooManyMisunderstandings && !outcome.handoff() ? List.of(HANDOFF_REPLY) : outcome.bubbles();
         List<ConversationOption> options = handoff ? List.of() : outcome.options();
-        conversations.save(copy(conversation, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
+        // Las herramientas pueden haber guardado algo durante el turno (el id de la solicitud): se parte de lo guardado.
+        Conversation latest = conversations.findById(conversation.id()).orElse(conversation);
+        conversations.save(copy(latest, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
                 options, handoff ? 0 : misunderstood, now));
         return replies(bubbles, options);
     }

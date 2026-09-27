@@ -1,5 +1,7 @@
 package com.jclinical.automation.domain.agent;
 
+import com.jclinical.automation.domain.model.ConversationOption;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -42,6 +44,23 @@ public final class AgentInstructions {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private AgentInstructions() {
+    }
+
+    /**
+     * Ademas, las opciones que el paciente tiene a la vista con su id, para que una respuesta escrita
+     * ("el de las 4") se pueda usar con el id exacto que dio la agenda.
+     */
+    public static String build(AgentPersona persona, LocalDateTime now, List<String> patientNames,
+                               List<ConversationOption> offeredOptions) {
+        String base = build(persona, now, patientNames);
+        if (offeredOptions.isEmpty()) {
+            return base;
+        }
+        StringBuilder options = new StringBuilder("\n\nOpciones que el paciente tiene a la vista (si elige una escribiendo, "
+                + "usa su id exacto):");
+        offeredOptions.forEach(option -> options.append("\n- ").append(option.label()).append(": ").append(option.id()));
+        int rules = base.indexOf("\n\nReglas que siempre mandan");
+        return base.substring(0, rules) + options + base.substring(rules);
     }
 
     /** Con el contexto del turno: fecha y hora de la clinica y quien escribe (nombres de pacientes con ese celular). */
