@@ -65,7 +65,8 @@ class BookingToolsTest {
     }
 
     private ConfirmActionTool confirm() {
-        return new ConfirmActionTool(pending, requests, conversations);
+        return new ConfirmActionTool(pending, requests, conversations, (clinic, appointment, patient, reason) -> { },
+                request -> { });
     }
 
     // ---- proponer -------------------------------------------------------------------------------

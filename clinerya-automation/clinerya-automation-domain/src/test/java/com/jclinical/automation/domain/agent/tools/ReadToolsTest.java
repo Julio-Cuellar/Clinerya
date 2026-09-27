@@ -218,15 +218,16 @@ class ReadToolsTest {
     void myAppointmentsListTheUpcomingOnesWithTheDoctorsName() {
         doctors.add(ramos, "Dra. Beatriz Ramos");
         UUID ana = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
         LocalDateTime monday = LocalDateTime.of(2026, 9, 28, 10, 0);
         PatientAppointmentsPort appointments = (clinic, patient, limit) -> patient.equals(ana)
-                ? List.of(new UpcomingVisit(UUID.randomUUID(), ramos, monday, monday.plusMinutes(30), true)) : List.of();
+                ? List.of(new UpcomingVisit(appointmentId, ramos, monday, monday.plusMinutes(30), true)) : List.of();
 
         ToolOutcome outcome = new MyAppointmentsTool(appointments, doctors).run(context(new PatientContact(ana, "Ana López")), Map.of());
 
         List<Map<String, Object>> citas = listOfMaps(outcome.content().get("citas"));
-        assertEquals(Map.of("paciente", "Ana López", "fecha", "Lun 28/09 10:00", "medico", "Dra. Beatriz Ramos", "confirmada", true),
-                citas.getFirst());
+        assertEquals(Map.of("id", "cita:" + appointmentId, "paciente", "Ana López", "fecha", "Lun 28/09 10:00",
+                "medico", "Dra. Beatriz Ramos", "confirmada", true), citas.getFirst());
         assertTrue(outcome.facts().contains("Lun 28/09 10:00"));
     }
 

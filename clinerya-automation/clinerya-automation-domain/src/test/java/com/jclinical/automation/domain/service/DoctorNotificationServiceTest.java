@@ -42,6 +42,18 @@ class DoctorNotificationServiceTest {
             realtime, INBOX, Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
 
     @Test
+    void aCancellationByThePatientIsToldToTheDoctorWithoutPatientData() {
+        activeChannel();
+
+        service.appointmentCancelled(clinicId, doctorId, LocalDateTime.of(2026, 9, 29, 10, 0));
+
+        assertEquals(1, notices.size());
+        assertTrue(notices.get(0).text().contains("Mar 29/09 10:00") && notices.get(0).text().contains("cancel"),
+                notices.get(0).text());
+        assertTrue(notices.get(0).templateParameters().get(0).contains("Mar 29/09 10:00"));
+    }
+
+    @Test
     void aNewRequestSendsTheDoctorANoticeWithTheLinkToTheInbox() {
         activeChannel();
 

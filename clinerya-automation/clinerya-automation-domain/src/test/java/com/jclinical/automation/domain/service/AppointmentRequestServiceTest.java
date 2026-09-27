@@ -365,7 +365,66 @@ class AppointmentRequestServiceTest {
         assertTrue(booking.booked.isEmpty());
     }
 
+    // ---- reprogramacion (la solicitud reemplaza una cita) -------------------------------------
+
+    @Test
+    void approvingARescheduleCancelsTheOriginalAppointment() {
+        UUID original = UUID.randomUUID();
+        List<String> cancelled = new ArrayList<>();
+        service.setAppointmentCancellation((clinic, appointment, patient, reason) ->
+                cancelled.add(appointment + "|" + patient + "|" + reason));
+        UUID requestId = service.submit(reschedule(original));
+
+        service.accept(doctorUserId, clinicId, requestId);
+
+        assertEquals(original, requests.byId.get(requestId).replacesAppointmentId());
+        assertEquals(1, cancelled.size());
+        assertTrue(cancelled.getFirst().startsWith(original + "|" + patientId + "|"), cancelled.toString());
+        assertTrue(cancelled.getFirst().contains("reprogramada"), cancelled.toString());
+    }
+
+    @Test
+    void choosingTheDoctorsProposalForARescheduleAlsoCancelsTheOriginal() {
+        UUID original = UUID.randomUUID();
+        List<UUID> cancelled = new ArrayList<>();
+        service.setAppointmentCancellation((clinic, appointment, patient, reason) -> cancelled.add(appointment));
+        UUID requestId = service.submit(reschedule(original));
+        service.proposeOptions(doctorUserId, clinicId, requestId, List.of(slot(START.plusDays(1))));
+
+        service.chooseOption(clinicId, requestId, START.plusDays(1), START.plusDays(1).plusMinutes(30));
+
+        assertEquals(List.of(original), cancelled);
+    }
+
+    @Test
+    void aRejectedRescheduleKeepsTheOriginalAppointment() {
+        List<UUID> cancelled = new ArrayList<>();
+        service.setAppointmentCancellation((clinic, appointment, patient, reason) -> cancelled.add(appointment));
+        UUID requestId = service.submit(reschedule(UUID.randomUUID()));
+
+        service.reject(doctorUserId, clinicId, requestId, "Estaré fuera");
+
+        assertTrue(cancelled.isEmpty());
+    }
+
+    @Test
+    void anOriginalThatCanNoLongerBeCancelledDoesNotUndoTheNewBooking() {
+        service.setAppointmentCancellation((clinic, appointment, patient, reason) -> {
+            throw new com.jclinical.automation.domain.ports.out.AppointmentCancellationPort.NotCancellableException("ya paso");
+        });
+        UUID requestId = service.submit(reschedule(UUID.randomUUID()));
+
+        AppointmentRequest accepted = service.accept(doctorUserId, clinicId, requestId);
+
+        assertEquals(Status.BOOKED, accepted.status());
+    }
+
     // ---- utilidades -------------------------------------------------------------------------
+
+    private NewAppointmentRequest reschedule(UUID original) {
+        return new NewAppointmentRequest(clinicId, conversationId, patientId, doctorId, START, START.plusMinutes(30),
+                "5215512345678", "Ana López", "Dra. B", original);
+    }
 
     private AppointmentRequestService serviceAt(LocalDateTime now) {
         return new AppointmentRequestService(requests, booking, slots,
