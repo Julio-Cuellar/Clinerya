@@ -2,6 +2,9 @@ package com.jclinical.automation.domain.agent;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +42,22 @@ class AgentInstructionsTest {
             assertTrue(instructions.indexOf(rule) > instructions.indexOf(tone), "las reglas van despues del tono y mandan: " + rule);
         }
         assertTrue(instructions.contains(AgentInstructions.HONESTY_RULE));
+    }
+
+    @Test
+    void itKnowsTodayAndWhoIsWriting() {
+        AgentPersona persona = new AgentPersona("Clínica Sonrisa", null, null);
+        LocalDateTime saturdayNight = LocalDateTime.of(2026, 9, 27, 21, 0);
+
+        String registered = AgentInstructions.build(persona, saturdayNight, List.of("Ana López"));
+        String family = AgentInstructions.build(persona, saturdayNight, List.of("Ana López", "Luis López"));
+        String unknown = AgentInstructions.build(persona, saturdayNight, List.of());
+
+        assertTrue(registered.contains("sábado 27 de septiembre de 2026"), registered);
+        assertTrue(registered.contains("21:00"), registered);
+        assertTrue(registered.contains("Ana López"), registered);
+        assertTrue(family.contains("Luis López") && family.contains(AgentInstructions.SEVERAL_PATIENTS), family);
+        assertTrue(unknown.contains(AgentInstructions.NOT_REGISTERED), unknown);
     }
 
     @Test
