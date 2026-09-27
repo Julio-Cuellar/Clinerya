@@ -42,6 +42,22 @@ public interface OnlineBookingUseCase {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * El paciente cancela su propia cita (vigente y futura). Ruta interna sin usuario del personal: la
+     * cancelacion libera materiales, sincroniza el calendario y publica el evento como cualquier otra.
+     *
+     * @throws AppointmentNotCancellableException si la cita no es suya, ya paso o ya no esta vigente.
+     */
+    default void cancelByPatient(UUID clinicId, UUID appointmentId, UUID patientId, String reason) {
+        throw new UnsupportedOperationException();
+    }
+
+    class AppointmentNotCancellableException extends RuntimeException {
+        public AppointmentNotCancellableException(String message) {
+            super(message);
+        }
+    }
+
     record UpcomingAppointment(UUID appointmentId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end,
                                boolean confirmed) {}
 

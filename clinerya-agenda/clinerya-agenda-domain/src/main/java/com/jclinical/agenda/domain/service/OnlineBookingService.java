@@ -134,6 +134,19 @@ public class OnlineBookingService implements OnlineBookingUseCase {
     }
 
     @Override
+    public void cancelByPatient(UUID clinicId, UUID appointmentId, UUID patientId, String reason) {
+        Appointment appointment = appointments.findByIdAndClinicId(appointmentId, clinicId)
+                .filter(found -> patientId != null && patientId.equals(found.getPatientId()))
+                .filter(found -> found.getStatus() == AppointmentStatus.SCHEDULED || found.getStatus() == AppointmentStatus.CONFIRMED)
+                .filter(found -> found.getScheduledStart().isAfter(LocalDateTime.now(clock)))
+                .orElseThrow(() -> new AppointmentNotCancellableException("Esa cita ya no se puede cancelar por aquí."));
+        String why = reason == null || reason.isBlank()
+                ? "Cancelada por el paciente por WhatsApp"
+                : "Cancelada por el paciente por WhatsApp: " + reason.trim();
+        appointmentCreator.transitionStatus(appointment.getId(), clinicId, AppointmentStatus.CANCELLED, why, null);
+    }
+
+    @Override
     public List<UpcomingAppointment> upcomingAppointments(UUID clinicId, UUID patientId, int limit) {
         LocalDateTime now = LocalDateTime.now(clock);
         return appointments.findByPatientIdAndClinicId(patientId, clinicId).stream()
