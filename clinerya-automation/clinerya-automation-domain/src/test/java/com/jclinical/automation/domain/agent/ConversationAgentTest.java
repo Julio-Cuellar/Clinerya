@@ -175,6 +175,46 @@ class ConversationAgentTest {
         assertEquals(slots, outcome.options());
     }
 
+    // ---- guarda de datos ---------------------------------------------------------------------
+
+    @Test
+    void anInventedFigureGetsOneChanceToBeCorrected() {
+        RecordingTool prices = new RecordingTool("servicios_y_precios",
+                ToolOutcome.of(Map.of("precio_desde", "$650")).withFacts(List.of("$650")));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "servicios_y_precios", Map.of()))),
+                new ModelStep.Reply(List.of("La limpieza cuesta $700.")),
+                new ModelStep.Reply(List.of("La limpieza está desde $650.")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(prices)).run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("La limpieza está desde $650."), outcome.bubbles());
+        AgentMessage note = model.transcripts.get(2).getLast();
+        assertTrue(note instanceof AgentMessage.Note && ((AgentMessage.Note) note).text().contains("700"), note.toString());
+    }
+
+    @Test
+    void ifItInventsAgainASafeMessageGoesOutAndAPersonTakesOver() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.Reply(List.of("La limpieza cuesta $700.")),
+                new ModelStep.Reply(List.of("Perdón, cuesta $800.")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
+
+        assertEquals(List.of(ConversationAgent.UNVERIFIED_REPLY), outcome.bubbles());
+        assertTrue(outcome.handoff());
+    }
+
+    @Test
+    void theDateTheCodeGaveCanBeMentioned() {
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("Hoy 27 de septiembre estamos cerrados a las 21:00.")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of())
+                .run(context, "Hoy es domingo 27 de septiembre de 2026 y son las 21:00 en la clínica.", transcript);
+
+        assertFalse(outcome.handoff(), outcome.toString());
+    }
+
     // ---- dobles ------------------------------------------------------------------------------
 
     static final class ScriptedModel implements ConversationModelPort {
