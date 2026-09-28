@@ -3,7 +3,7 @@ package com.jclinical.automation.infra.config;
 import com.jclinical.automation.domain.model.InboundMessage;
 import com.jclinical.automation.domain.model.OutboundReply;
 import com.jclinical.automation.domain.ports.in.HandleInboundMessageUseCase;
-import com.jclinical.automation.domain.service.ConversationService;
+import com.jclinical.automation.domain.agent.AgentConversationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -20,7 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TransactionalConversationUseCase implements HandleInboundMessageUseCase {
 
-    private final ConversationService conversations;
+    private final AgentConversationService conversations;
 
     @Override
     @Transactional

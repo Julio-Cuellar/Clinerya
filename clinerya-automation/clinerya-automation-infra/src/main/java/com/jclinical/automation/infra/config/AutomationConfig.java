@@ -3,7 +3,34 @@ package com.jclinical.automation.infra.config;
 import com.jclinical.agenda.domain.ports.in.ManageClinicScheduleUseCase;
 import com.jclinical.automation.domain.ports.out.ClinicInfoPort;
 import com.jclinical.automation.domain.ports.out.PatientRegistrationPort;
-import com.jclinical.automation.domain.service.NewPatientRegistration;
+import com.jclinical.automation.domain.agent.AgentConversationService;
+import com.jclinical.automation.domain.agent.AgentPersonas;
+import com.jclinical.automation.domain.agent.AgentRequestOutcomeService;
+import com.jclinical.automation.domain.agent.AgentTool;
+import com.jclinical.automation.domain.agent.ConversationAgent;
+import com.jclinical.automation.domain.agent.tools.AcceptConsentTool;
+import com.jclinical.automation.domain.agent.tools.ChooseProposalTool;
+import com.jclinical.automation.domain.agent.tools.ClinicInfoTool;
+import com.jclinical.automation.domain.agent.tools.ConfirmActionTool;
+import com.jclinical.automation.domain.agent.tools.ConsentTool;
+import com.jclinical.automation.domain.agent.tools.DoctorsTool;
+import com.jclinical.automation.domain.agent.tools.MyAppointmentsTool;
+import com.jclinical.automation.domain.agent.tools.ProposeBookingTool;
+import com.jclinical.automation.domain.agent.tools.ProposeCancellationTool;
+import com.jclinical.automation.domain.agent.tools.ProposeRescheduleTool;
+import com.jclinical.automation.domain.agent.tools.RegisterPatientTool;
+import com.jclinical.automation.domain.agent.tools.ServicesTool;
+import com.jclinical.automation.domain.agent.tools.SlotsTool;
+import com.jclinical.automation.domain.ports.out.AppointmentCancellationPort;
+import com.jclinical.automation.domain.ports.out.AssistantProfilePort;
+import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort;
+import com.jclinical.automation.infra.adapters.out.crossmodule.AppointmentCancellationAdapter;
+import com.jclinical.automation.infra.adapters.out.crossmodule.PatientAppointmentsAdapter;
+import com.jclinical.automation.infra.adapters.out.crossmodule.TreatmentCatalogAdapter;
+import com.jclinical.automation.infra.adapters.out.gemini.GeminiConversationModel;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcAssistantProfileRepository;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcPendingActionRepository;
+import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase;
 import com.jclinical.automation.infra.adapters.out.crossmodule.ClinicInfoAdapter;
 import com.jclinical.automation.infra.adapters.out.crossmodule.PatientRegistrationAdapter;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcRegistrationDraftRepository;
@@ -18,7 +45,6 @@ import com.jclinical.automation.domain.ports.out.AppointmentRequestRepositoryPor
 import com.jclinical.automation.domain.ports.out.OutboundMessageQueuePort;
 import com.jclinical.automation.domain.ports.out.SlotBookingPort;
 import com.jclinical.automation.domain.service.AppointmentRequestService;
-import com.jclinical.automation.domain.service.ConversationService;
 import com.jclinical.automation.infra.adapters.in.messaging.RequestOutcomeProcessor;
 import com.jclinical.automation.infra.adapters.out.crossmodule.SlotBookingAdapter;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcAppointmentRequestRepository;
@@ -50,7 +76,6 @@ import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettin
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcChannelSettingsRepository;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
-import com.jclinical.automation.domain.ports.out.IntentInterpreterPort;
 import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
 import com.jclinical.automation.domain.ports.out.SlotAvailabilityPort;
 import com.jclinical.automation.infra.adapters.out.crossmodule.DoctorDirectoryAdapter;
@@ -64,7 +89,6 @@ import com.jclinical.automation.infra.adapters.out.realtime.SpringRealtimeNotifi
 import com.jclinical.automation.domain.service.DoctorNotificationService;
 import com.jclinical.automation.infra.adapters.out.crossmodule.PatientDirectoryAdapter;
 import com.jclinical.automation.infra.adapters.out.crossmodule.SlotAvailabilityAdapter;
-import com.jclinical.automation.infra.adapters.out.gemini.GeminiIntentInterpreter;
 import com.jclinical.automation.infra.adapters.out.persistence.ConversationOptionsCodec;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcConversationRepository;
 import com.jclinical.patients.domain.ports.in.GetPatientUseCase;
@@ -82,12 +106,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.List;
 
 /**
- * Piezas de la automatizacion de citas: motor de conversacion, solicitudes al medico y sus
- * adaptadores. Los servicios de dominio se publican sin envolver; sus envoltorios transaccionales
- * ({@link TransactionalConversationUseCase}, {@link TransactionalAppointmentRequestUseCase}) son los
- * que usan los adaptadores de entrada.
+ * Piezas de la automatizacion de citas: el agente conversacional y sus herramientas, las solicitudes
+ * al medico y sus adaptadores. Los servicios de dominio se publican sin envolver; sus envoltorios
+ * transaccionales ({@link TransactionalConversationUseCase}, {@link TransactionalAppointmentRequestUseCase})
+ * son los que usan los adaptadores de entrada.
  *
  * <p>Gemini usa la clave y el modelo que cada clinica guarda en su configuracion; no hay clave de
  * plataforma. GEMINI_BASE_URL solo cambia el servidor (pruebas).
@@ -162,22 +187,82 @@ public class AutomationConfig {
         return new SlotBookingAdapter(onlineBookingService);
     }
 
+    /** Reprogramar: la cita original se cancela por la ruta de la agenda solo cuando el medico aprueba la nueva. */
     @Bean
     public AppointmentRequestService automationAppointmentRequestService(
             AppointmentRequestRepositoryPort requests, SlotBookingPort booking, SlotAvailabilityPort slots,
-            DomainEventPublisherPort events, DoctorNotificationService doctorNotifications) {
-        return new AppointmentRequestService(requests, booking, slots, events, doctorNotifications, Clock.systemDefaultZone());
+            DomainEventPublisherPort events, DoctorNotificationService doctorNotifications,
+            AppointmentCancellationPort automationAppointmentCancellation) {
+        AppointmentRequestService service = new AppointmentRequestService(requests, booking, slots, events,
+                doctorNotifications, Clock.systemDefaultZone());
+        service.setAppointmentCancellation(automationAppointmentCancellation);
+        return service;
+    }
+
+    // ---- Agente conversacional (plan agente-conversacional) -------------------------------------
+
+    @Bean
+    public AppointmentCancellationPort automationAppointmentCancellation(OnlineBookingUseCase onlineBooking) {
+        return new AppointmentCancellationAdapter(onlineBooking);
     }
 
     @Bean
-    public ConversationService automationConversationService(
-            ConversationRepositoryPort conversations, PatientDirectoryPort patients, DoctorDirectoryPort doctors,
-            SlotAvailabilityPort slots, AppointmentRequestService requests, IntentInterpreterPort interpreter,
-            ClinicInfoPort automationClinicInfo, PatientRegistrationPort automationPatientRegistration,
-            JdbcRegistrationDraftRepository registrationDrafts) {
-        Clock clock = Clock.systemDefaultZone();
-        return new ConversationService(conversations, patients, doctors, slots, requests, interpreter, automationClinicInfo,
-                new NewPatientRegistration(conversations, automationPatientRegistration, registrationDrafts, clock), clock);
+    public JdbcPendingActionRepository agentPendingActions(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher) {
+        return new JdbcPendingActionRepository(jdbcTemplate, automationFieldCipher);
+    }
+
+    @Bean
+    public AssistantProfilePort assistantProfiles(JdbcTemplate jdbcTemplate) {
+        return new JdbcAssistantProfileRepository(jdbcTemplate);
+    }
+
+    /**
+     * Las herramientas solo usan rutas publicas de los otros modulos (agenda, pacientes, clinicas,
+     * tratamientos); el agente nunca consulta sus tablas.
+     */
+    @Bean
+    public ConversationAgent conversationAgent(
+            ObjectMapper objectMapper, ChannelSettingsRepositoryPort channelSettings,
+            @Value("${app.automation.gemini.base-url:${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}}") String baseUrl,
+            ConversationRepositoryPort conversations, DoctorDirectoryPort doctors, SlotAvailabilityPort slots,
+            ClinicInfoPort automationClinicInfo, AssistantProfilePort assistantProfiles,
+            PublicTreatmentCatalogUseCase treatmentCatalog, OnlineBookingUseCase onlineBooking,
+            JdbcPendingActionRepository agentPendingActions, AppointmentRequestService requests,
+            AppointmentCancellationPort automationAppointmentCancellation, DoctorNotificationService doctorNotifications,
+            PatientRegistrationPort automationPatientRegistration) {
+        PatientAppointmentsPort appointments = new PatientAppointmentsAdapter(onlineBooking);
+        List<AgentTool> tools = List.of(
+                new ClinicInfoTool(automationClinicInfo, assistantProfiles),
+                new ServicesTool(new TreatmentCatalogAdapter(treatmentCatalog), assistantProfiles),
+                new DoctorsTool(doctors),
+                new SlotsTool(doctors, slots),
+                new MyAppointmentsTool(appointments, doctors),
+                new ProposeBookingTool(doctors, agentPendingActions),
+                new ProposeCancellationTool(appointments, doctors, agentPendingActions),
+                new ProposeRescheduleTool(appointments, doctors, agentPendingActions),
+                new ConfirmActionTool(agentPendingActions, requests, conversations, automationAppointmentCancellation,
+                        doctorNotifications),
+                new ChooseProposalTool(requests, conversations),
+                new ConsentTool(automationPatientRegistration, automationClinicInfo, agentPendingActions),
+                new AcceptConsentTool(agentPendingActions),
+                new RegisterPatientTool(automationPatientRegistration, agentPendingActions, doctors));
+        return new ConversationAgent(
+                new GeminiConversationModel(agentRestClient(), objectMapper, baseUrl, channelSettings), tools);
+    }
+
+    @Bean
+    public AgentConversationService agentConversationService(
+            ConversationRepositoryPort conversations, ChatHistoryPort chatHistory, PatientDirectoryPort patients,
+            ClinicInfoPort automationClinicInfo, AssistantProfilePort assistantProfiles,
+            ChannelSettingsRepositoryPort channelSettings, ConversationAgent conversationAgent) {
+        return new AgentConversationService(conversations, chatHistory, patients,
+                new AgentPersonas(automationClinicInfo, assistantProfiles, channelSettings::findByClinicId),
+                conversationAgent, Clock.systemDefaultZone());
+    }
+
+    @Bean
+    public AgentRequestOutcomeService agentRequestOutcomeService(ConversationRepositoryPort conversations) {
+        return new AgentRequestOutcomeService(conversations);
     }
 
     // ---- Numeros que aun no son pacientes (CU-4) -----------------------------------------------
@@ -199,7 +284,7 @@ public class AutomationConfig {
     }
 
     @Bean
-    public RequestOutcomeProcessor requestOutcomeProcessor(ConversationService conversations,
+    public RequestOutcomeProcessor requestOutcomeProcessor(AgentRequestOutcomeService conversations,
                                                            OutboundMessageQueuePort outbound) {
         return new RequestOutcomeProcessor(conversations, outbound);
     }
@@ -275,9 +360,18 @@ public class AutomationConfig {
 
     /** Cliente para Meta y Gemini: tiempos cortos para no dejar hilos colgados si el proveedor no responde. */
     private static RestClient externalRestClient() {
+        return restClient(Duration.ofSeconds(8));
+    }
+
+    /** El agente espera un poco mas: con herramientas, Gemini tarda mas en proponer el siguiente paso. */
+    private static RestClient agentRestClient() {
+        return restClient(Duration.ofSeconds(20));
+    }
+
+    private static RestClient restClient(Duration readTimeout) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
-        requestFactory.setReadTimeout(Duration.ofSeconds(8));
+        requestFactory.setReadTimeout(readTimeout);
         return RestClient.builder().requestFactory(requestFactory).build();
     }
 
@@ -291,12 +385,12 @@ public class AutomationConfig {
                 Clock.systemDefaultZone());
     }
 
-    /** Usa el motor sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
+    /** Usa el agente sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */
     @Bean
-    public InboundWhatsAppProcessor inboundWhatsAppProcessor(ConversationService automationConversationService,
+    public InboundWhatsAppProcessor inboundWhatsAppProcessor(AgentConversationService agentConversationService,
                                                              OutboundMessageQueuePort outbound,
                                                              DoctorNotificationService doctorNotifications) {
-        return new InboundWhatsAppProcessor(automationConversationService, outbound, doctorNotifications);
+        return new InboundWhatsAppProcessor(agentConversationService, outbound, doctorNotifications);
     }
 
     // ---- Aviso al medico (entrega 5.6, D8) ------------------------------------------------------
@@ -333,13 +427,5 @@ public class AutomationConfig {
     public WebhookRateLimiter whatsAppWebhookRateLimiter(
             @Value("${app.automation.whatsapp.webhook-max-requests-per-minute:600}") int maxRequestsPerMinute) {
         return new WebhookRateLimiter(maxRequestsPerMinute, System::currentTimeMillis);
-    }
-
-    /** Gemini con la clave y el modelo de cada clinica (D4); no hay clave de plataforma. */
-    @Bean
-    public IntentInterpreterPort geminiIntentInterpreter(
-            ObjectMapper objectMapper, ChannelSettingsRepositoryPort channelSettings,
-            @Value("${app.automation.gemini.base-url:${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}}") String baseUrl) {
-        return new GeminiIntentInterpreter(externalRestClient(), objectMapper, baseUrl, channelSettings);
     }
 }
