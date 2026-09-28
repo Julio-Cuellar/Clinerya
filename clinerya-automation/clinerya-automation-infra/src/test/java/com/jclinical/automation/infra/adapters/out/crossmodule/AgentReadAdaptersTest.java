@@ -2,6 +2,7 @@ package com.jclinical.automation.infra.adapters.out.crossmodule;
 
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase;
 import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase.UpcomingAppointment;
+import com.jclinical.automation.domain.ports.out.AppointmentCancellationPort;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort.UpcomingVisit;
 import com.jclinical.automation.domain.ports.out.TreatmentCatalogPort.CatalogTreatment;
 import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase.PublicTreatment;
@@ -13,7 +14,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** El agente lee el catalogo y las citas por las rutas publicas de tratamientos y agenda, sin reglas propias. */
@@ -44,5 +48,28 @@ class AgentReadAdaptersTest {
         List<UpcomingVisit> visits = new PatientAppointmentsAdapter(agenda).upcoming(clinicId, patientId, 5);
 
         assertEquals(List.of(new UpcomingVisit(appointmentId, doctorId, start, start.plusMinutes(30), true)), visits);
+    }
+
+    @Test
+    void thePatientCancelsThroughTheAgendasInternalRoute() {
+        OnlineBookingUseCase agenda = mock(OnlineBookingUseCase.class);
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+
+        new AppointmentCancellationAdapter(agenda).cancel(clinicId, appointmentId, patientId, "me surgió un viaje");
+
+        verify(agenda).cancelByPatient(clinicId, appointmentId, patientId, "me surgió un viaje");
+    }
+
+    @Test
+    void anAppointmentTheAgendaWontCancelIsReportedInTheAgentsTerms() {
+        OnlineBookingUseCase agenda = mock(OnlineBookingUseCase.class);
+        UUID patientId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        doThrow(new OnlineBookingUseCase.AppointmentNotCancellableException("ya pasó"))
+                .when(agenda).cancelByPatient(clinicId, appointmentId, patientId, null);
+
+        assertThrows(AppointmentCancellationPort.NotCancellableException.class,
+                () -> new AppointmentCancellationAdapter(agenda).cancel(clinicId, appointmentId, patientId, null));
     }
 }
