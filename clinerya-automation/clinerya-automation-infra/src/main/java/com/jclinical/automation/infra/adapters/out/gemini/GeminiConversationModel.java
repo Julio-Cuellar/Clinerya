@@ -12,8 +12,10 @@ import com.jclinical.automation.domain.agent.ModelStep;
 import com.jclinical.automation.domain.agent.ToolSpec;
 import com.jclinical.automation.domain.model.ChannelSettings;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +35,7 @@ import java.util.UUID;
  *   <li>Cualquier falla se propaga: el agente la reintenta y, si sigue, pasa el chat a una persona.</li>
  * </ul>
  */
+@Slf4j
 public class GeminiConversationModel implements ConversationModelPort {
 
     public static final String BUBBLE_SEPARATOR = "---";
@@ -41,6 +44,7 @@ public class GeminiConversationModel implements ConversationModelPort {
     static final String THOUGHT_SIGNATURE = "__thoughtSignature";
 
     private static final double TEMPERATURE = 0.7;
+    private static final int MAX_LOGGED_ERROR = 1000;
     private static final String BUBBLE_RULE = "\n\nSi quieres mandar varios mensajes de WhatsApp seguidos, "
             + "sepáralos con una línea que diga solo " + BUBBLE_SEPARATOR + ".";
     private static final String NOTE_PREFIX = "[Nota del sistema, el paciente no la ve] ";
@@ -64,14 +68,29 @@ public class GeminiConversationModel implements ConversationModelPort {
         ChannelSettings clinic = settings.findByClinicId(clinicId)
                 .filter(found -> found.geminiApiKey() != null && !found.geminiApiKey().isBlank())
                 .orElseThrow(() -> new IllegalStateException("La clínica no tiene configurada su clave de Gemini"));
-        JsonNode response = restClient.post()
-                .uri(baseUrl + "/v1beta/models/" + clinic.geminiModel() + ":generateContent")
-                .header("x-goog-api-key", clinic.geminiApiKey())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(json(request(systemInstruction, transcript, tools)))
-                .retrieve()
-                .body(JsonNode.class);
-        return step(response);
+        try {
+            JsonNode response = restClient.post()
+                    .uri(baseUrl + "/v1beta/models/" + clinic.geminiModel() + ":generateContent")
+                    .header("x-goog-api-key", clinic.geminiApiKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(json(request(systemInstruction, transcript, tools)))
+                    .retrieve()
+                    .body(JsonNode.class);
+            return step(response);
+        } catch (RestClientResponseException rejected) {
+            // El cuerpo de error de Gemini explica la causa y nunca trae la clave (va en cabecera).
+            log.warn(">>>> [AGENTE] Gemini respondio {} (modelo {}, clinica {}): {}", rejected.getStatusCode(),
+                    clinic.geminiModel(), clinicId, abbreviate(rejected.getResponseBodyAsString()));
+            throw rejected;
+        } catch (RuntimeException failure) {
+            log.warn(">>>> [AGENTE] Fallo la llamada a Gemini (modelo {}, clinica {}): {}", clinic.geminiModel(), clinicId,
+                    failure.toString());
+            throw failure;
+        }
+    }
+
+    private static String abbreviate(String body) {
+        return body == null || body.length() <= MAX_LOGGED_ERROR ? body : body.substring(0, MAX_LOGGED_ERROR) + "...";
     }
 
     private ObjectNode request(String systemInstruction, List<AgentMessage> transcript, List<ToolSpec> tools) {
