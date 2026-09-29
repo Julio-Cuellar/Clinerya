@@ -13,7 +13,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -51,8 +53,10 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
             for (JsonNode change : entry.path("changes")) {
                 JsonNode value = change.path("value");
                 String phoneNumberId = value.path("metadata").path("phone_number_id").asText(null);
+                Map<String, String> profileNames = profileNames(value.path("contacts"));
                 for (JsonNode message : value.path("messages")) {
-                    messages.add(toMessage(phoneNumberId, message));
+                    WhatsAppInboundMessage parsed = toMessage(phoneNumberId, message);
+                    messages.add(withProfileName(parsed, profileNames.get(parsed.fromPhone())));
                 }
                 for (JsonNode status : value.path("statuses")) {
                     toStatus(phoneNumberId, status).ifPresent(statuses::add);
@@ -60,6 +64,24 @@ public class MetaWebhookPayloadParser implements WebhookPayloadParserPort {
             }
         }
         return new WebhookPayload(messages, statuses);
+    }
+
+    /** Meta manda el nombre de perfil de cada remitente en contacts[] (wa_id -> profile.name). */
+    private static Map<String, String> profileNames(JsonNode contacts) {
+        Map<String, String> names = new HashMap<>();
+        for (JsonNode contact : contacts) {
+            String waId = contact.path("wa_id").asText(null);
+            String name = contact.path("profile").path("name").asText(null);
+            if (waId != null && name != null && !name.isBlank()) {
+                names.put(waId, name);
+            }
+        }
+        return names;
+    }
+
+    private static WhatsAppInboundMessage withProfileName(WhatsAppInboundMessage message, String profileName) {
+        return profileName == null ? message : new WhatsAppInboundMessage(message.phoneNumberId(), message.waMessageId(),
+                message.fromPhone(), message.kind(), message.text(), message.selectedOptionId(), message.sentAt(), profileName);
     }
 
     /** sent, delivered, read y failed; cualquier otro estado de Meta se ignora. */

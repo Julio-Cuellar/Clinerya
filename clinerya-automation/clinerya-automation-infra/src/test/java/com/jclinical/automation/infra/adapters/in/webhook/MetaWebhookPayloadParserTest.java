@@ -31,7 +31,7 @@ class MetaWebhookPayloadParserTest {
                 """));
 
         assertEquals(List.of(new WhatsAppInboundMessage("106540352242922", "wamid.AAA", "5215512345678", Kind.TEXT,
-                "Hola, quiero una cita", null, LocalDateTime.of(2026, 9, 25, 10, 0))), messages);
+                "Hola, quiero una cita", null, LocalDateTime.of(2026, 9, 25, 10, 0), "Ana")), messages);
     }
 
     @Test
