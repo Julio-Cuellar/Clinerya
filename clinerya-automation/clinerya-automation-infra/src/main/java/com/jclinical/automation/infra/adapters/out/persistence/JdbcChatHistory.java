@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -26,8 +27,9 @@ public class JdbcChatHistory implements ChatHistoryPort {
     private static final TypeReference<List<String>> LABELS = new TypeReference<>() {};
 
     private static final String INSERT_SQL = """
-            INSERT INTO automation.chat_messages (id, clinic_id, phone, direction, body, option_labels, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO automation.chat_messages (id, clinic_id, phone, direction, body, option_labels, created_at,
+                author_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String CHATS_SQL = """
@@ -39,7 +41,7 @@ public class JdbcChatHistory implements ChatHistoryPort {
              LIMIT ?
             """;
 
-    private static final String COLUMNS = "id, clinic_id, phone, direction, body, option_labels, created_at";
+    private static final String COLUMNS = "id, clinic_id, phone, direction, body, option_labels, created_at, author_user_id";
 
     private static final String LATEST_SQL = "SELECT " + COLUMNS + """
              FROM automation.chat_messages
@@ -62,6 +64,11 @@ public class JdbcChatHistory implements ChatHistoryPort {
             LIMIT ?
             """;
 
+    private static final String LAST_INBOUND_SQL = """
+            SELECT max(created_at) FROM automation.chat_messages
+             WHERE clinic_id = ? AND phone = ? AND direction = 'INBOUND'
+            """;
+
     private static final String DELETE_SQL = "DELETE FROM automation.chat_messages WHERE clinic_id = ? AND created_at < ?";
 
     private final JdbcTemplate jdbcTemplate;
@@ -78,7 +85,7 @@ public class JdbcChatHistory implements ChatHistoryPort {
     public void record(ChatMessage message) {
         jdbcTemplate.update(INSERT_SQL, message.id(), message.clinicId(), message.phone(), message.direction().name(),
                 cipher.encrypt(message.text() == null ? "" : message.text()),
-                cipher.encrypt(labelsJson(message.optionLabels())), Timestamp.valueOf(message.at()));
+                cipher.encrypt(labelsJson(message.optionLabels())), Timestamp.valueOf(message.at()), message.authorUserId());
     }
 
     @Override
@@ -101,6 +108,12 @@ public class JdbcChatHistory implements ChatHistoryPort {
     }
 
     @Override
+    public Optional<LocalDateTime> lastInboundAt(UUID clinicId, String phone) {
+        Timestamp last = jdbcTemplate.queryForObject(LAST_INBOUND_SQL, Timestamp.class, clinicId, phone);
+        return Optional.ofNullable(last).map(Timestamp::toLocalDateTime);
+    }
+
+    @Override
     public int deleteOlderThan(UUID clinicId, LocalDateTime cutoff) {
         return jdbcTemplate.update(DELETE_SQL, clinicId, Timestamp.valueOf(cutoff));
     }
@@ -113,7 +126,8 @@ public class JdbcChatHistory implements ChatHistoryPort {
                 ChatMessage.Direction.valueOf(row.getString("direction")),
                 cipher.decrypt(row.getString("body")),
                 labels(cipher.decrypt(row.getString("option_labels"))),
-                row.getTimestamp("created_at").toLocalDateTime());
+                row.getTimestamp("created_at").toLocalDateTime(),
+                row.getObject("author_user_id", UUID.class));
     }
 
     private String labelsJson(List<String> labels) {

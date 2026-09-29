@@ -59,6 +59,9 @@ import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
 import com.jclinical.automation.domain.service.ChannelSettingsService;
 import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
 import com.jclinical.automation.domain.service.ChatHistoryService;
+import com.jclinical.automation.domain.service.ChatAttentionService;
+import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatAttentionLog;
 import com.jclinical.automation.domain.service.RecordingOutboundQueue;
 import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatAccessLog;
@@ -254,10 +257,11 @@ public class AutomationConfig {
     public AgentConversationService agentConversationService(
             ConversationRepositoryPort conversations, ChatHistoryPort chatHistory, PatientDirectoryPort patients,
             ClinicInfoPort automationClinicInfo, AssistantProfilePort assistantProfiles,
-            ChannelSettingsRepositoryPort channelSettings, ConversationAgent conversationAgent) {
+            ChannelSettingsRepositoryPort channelSettings, ConversationAgent conversationAgent,
+            ChatAttentionLogPort chatAttentionLog) {
         return new AgentConversationService(conversations, chatHistory, patients,
                 new AgentPersonas(automationClinicInfo, assistantProfiles, channelSettings::findByClinicId),
-                conversationAgent, Clock.systemDefaultZone());
+                conversationAgent, Clock.systemDefaultZone(), chatAttentionLog);
     }
 
     @Bean
@@ -326,9 +330,27 @@ public class AutomationConfig {
     public ChatHistoryService chatHistoryService(ChatHistoryPort chatHistory, JdbcTemplate jdbcTemplate,
                                                  PatientDirectoryPort automationPatientDirectory,
                                                  ChannelSettingsRepositoryPort settings,
-                                                 StaffPermissionCheckerPort permissions) {
+                                                 StaffPermissionCheckerPort permissions,
+                                                 ChatAttentionLogPort chatAttentionLog) {
         return new ChatHistoryService(chatHistory, new JdbcChatAccessLog(jdbcTemplate), automationPatientDirectory,
-                settings, permissions, Clock.systemDefaultZone());
+                settings, permissions, Clock.systemDefaultZone(), chatAttentionLog);
+    }
+
+    // ---- Atencion humana en Chats (fase G) --------------------------------------------------------
+
+    @Bean
+    public ChatAttentionLogPort chatAttentionLog(JdbcTemplate jdbcTemplate) {
+        return new JdbcChatAttentionLog(jdbcTemplate);
+    }
+
+    /** Los mensajes del personal pasan por la misma cola que registra todo lo que sale al paciente. */
+    @Bean
+    public ChatAttentionService chatAttentionService(ConversationRepositoryPort conversations, ChatHistoryPort chatHistory,
+                                                     OutboundMessageQueuePort outbound, ChatAttentionLogPort chatAttentionLog,
+                                                     RealtimeNotifierPort realtimeNotifier,
+                                                     StaffPermissionCheckerPort permissions) {
+        return new ChatAttentionService(conversations, chatHistory, outbound, chatAttentionLog, realtimeNotifier, permissions,
+                Clock.systemDefaultZone());
     }
 
     @Bean
