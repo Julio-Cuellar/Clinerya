@@ -1,24 +1,6 @@
-const LAST_DIGITS = 4;
-
 /** Celular de Mexico tal como lo reporta WhatsApp: 52 + 1 + 10 digitos. */
 function isMexicanMobile(digits: string): boolean {
   return digits.length === 13 && digits.startsWith("521");
-}
-
-/** Oculta el centro del numero para listas y auditoria: "+52 1 55 **** 5678". */
-export function maskPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (!digits) {
-    return "";
-  }
-  if (digits.length <= LAST_DIGITS) {
-    return "****";
-  }
-  const last = digits.slice(-LAST_DIGITS);
-  if (isMexicanMobile(digits)) {
-    return `+52 1 ${digits.slice(3, 5)} **** ${last}`;
-  }
-  return `+${digits.slice(0, 2)} **** ${last}`;
 }
 
 /** Numero completo y legible, para que el medico vea el suyo: "+52 1 55 9999 0000". */
