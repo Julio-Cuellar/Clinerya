@@ -7,6 +7,7 @@ import com.jclinical.automation.domain.ports.out.RealtimeNotifierPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -42,6 +43,11 @@ public class NotifyingChatHistory implements ChatHistoryPort {
     @Override
     public List<ChatMessage> findMessagesAfter(UUID clinicId, String phone, LocalDateTime after, int limit) {
         return history.findMessagesAfter(clinicId, phone, after, limit);
+    }
+
+    @Override
+    public Optional<LocalDateTime> lastInboundAt(UUID clinicId, String phone) {
+        return history.lastInboundAt(clinicId, phone);
     }
 
     @Override
