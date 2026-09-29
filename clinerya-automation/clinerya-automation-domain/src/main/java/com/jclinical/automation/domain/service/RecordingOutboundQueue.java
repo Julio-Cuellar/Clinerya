@@ -28,9 +28,11 @@ public class RecordingOutboundQueue implements OutboundMessageQueuePort {
 
     @Override
     public void enqueue(PatientNotification notification) {
-        history.record(new ChatMessage(UUID.randomUUID(), notification.clinicId(), notification.phone(),
-                ChatMessage.Direction.OUTBOUND, notification.reply().text(),
-                notification.reply().options().stream().map(ConversationOption::label).toList(), LocalDateTime.now(clock)));
+        ChatMessage.Direction direction = notification.authorUserId() == null
+                ? ChatMessage.Direction.OUTBOUND : ChatMessage.Direction.STAFF;
+        history.record(new ChatMessage(UUID.randomUUID(), notification.clinicId(), notification.phone(), direction,
+                notification.reply().text(), notification.reply().options().stream().map(ConversationOption::label).toList(),
+                LocalDateTime.now(clock), notification.authorUserId()));
         queue.enqueue(notification);
     }
 }

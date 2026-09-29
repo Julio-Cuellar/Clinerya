@@ -2,6 +2,8 @@ package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
 import com.jclinical.automation.domain.model.ChatAccess;
+import com.jclinical.automation.domain.model.ChatAttentionEvent;
+import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
 import com.jclinical.automation.domain.model.ChatMessage;
 import com.jclinical.automation.domain.model.ChatSummary;
 import com.jclinical.automation.domain.ports.in.PurgeChatHistoryUseCase;
@@ -19,6 +21,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -41,25 +44,39 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
     private final ChannelSettingsRepositoryPort settings;
     private final StaffPermissionCheckerPort permissions;
     private final Clock clock;
+    private final ChatAttentionLogPort attentionLog;
 
     public ChatHistoryService(ChatHistoryPort history, ChatAccessLogPort accessLog, PatientDirectoryPort patients,
-                              ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock) {
+                              ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock,
+                              ChatAttentionLogPort attentionLog) {
         this.history = history;
         this.accessLog = accessLog;
         this.patients = patients;
         this.settings = settings;
         this.permissions = permissions;
         this.clock = clock;
+        this.attentionLog = attentionLog;
     }
 
+    public ChatHistoryService(ChatHistoryPort history, ChatAccessLogPort accessLog, PatientDirectoryPort patients,
+                              ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock) {
+        this(history, accessLog, patients, settings, permissions, clock, null);
+    }
+
+    /** Cada chat lleva su nombre de paciente y, si lo atiende una persona, quien lo tomo y desde cuando. */
     @Override
     public List<ChatSummary> listChats(UUID actingUserId, UUID clinicId) {
         requireChatAccess(actingUserId, clinicId);
-        return history.findChats(clinicId, MAX_CHATS).stream()
-                .map(chat -> new ChatSummary(chat.phone(), patients.findByPhone(clinicId, chat.phone()).stream()
-                        .map(PatientContact::displayName)
-                        .toList(), chat.lastMessageAt(), chat.messageCount()))
-                .toList();
+        List<ChatSummary> chats = history.findChats(clinicId, MAX_CHATS);
+        Map<String, ChatAttentionEvent> attention = attentionLog == null
+                ? Map.of() : attentionLog.latest(clinicId, chats.stream().map(ChatSummary::phone).toList());
+        return chats.stream().map(chat -> {
+            List<String> names = patients.findByPhone(clinicId, chat.phone()).stream().map(PatientContact::displayName).toList();
+            ChatAttentionEvent latest = attention.get(chat.phone());
+            boolean human = latest != null && latest.action().human();
+            return new ChatSummary(chat.phone(), names, chat.lastMessageAt(), chat.messageCount(), human,
+                    human ? latest.userId() : null, human ? latest.at() : null);
+        }).toList();
     }
 
     @Override

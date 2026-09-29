@@ -5,11 +5,23 @@ import com.jclinical.automation.domain.model.ChatSummary;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ChatHistoryPort {
 
+    /** Cuantos mensajes recientes revisa la implementacion por omision de {@link #lastInboundAt}. */
+    int RECENT_FOR_LAST_INBOUND = 100;
+
     void record(ChatMessage message);
+
+    /** Cuando escribio el paciente por ultima vez (abre la ventana de 24 h de WhatsApp). */
+    default Optional<LocalDateTime> lastInboundAt(UUID clinicId, String phone) {
+        return findMessages(clinicId, phone, null, RECENT_FOR_LAST_INBOUND).stream()
+                .filter(message -> message.direction() == ChatMessage.Direction.INBOUND)
+                .map(ChatMessage::at)
+                .max(LocalDateTime::compareTo);
+    }
 
     /** Hilos de la clinica, el mas reciente primero (sin contenido). */
     List<ChatSummary> findChats(UUID clinicId, int limit);
