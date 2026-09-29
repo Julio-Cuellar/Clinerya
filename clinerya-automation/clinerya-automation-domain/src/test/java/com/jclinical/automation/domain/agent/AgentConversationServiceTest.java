@@ -5,8 +5,11 @@ import com.jclinical.automation.domain.agent.AgentMessage.ToolCall;
 import com.jclinical.automation.domain.agent.AgentMessage.User;
 import com.jclinical.automation.domain.agent.ConversationAgentTest.RecordingTool;
 import com.jclinical.automation.domain.agent.ConversationAgentTest.ScriptedModel;
+import com.jclinical.automation.domain.model.ChatAttentionEvent;
+import com.jclinical.automation.domain.model.ChatAttentionEvent.Action;
 import com.jclinical.automation.domain.model.ChatMessage;
 import com.jclinical.automation.domain.model.ChatSummary;
+import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
 import com.jclinical.automation.domain.model.Conversation;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.ConversationState;
@@ -21,6 +24,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +32,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -44,10 +49,12 @@ class AgentConversationServiceTest {
     private final InMemoryHistory history = new InMemoryHistory();
     private final List<PatientDirectoryPort.PatientContact> patients = new ArrayList<>();
     private final Clock clock = Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+    private final RecordingAttentionLog attentionLog = new RecordingAttentionLog();
 
     private AgentConversationService service(ScriptedModel model, AgentTool... tools) {
         return new AgentConversationService(conversations, history, (clinic, phone) -> patients,
-                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of(tools)), clock);
+                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of(tools)), clock,
+                attentionLog);
     }
 
     private List<OutboundReply> send(AgentConversationService service, String text) {
@@ -239,6 +246,58 @@ class AgentConversationServiceTest {
     }
 
     @Test
+    void whenTheAgentAsksForHelpTheChatsLogSaysSo() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", ConversationAgent.HANDOFF, Map.of()))),
+                new ModelStep.Reply(List.of("Claro, le aviso a alguien de la clínica.")));
+
+        send(service(model), "quiero hablar con una persona");
+
+        ChatAttentionEvent logged = attentionLog.events.getLast();
+        assertEquals(Action.REQUESTED_BY_AGENT, logged.action());
+        assertNull(logged.userId(), "la pidio el agente, no alguien del personal");
+        assertEquals(NOW, logged.at());
+    }
+
+    @Test
+    void whatThePatientWritesWhileAPersonAttendsKeepsTheChatActive() {
+        conversations.save(conversation(ConversationState.ATENCION_HUMANA, List.of(), 0));
+
+        send(service(new ScriptedModel()), "¿siguen ahí?");
+
+        assertEquals(NOW, current().lastActivityAt());
+        assertEquals(ConversationState.ATENCION_HUMANA, current().state());
+    }
+
+    @Test
+    void aChatNobodyReturnedGoesBackToTheAgentAfterADayWithoutActivity() {
+        Conversation forgotten = new Conversation(UUID.randomUUID(), clinicId, PHONE, ConversationState.ATENCION_HUMANA, null,
+                null, null, null, null, List.of(), 0, NOW.minusDays(2), NOW.minus(AgentConversationService.HUMAN_ATTENTION_TIMEOUT)
+                .minusMinutes(1));
+        conversations.save(forgotten);
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("¡Hola! ¿En qué te ayudo?")));
+
+        List<OutboundReply> replies = send(service(model), "hola");
+
+        assertEquals(List.of(OutboundReply.text("¡Hola! ¿En qué te ayudo?")), replies);
+        assertEquals(ConversationState.CONVERSANDO, current().state());
+        assertEquals(ConversationState.EXPIRADA, conversations.findById(forgotten.id()).orElseThrow().state());
+        assertEquals(Action.AUTO_RELEASED, attentionLog.events.getFirst().action());
+    }
+
+    @Test
+    void whatTheStaffWroteIsRememberedAsTheClinicsWords() {
+        history.add(ChatMessage.Direction.INBOUND, "¿me dan factura?", NOW.minusMinutes(20));
+        history.record(new ChatMessage(UUID.randomUUID(), clinicId, PHONE, ChatMessage.Direction.STAFF,
+                "Claro, te la enviamos hoy.", List.of(), NOW.minusMinutes(15), UUID.randomUUID()));
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("¡Con gusto!")));
+
+        send(service(model), "gracias");
+
+        assertTrue(model.transcripts.get(0).contains(new Assistant("Claro, te la enviamos hoy.")));
+    }
+
+    @Test
     void anIdleConversationStartsOverButKeepsTheChatMemory() {
         Conversation old = new Conversation(UUID.randomUUID(), clinicId, PHONE, ConversationState.CONVERSANDO, null, null, null, null,
                 null, List.of(new ConversationOption("slot:a", "Jue 16:00")), 2, NOW.minusHours(2), NOW.minusHours(2));
@@ -254,6 +313,25 @@ class AgentConversationServiceTest {
     }
 
     // ---- utilidades --------------------------------------------------------------------------
+
+    static final class RecordingAttentionLog implements ChatAttentionLogPort {
+        final List<ChatAttentionEvent> events = new ArrayList<>();
+
+        @Override
+        public void record(ChatAttentionEvent event) {
+            events.add(event);
+        }
+
+        @Override
+        public Optional<ChatAttentionEvent> latest(UUID clinicId, String phone) {
+            return events.isEmpty() ? Optional.empty() : Optional.of(events.getLast());
+        }
+
+        @Override
+        public Map<String, ChatAttentionEvent> latest(UUID clinicId, Collection<String> phones) {
+            return Map.of();
+        }
+    }
 
     private static ModelStep notUnderstood() {
         return new ModelStep.CallTools(List.of(new ToolCall("n", ConversationAgent.NOT_UNDERSTOOD, Map.of())));
