@@ -4,6 +4,7 @@ import com.jclinical.automation.domain.model.ChannelSettings;
 import com.jclinical.automation.domain.model.ChatAccess;
 import com.jclinical.automation.domain.model.ChatAttentionEvent;
 import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
+import com.jclinical.automation.domain.ports.out.ChatContactsPort;
 import com.jclinical.automation.domain.model.ChatMessage;
 import com.jclinical.automation.domain.model.ChatSummary;
 import com.jclinical.automation.domain.ports.in.PurgeChatHistoryUseCase;
@@ -45,10 +46,11 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
     private final StaffPermissionCheckerPort permissions;
     private final Clock clock;
     private final ChatAttentionLogPort attentionLog;
+    private final ChatContactsPort contacts;
 
     public ChatHistoryService(ChatHistoryPort history, ChatAccessLogPort accessLog, PatientDirectoryPort patients,
                               ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock,
-                              ChatAttentionLogPort attentionLog) {
+                              ChatAttentionLogPort attentionLog, ChatContactsPort contacts) {
         this.history = history;
         this.accessLog = accessLog;
         this.patients = patients;
@@ -56,11 +58,18 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
         this.permissions = permissions;
         this.clock = clock;
         this.attentionLog = attentionLog;
+        this.contacts = contacts;
+    }
+
+    public ChatHistoryService(ChatHistoryPort history, ChatAccessLogPort accessLog, PatientDirectoryPort patients,
+                              ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock,
+                              ChatAttentionLogPort attentionLog) {
+        this(history, accessLog, patients, settings, permissions, clock, attentionLog, null);
     }
 
     public ChatHistoryService(ChatHistoryPort history, ChatAccessLogPort accessLog, PatientDirectoryPort patients,
                               ChannelSettingsRepositoryPort settings, StaffPermissionCheckerPort permissions, Clock clock) {
-        this(history, accessLog, patients, settings, permissions, clock, null);
+        this(history, accessLog, patients, settings, permissions, clock, null, null);
     }
 
     /** Cada chat lleva su nombre de paciente y, si lo atiende una persona, quien lo tomo y desde cuando. */
@@ -68,14 +77,15 @@ public class ChatHistoryService implements ReadChatHistoryUseCase, PurgeChatHist
     public List<ChatSummary> listChats(UUID actingUserId, UUID clinicId) {
         requireChatAccess(actingUserId, clinicId);
         List<ChatSummary> chats = history.findChats(clinicId, MAX_CHATS);
-        Map<String, ChatAttentionEvent> attention = attentionLog == null
-                ? Map.of() : attentionLog.latest(clinicId, chats.stream().map(ChatSummary::phone).toList());
+        List<String> phones = chats.stream().map(ChatSummary::phone).toList();
+        Map<String, ChatAttentionEvent> attention = attentionLog == null ? Map.of() : attentionLog.latest(clinicId, phones);
+        Map<String, String> profileNames = contacts == null ? Map.of() : contacts.profileNames(clinicId, phones);
         return chats.stream().map(chat -> {
             List<String> names = patients.findByPhone(clinicId, chat.phone()).stream().map(PatientContact::displayName).toList();
             ChatAttentionEvent latest = attention.get(chat.phone());
             boolean human = latest != null && latest.action().human();
             return new ChatSummary(chat.phone(), names, chat.lastMessageAt(), chat.messageCount(), human,
-                    human ? latest.userId() : null, human ? latest.at() : null);
+                    human ? latest.userId() : null, human ? latest.at() : null, profileNames.get(chat.phone()));
         }).toList();
     }
 
