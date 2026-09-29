@@ -86,7 +86,8 @@ class AgentConversationServiceTest {
         CapturingModel model = new CapturingModel();
 
         send(new AgentConversationService(conversations, history, (clinic, phone) -> patients,
-                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of()), clock), "hola");
+                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of()), clock,
+                attentionLog), "hola");
 
         assertTrue(model.systemInstruction.contains("Clínica Sonrisa"), model.systemInstruction);
     }
@@ -97,7 +98,8 @@ class AgentConversationServiceTest {
         CapturingModel model = new CapturingModel();
 
         send(new AgentConversationService(conversations, history, (clinic, phone) -> patients,
-                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of()), clock), "hola");
+                clinic -> new AgentPersona("Clínica Sonrisa", null, null), new ConversationAgent(model, List.of()), clock,
+                attentionLog), "hola");
 
         assertTrue(model.systemInstruction.contains("Ana López"), model.systemInstruction);
         assertTrue(model.systemInstruction.contains("27 de septiembre de 2026"), model.systemInstruction);

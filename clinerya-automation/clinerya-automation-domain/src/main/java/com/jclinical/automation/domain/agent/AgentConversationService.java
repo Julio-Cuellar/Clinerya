@@ -2,7 +2,10 @@ package com.jclinical.automation.domain.agent;
 
 import com.jclinical.automation.domain.agent.AgentMessage.Assistant;
 import com.jclinical.automation.domain.agent.AgentMessage.User;
+import com.jclinical.automation.domain.model.ChatAttentionEvent;
+import com.jclinical.automation.domain.model.ChatAttentionEvent.Action;
 import com.jclinical.automation.domain.model.ChatMessage;
+import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
 import com.jclinical.automation.domain.model.Conversation;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.ConversationState;
@@ -36,6 +39,8 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
     public static final String STALE_OPTION = "(esa opción ya no está vigente)";
 
     static final Duration IDLE_TIMEOUT = Duration.ofMinutes(30);
+    /** Un chat en atencion humana que nadie regreso vuelve al agente tras este lapso sin actividad. */
+    public static final Duration HUMAN_ATTENTION_TIMEOUT = Duration.ofHours(24);
     static final Duration MEMORY = Duration.ofHours(12);
     static final int MEMORY_MESSAGES = 20;
 
@@ -45,16 +50,22 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
     private final Function<UUID, AgentPersona> personas;
     private final ConversationAgent agent;
     private final Clock clock;
+    private final ChatAttentionLogPort attentionLog;
 
     public AgentConversationService(ConversationRepositoryPort conversations, ChatHistoryPort history,
                                     PatientDirectoryPort patients, Function<UUID, AgentPersona> personas,
-                                    ConversationAgent agent, Clock clock) {
+                                    ConversationAgent agent, Clock clock, ChatAttentionLogPort attentionLog) {
         this.conversations = conversations;
         this.history = history;
         this.patients = patients;
         this.personas = personas;
         this.agent = agent;
         this.clock = clock;
+        this.attentionLog = attentionLog;
+    }
+
+    private void logAttention(UUID clinicId, String phone, Action action, LocalDateTime at) {
+        attentionLog.record(new ChatAttentionEvent(UUID.randomUUID(), clinicId, phone, action, null, at));
     }
 
     @Override
@@ -62,6 +73,9 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         LocalDateTime now = LocalDateTime.now(clock);
         Conversation conversation = activeOrNew(message.clinicId(), message.fromPhone(), now);
         if (conversation.state() == ConversationState.ATENCION_HUMANA) {
+            // Lo que escribe el paciente mantiene vivo el chat que atiende una persona.
+            conversations.save(copy(conversation, conversation.state(), conversation.offeredOptions(),
+                    conversation.unrecognizedCount(), now));
             return List.of();
         }
         List<PatientContact> contacts = patients.findByPhone(message.clinicId(), message.fromPhone());
@@ -83,20 +97,31 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         Conversation latest = conversations.findById(conversation.id()).orElse(conversation);
         conversations.save(copy(latest, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
                 options, handoff ? 0 : misunderstood, now));
+        if (handoff) {
+            logAttention(message.clinicId(), message.fromPhone(), Action.REQUESTED_BY_AGENT, now);
+        }
         return replies(bubbles, options);
     }
 
-    /** Tras 30 min sin actividad empieza una conversacion nueva (la memoria del chat se conserva). */
+    /**
+     * Tras 30 min sin actividad empieza una conversacion nueva (la memoria del chat se conserva). Un chat
+     * en atencion humana espera a la persona, pero si nadie lo regresa y pasa un dia sin actividad vuelve
+     * solo al agente: el paciente nunca se queda sin respuesta.
+     */
     private Conversation activeOrNew(UUID clinicId, String phone, LocalDateTime now) {
         Optional<Conversation> active = conversations.findActive(clinicId, phone);
         if (active.isPresent()) {
             Conversation conversation = active.get();
-            boolean idle = conversation.lastActivityAt().plus(IDLE_TIMEOUT).isBefore(now);
-            if (conversation.state() == ConversationState.ATENCION_HUMANA || !idle) {
+            boolean human = conversation.state() == ConversationState.ATENCION_HUMANA;
+            Duration timeout = human ? HUMAN_ATTENTION_TIMEOUT : IDLE_TIMEOUT;
+            if (!conversation.lastActivityAt().plus(timeout).isBefore(now)) {
                 return conversation;
             }
             conversations.save(copy(conversation, ConversationState.EXPIRADA, List.of(), conversation.unrecognizedCount(),
                     conversation.lastActivityAt()));
+            if (human) {
+                logAttention(clinicId, phone, Action.AUTO_RELEASED, now);
+            }
         }
         return conversations.save(new Conversation(UUID.randomUUID(), clinicId, phone, ConversationState.CONVERSANDO,
                 null, null, null, null, null, List.of(), 0, now, now));
