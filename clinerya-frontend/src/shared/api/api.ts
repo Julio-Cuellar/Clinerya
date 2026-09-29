@@ -117,6 +117,7 @@ import type {
   AppointmentRequestView,
   ChannelSettingsView,
   ChatAccess,
+  ChatAttention,
   ChatMessage,
   ChatSummary,
   ConnectionTestResult,
@@ -1553,7 +1554,15 @@ export const whatsAppChatsApi = {
       Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1]))
     ).toString();
     return request<ChatAccess[]>(`${automationBase(clinicId)}/chat-access-log${query ? `?${query}` : ""}`);
-  }
+  },
+  /** Quien atiende el chat y hasta cuando WhatsApp permite escribirle. */
+  attention: (clinicId: string, phone: string) =>
+    request<ChatAttention>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/attention`),
+  /** true: lo toma una persona (el agente calla); false: lo regresa al agente. */
+  setAttention: (clinicId: string, phone: string, human: boolean) =>
+    request<ChatAttention>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/attention`, putJson({ human })),
+  sendMessage: (clinicId: string, phone: string, text: string) =>
+    request<void>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/messages`, postJson({ text }))
 };
 
 export const onlineBookingSettingsApi = {

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconLock } from "@tabler/icons-react";
 import { getFriendlyError, staffApi, whatsAppChatsApi, type ClinicStaffResponse } from "@shared/api/api";
-import type { ChatAccess, ChatActivityPush, ChatListItem, ChatMessage } from "../types";
+import type { ChatAccess, ChatActivityPush, ChatAttention, ChatListItem, ChatMessage } from "../types";
 import { appendNewMessages, applyChatActivity, chatTitle, describeAccess } from "../logic/chats";
+import { attentionSubtitle, humanAttentionChats, messageAuthor, replyWindow } from "../logic/attention";
 import { maskPhone } from "../logic/phone";
 import { receivedAgo } from "../logic/requests";
 import { chatsTopic } from "../realtime/destinations";
@@ -20,7 +21,8 @@ function formatDateTime(value: string) {
 
 /**
  * Chats de WhatsApp de la clinica (medicos y recepcion). La lista no trae contenido; abrir un chat
- * queda auditado, asi que el hilo abierto no se relee solo: se ofrece "Ver mensajes nuevos".
+ * queda auditado. Con "Atencion humana" una persona toma el chat, el agente calla y se le puede
+ * escribir al paciente mientras WhatsApp lo permita (24 h desde su ultimo mensaje).
  */
 export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: string; canSeeAccessLog: boolean }) {
   const [view, setView] = useState<"chats" | "audit">("chats");
@@ -35,6 +37,27 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [onlyHuman, setOnlyHuman] = useState(false);
+  const [attention, setAttention] = useState<ChatAttention | null>(null);
+  const [staff, setStaff] = useState<ClinicStaffResponse[]>([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
+
+  useEffect(() => {
+    if (!clinicId) return;
+    // Solo para mostrar quien escribio o tomo un chat; sin permiso se muestra "Personal de la clinica".
+    staffApi.list(clinicId).then(setStaff).catch(() => setStaff([]));
+  }, [clinicId]);
+
+  const loadAttention = useCallback(async (phone: string) => {
+    if (!clinicId) return;
+    try {
+      setAttention(await whatsAppChatsApi.attention(clinicId, phone));
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    }
+  }, [clinicId]);
 
   const loadChats = useCallback(async () => {
     if (!clinicId) return;
@@ -61,6 +84,7 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
       setChats((current) => applyChatActivity(current, push, openPhone ?? undefined));
       if (push.phone === openPhone) {
         void loadNewer(push.phone);
+        void loadAttention(push.phone);
       }
     },
     () => void loadChats()
@@ -69,6 +93,9 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const openChat = async (phone: string) => {
     if (!clinicId) return;
     setOpenPhone(phone);
+    setAttention(null);
+    setDraft("");
+    void loadAttention(phone);
     setChats((current) => current.map((chat) => (chat.phone === phone ? { ...chat, unread: false } : chat)));
     try {
       const page = await whatsAppChatsApi.messages(clinicId, phone);
@@ -121,13 +148,52 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   }, [messages]);
 
   const visibleChats = useMemo(() => {
+    const byAttention = humanAttentionChats(chats, onlyHuman);
     const term = search.trim().toLowerCase();
-    if (!term) return chats;
+    if (!term) return byAttention;
     const digits = term.replace(/\D/g, "");
-    return chats.filter((chat) => (digits !== "" && chat.phone.includes(digits)) || chatTitle(chat).toLowerCase().includes(term));
-  }, [chats, search]);
+    return byAttention.filter((chat) => (digits !== "" && chat.phone.includes(digits)) || chatTitle(chat).toLowerCase().includes(term));
+  }, [chats, search, onlyHuman]);
 
+  const humanCount = useMemo(() => chats.filter((chat) => chat.humanAttention).length, [chats]);
   const openChatSummary = chats.find((chat) => chat.phone === openPhone);
+
+  /** Tomar o regresar el chat abierto; la lista se actualiza sin esperar a recargarla. */
+  const changeAttention = async (human: boolean) => {
+    if (!clinicId || !openPhone) return;
+    setBusy(true);
+    try {
+      const next = await whatsAppChatsApi.setAttention(clinicId, openPhone, human);
+      setAttention(next);
+      setChats((current) => current.map((chat) => chat.phone === openPhone
+        ? { ...chat, humanAttention: next.human, attentionUserId: next.byUserId, attentionSince: next.since }
+        : chat));
+      setConfirmRelease(false);
+      setError("");
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendDraft = async () => {
+    if (!clinicId || !openPhone || !draft.trim()) return;
+    setBusy(true);
+    try {
+      await whatsAppChatsApi.sendMessage(clinicId, openPhone, draft);
+      setDraft("");
+      setError("");
+      await loadNewer(openPhone);
+    } catch (caught) {
+      setError(getFriendlyError(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const human = attention?.human ?? false;
+  const reply = replyWindow(attention?.replyUntil ?? null, new Date());
 
   if (!clinicId) {
     return <section className="wa-page"><p className="wa-empty">Selecciona una clínica para ver sus chats.</p></section>;
@@ -136,7 +202,7 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   return (
     <section className="wa-page">
       <div className="wa-page-head">
-        <p className="wa-help" style={{ margin: 0 }}>Conversaciones del asistente con los pacientes. Solo lectura.</p>
+        <p className="wa-help" style={{ margin: 0 }}>Conversaciones con los pacientes. Enciende "Atención humana" en un chat para contestar tú.</p>
         <div className="wa-row">
           {canSeeAccessLog && (
             <button className="btn ghost" type="button" onClick={() => setView(view === "chats" ? "audit" : "chats")}>
@@ -159,10 +225,20 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                 <input placeholder="Buscar por nombre o celular" value={search} onChange={(event) => setSearch(event.target.value)} />
               </label>
             </div>
+            <div className="wa-chips" role="group" aria-label="Filtrar chats">
+              <button type="button" className={`wa-chip${onlyHuman ? "" : " on"}`} aria-pressed={!onlyHuman} onClick={() => setOnlyHuman(false)}>
+                Todos
+              </button>
+              <button type="button" className={`wa-chip${onlyHuman ? " on" : ""}`} aria-pressed={onlyHuman} onClick={() => setOnlyHuman(true)}>
+                Atención humana · {humanCount}
+              </button>
+            </div>
             {loading ? (
               <p className="wa-empty">Cargando chats…</p>
             ) : visibleChats.length === 0 ? (
-              <p className="wa-empty">{chats.length === 0 ? "Aún no hay conversaciones." : "Ningún chat coincide."}</p>
+              <p className="wa-empty">
+                {chats.length === 0 ? "Aún no hay conversaciones." : onlyHuman && humanCount === 0 ? "Ningún chat espera a una persona." : "Ningún chat coincide."}
+              </p>
             ) : (
               visibleChats.map((chat) => (
                 <button
@@ -173,14 +249,18 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                 >
                   <div className="wa-request-top">
                     <strong>{chatTitle(chat)}</strong>
-                    {chat.unread ? (
+                    {chat.humanAttention ? (
+                      <span className="wa-pill warn">Atención humana</span>
+                    ) : chat.unread ? (
                       <span className="wa-pill info">Actividad nueva</span>
                     ) : (
                       <span className="wa-sub">{receivedAgo(chat.lastMessageAt, new Date())}</span>
                     )}
                   </div>
                   <div className="wa-sub">
-                    {maskPhone(chat.phone)} · {chat.messageCount} {chat.messageCount === 1 ? "mensaje" : "mensajes"}
+                    {maskPhone(chat.phone)} · {attentionSubtitle(chat, staff)
+                      ?? `${chat.messageCount} ${chat.messageCount === 1 ? "mensaje" : "mensajes"}`}
+                    {chat.humanAttention && chat.unread && " · Actividad nueva"}
                   </div>
                 </button>
               ))
@@ -190,9 +270,38 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
 
           {openPhone && openChatSummary ? (
             <div className="wa-thread">
-              <div className="wa-thread-head">
-                <h2 style={{ margin: 0, fontSize: 16 }}>{chatTitle(openChatSummary)}</h2>
-                <div className="wa-sub">{maskPhone(openPhone)}</div>
+              <div className="wa-thread-head attention">
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 16 }}>{chatTitle(openChatSummary)}</h2>
+                  <div className="wa-sub">{maskPhone(openPhone)}</div>
+                </div>
+                <div className="wa-row" style={{ gap: 12 }}>
+                  <span className={`wa-pill ${human ? "warn" : "info"}`}>{human ? "Activa" : "Agente"}</span>
+                  <label className="wa-switch">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={human}
+                      disabled={busy || attention === null}
+                      onChange={(event) => (event.target.checked ? void changeAttention(true) : setConfirmRelease(true))}
+                    />
+                    <span className="wa-switch-track" aria-hidden="true" />
+                    Atención humana
+                  </label>
+                </div>
+              </div>
+              <div className={`wa-attention-note${human ? " human" : ""}`} role="status">
+                {human ? (
+                  <>
+                    <strong>Atención humana activa</strong>
+                    {attention?.since && <> desde las {TIME.format(new Date(attention.since))}</>}
+                    {" · "}
+                    {attention?.byUserId ? <>la tomó <strong>{describeAccess(attention.byUserId, staff).name}</strong></> : "la pidió el agente"}
+                    . El agente no contesta mientras siga así.
+                  </>
+                ) : (
+                  <>Responde el agente. Enciende "Atención humana" para contestar tú; el agente se pausa en este chat.</>
+                )}
               </div>
               {openedAt && (
                 <div className="wa-audit-note" role="note">
@@ -206,7 +315,7 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                   </button>
                 )}
                 {messages.map((message) => (
-                  <div key={message.id} className={`wa-bubble ${message.direction === "INBOUND" ? "in" : "out"}`}>
+                  <div key={message.id} className={`wa-bubble ${message.direction === "INBOUND" ? "in" : message.direction === "STAFF" ? "staff" : "out"}`}>
                     {message.text}
                     {message.optionLabels.length > 0 && (
                       <div>
@@ -216,13 +325,63 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                       </div>
                     )}
                     <div className="wa-bubble-meta">
-                      {message.direction === "INBOUND" ? "Paciente" : "Asistente"} · {formatDateTime(message.at)}
+                      {messageAuthor(message, staff)} · {formatDateTime(message.at)}
                     </div>
                   </div>
                 ))}
                 <div ref={bottomRef} />
               </div>
-              <div className="wa-thread-foot">Solo lectura: aquí responde el asistente. Las citas se aprueban en Solicitudes de cita.</div>
+              {human ? (
+                <form
+                  className="wa-compose"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void sendDraft();
+                  }}
+                >
+                  <label className="field">
+                    <span>Mensaje a {chatTitle(openChatSummary)}</span>
+                    <textarea
+                      value={draft}
+                      maxLength={4096}
+                      disabled={!reply.open || busy}
+                      placeholder={reply.open ? "Escribe tu respuesta…" : "No disponible"}
+                      onChange={(event) => setDraft(event.target.value)}
+                    />
+                  </label>
+                  <div className="wa-compose-foot">
+                    <span className={reply.open ? "open" : "closed"}>● {reply.message}</span>
+                    <button className="btn primary" type="submit" disabled={!reply.open || busy || !draft.trim()}>
+                      Enviar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="wa-thread-foot">Aquí responde el agente. Las citas se aprueban en Solicitudes de cita.</div>
+              )}
+              {confirmRelease && (
+                <div className="modal-overlay" onClick={() => setConfirmRelease(false)}>
+                  <div
+                    className="modal-card card"
+                    role="alertdialog"
+                    aria-modal="true"
+                    aria-labelledby="release-title"
+                    style={{ maxWidth: 440 }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <h3 id="release-title" style={{ margin: 0 }}>¿Regresar este chat al agente?</h3>
+                    <p className="wa-help" style={{ margin: 0 }}>
+                      El agente volverá a contestar a {chatTitle(openChatSummary)} a partir de su próximo mensaje. La caja de texto se cerrará.
+                    </p>
+                    <div className="wa-row end" style={{ gap: 8 }}>
+                      <button className="btn ghost" type="button" onClick={() => setConfirmRelease(false)}>Cancelar</button>
+                      <button className="btn primary" type="button" disabled={busy} onClick={() => void changeAttention(false)}>
+                        Regresar al agente
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="wa-empty" style={{ alignSelf: "center" }}>Elige un chat para leerlo.</div>
