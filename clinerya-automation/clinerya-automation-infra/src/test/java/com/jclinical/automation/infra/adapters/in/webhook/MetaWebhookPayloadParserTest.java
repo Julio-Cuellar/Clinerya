@@ -35,6 +35,20 @@ class MetaWebhookPayloadParserTest {
     }
 
     @Test
+    void theSendersWhatsAppProfileNameTravelsWithTheirMessage() {
+        String body = """
+                {"object":"whatsapp_business_account","entry":[{"id":"1","changes":[{"field":"messages","value":{
+                 "messaging_product":"whatsapp","metadata":{"display_phone_number":"15550000000","phone_number_id":"106540352242922"},
+                 "contacts":[{"profile":{"name":"Promociones MX"},"wa_id":"13055550142"}],
+                 "messages":[{"from":"13055550142","id":"wamid.P","timestamp":"1790330400","type":"text","text":{"body":"Hola"}}]}}]}]}
+                """;
+
+        WhatsAppInboundMessage message = parser.parse(body.getBytes(StandardCharsets.UTF_8)).messages().get(0);
+
+        assertEquals("Promociones MX", message.profileName());
+    }
+
+    @Test
     void aReplyButtonCarriesTheChosenOption() {
         WhatsAppInboundMessage message = parse(envelope("""
                 {"from":"5215512345678","id":"wamid.B","timestamp":"1790330400","type":"interactive",
