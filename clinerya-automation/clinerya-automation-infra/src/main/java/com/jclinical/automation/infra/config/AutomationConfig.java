@@ -60,6 +60,10 @@ import com.jclinical.automation.domain.service.ChannelSettingsService;
 import com.jclinical.automation.domain.service.InboundWhatsAppProcessor;
 import com.jclinical.automation.domain.service.ChatHistoryService;
 import com.jclinical.automation.domain.service.ChatAttentionService;
+import com.jclinical.automation.domain.service.ChatContactService;
+import com.jclinical.automation.domain.ports.out.ChatContactsPort;
+import com.jclinical.automation.infra.adapters.out.crossmodule.PatientSnapshotAdapter;
+import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatContacts;
 import com.jclinical.automation.domain.ports.out.ChatAttentionLogPort;
 import com.jclinical.automation.infra.adapters.out.persistence.JdbcChatAttentionLog;
 import com.jclinical.automation.domain.service.RecordingOutboundQueue;
@@ -331,9 +335,25 @@ public class AutomationConfig {
                                                  PatientDirectoryPort automationPatientDirectory,
                                                  ChannelSettingsRepositoryPort settings,
                                                  StaffPermissionCheckerPort permissions,
-                                                 ChatAttentionLogPort chatAttentionLog) {
+                                                 ChatAttentionLogPort chatAttentionLog, ChatContactsPort chatContacts) {
         return new ChatHistoryService(chatHistory, new JdbcChatAccessLog(jdbcTemplate), automationPatientDirectory,
-                settings, permissions, Clock.systemDefaultZone(), chatAttentionLog);
+                settings, permissions, Clock.systemDefaultZone(), chatAttentionLog, chatContacts);
+    }
+
+    // ---- Ficha del contacto en Chats -------------------------------------------------------------
+
+    @Bean
+    public ChatContactsPort chatContacts(JdbcTemplate jdbcTemplate, FieldCipher automationFieldCipher) {
+        return new JdbcChatContacts(jdbcTemplate, automationFieldCipher);
+    }
+
+    /** Pacientes y citas por las rutas publicas de pacientes y agenda. */
+    @Bean
+    public ChatContactService chatContactService(ChatContactsPort chatContacts, GetPatientUseCase getPatientUseCase,
+                                                 OnlineBookingUseCase onlineBooking, DoctorDirectoryPort doctors,
+                                                 StaffPermissionCheckerPort permissions) {
+        return new ChatContactService(chatContacts, new PatientSnapshotAdapter(getPatientUseCase, onlineBooking), doctors,
+                permissions, Clock.systemDefaultZone());
     }
 
     // ---- Atencion humana en Chats (fase G) --------------------------------------------------------
@@ -401,10 +421,13 @@ public class AutomationConfig {
     public WhatsAppWebhookService whatsAppWebhookService(ChannelSettingsRepositoryPort settings, ObjectMapper objectMapper,
                                                          JdbcInboundMessageLedger inboundMessageLedger,
                                                          JdbcTemplate jdbcTemplate, DomainEventPublisherPort events,
-                                                         ChatHistoryPort chatHistory, DoctorChannelRepositoryPort doctorChannels) {
-        return new WhatsAppWebhookService(settings, new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()),
-                inboundMessageLedger, new JdbcDeliveryStatusRecorder(jdbcTemplate), chatHistory, doctorChannels, events,
-                Clock.systemDefaultZone());
+                                                         ChatHistoryPort chatHistory, DoctorChannelRepositoryPort doctorChannels,
+                                                         ChatContactsPort chatContacts) {
+        WhatsAppWebhookService service = new WhatsAppWebhookService(settings,
+                new MetaWebhookPayloadParser(objectMapper, ZoneId.systemDefault()), inboundMessageLedger,
+                new JdbcDeliveryStatusRecorder(jdbcTemplate), chatHistory, doctorChannels, events, Clock.systemDefaultZone());
+        service.setChatContacts(chatContacts);
+        return service;
     }
 
     /** Usa el agente sin envolver: corre dentro de la transaccion de TransactionalInboundWhatsAppProcessor. */

@@ -1,7 +1,9 @@
 package com.jclinical.automation.infra.adapters.in.web;
 
 import com.jclinical.automation.domain.model.ChatAttention;
+import com.jclinical.automation.domain.model.ChatContact;
 import com.jclinical.automation.domain.ports.in.ManageChatAttentionUseCase;
+import com.jclinical.automation.domain.ports.in.ViewChatContactUseCase;
 import com.jclinical.users.infra.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,7 +20,7 @@ import java.util.UUID;
 
 /**
  * Atencion humana en Chats: ver quien atiende un chat, tomarlo o regresarlo al agente, y escribirle
- * al paciente mientras lo atiende una persona.
+ * al paciente mientras lo atiende una persona. Tambien la ficha breve de quien escribe.
  */
 @RestController
 @RequestMapping("/api/v1/clinics/{clinicId}/automation/chats/{phone}")
@@ -26,7 +28,13 @@ import java.util.UUID;
 public class ChatAttentionController {
 
     private final ManageChatAttentionUseCase attention;
+    private final ViewChatContactUseCase contacts;
     private final CurrentUserResolver currentUserResolver;
+
+    @GetMapping("/contact")
+    public ChatContact contact(@PathVariable UUID clinicId, @PathVariable String phone) {
+        return contacts.contact(currentUserResolver.getCurrentUserId(), clinicId, phone);
+    }
 
     @GetMapping("/attention")
     public ChatAttention attention(@PathVariable UUID clinicId, @PathVariable String phone) {
