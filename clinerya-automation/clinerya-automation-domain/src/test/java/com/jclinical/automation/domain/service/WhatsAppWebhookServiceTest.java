@@ -189,6 +189,31 @@ class WhatsAppWebhookServiceTest {
     }
 
     @Test
+    void theWhatsAppProfileNameIsKeptToRecognizeUnknownNumbers() {
+        ChatContactServiceTest.InMemoryContacts contacts = new ChatContactServiceTest.InMemoryContacts();
+        service.setChatContacts(contacts);
+        parsed.add(new WhatsAppInboundMessage(PHONE_NUMBER_ID, "wamid.7", "13055550142", Kind.TEXT, "Hola", null, NOW,
+                "Promociones MX"));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertEquals("Promociones MX", contacts.facts.get("13055550142").profileName());
+    }
+
+    @Test
+    void aDoctorsProfileNameIsNotKeptAmongPatientContacts() {
+        ChatContactServiceTest.InMemoryContacts contacts = new ChatContactServiceTest.InMemoryContacts();
+        service.setChatContacts(contacts);
+        doctorChannels.save(new DoctorChannel(clinicId, UUID.randomUUID(), "5215599990000", true, NOW, null, NOW));
+        parsed.add(new WhatsAppInboundMessage(PHONE_NUMBER_ID, "wamid.8", "5215599990000", Kind.TEXT, "Hola", null, NOW,
+                "Dra. Ramírez"));
+
+        service.receive("llave-webhook", BODY, WebhookSignature.sign(BODY, APP_SECRET));
+
+        assertTrue(contacts.facts.isEmpty());
+    }
+
+    @Test
     void aMessageThatIsNotTextIsKeptAsAPlaceholder() {
         parsed.add(new WhatsAppInboundMessage(PHONE_NUMBER_ID, "wamid.3", "5215512345678", Kind.UNSUPPORTED, null, null, NOW));
 
