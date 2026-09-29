@@ -82,6 +82,36 @@ export interface ChatSummary {
   /** Quien lo tomo; null: lo pidio el agente. */
   attentionUserId?: string | null;
   attentionSince?: string | null;
+  /** Nombre que el contacto puso en su perfil de WhatsApp. */
+  profileName?: string | null;
+}
+
+export type ContactSignal = "FOREIGN_NUMBER" | "FIRST_MESSAGE_HAS_LINK" | "NEVER_HAD_APPOINTMENT";
+
+/** Paciente registrado con el celular del chat: solo identificacion y citas. */
+export interface ContactPatient {
+  patientId: string;
+  fullName: string;
+  age: number | null;
+  registeredAt: string | null;
+  whatsappConsent: boolean;
+  nextStart: string | null;
+  nextDoctorName: string | null;
+  lastAttendedStart: string | null;
+  lastAttendedDoctorName: string | null;
+  attended: number;
+  cancelled: number;
+  noShows: number;
+}
+
+/** Ficha breve de quien escribe, para reconocerlo o sospechar de spam. */
+export interface ChatContact {
+  phone: string;
+  profileName: string | null;
+  firstMessageAt: string | null;
+  messageCount: number;
+  patients: ContactPatient[];
+  signals: ContactSignal[];
 }
 
 /** Quien atiende un chat y hasta cuando WhatsApp permite escribirle texto libre. */
