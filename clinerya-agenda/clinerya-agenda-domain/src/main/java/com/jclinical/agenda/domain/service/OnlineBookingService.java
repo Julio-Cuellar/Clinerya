@@ -161,6 +161,26 @@ public class OnlineBookingService implements OnlineBookingUseCase {
                 .toList();
     }
 
+    @Override
+    public VisitSummary visitSummary(UUID clinicId, UUID patientId) {
+        List<Appointment> all = appointments.findByPatientIdAndClinicId(patientId, clinicId);
+        java.util.Optional<UpcomingAppointment> next = upcomingAppointments(clinicId, patientId, 1).stream().findFirst();
+        java.util.Optional<Appointment> lastAttended = all.stream()
+                .filter(appointment -> appointment.getStatus() == AppointmentStatus.COMPLETED)
+                .max(java.util.Comparator.comparing(Appointment::getScheduledStart));
+        return new VisitSummary(
+                next.map(UpcomingAppointment::start).orElse(null),
+                next.map(UpcomingAppointment::doctorStaffId).orElse(null),
+                lastAttended.map(Appointment::getScheduledStart).orElse(null),
+                lastAttended.map(Appointment::getDoctorStaffId).orElse(null),
+                count(all, AppointmentStatus.COMPLETED), count(all, AppointmentStatus.CANCELLED),
+                count(all, AppointmentStatus.NO_SHOW));
+    }
+
+    private static int count(List<Appointment> all, AppointmentStatus status) {
+        return (int) all.stream().filter(appointment -> appointment.getStatus() == status).count();
+    }
+
     /**
      * Un cupo se puede apartar si es exactamente uno de los que se ofrecerian ese dia: misma rejilla,
      * mismas reglas. Asi un id de cupo viejo o manipulado nunca aparta un horario arbitrario.

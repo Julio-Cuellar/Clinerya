@@ -52,6 +52,18 @@ public interface OnlineBookingUseCase {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Resumen de visitas del paciente para reconocerlo en Chats: proxima cita vigente, ultima atendida y
+     * cuantas atendio, cancelo o falto. Ruta interna de la automatizacion; no expone el expediente.
+     */
+    default VisitSummary visitSummary(UUID clinicId, UUID patientId) {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@code next*} y {@code lastAttended*} son null si no hay. */
+    record VisitSummary(LocalDateTime nextStart, UUID nextDoctorStaffId, LocalDateTime lastAttendedStart,
+                        UUID lastAttendedDoctorStaffId, int attended, int cancelled, int noShows) {}
+
     class AppointmentNotCancellableException extends RuntimeException {
         public AppointmentNotCancellableException(String message) {
             super(message);
