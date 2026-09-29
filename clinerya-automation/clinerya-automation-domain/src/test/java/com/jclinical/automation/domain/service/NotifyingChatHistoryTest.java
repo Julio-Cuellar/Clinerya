@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,7 +49,17 @@ class NotifyingChatHistoryTest {
         public int deleteOlderThan(UUID clinic, LocalDateTime cutoff) {
             return 7;
         }
+
+        @Override
+        public Optional<LocalDateTime> lastInboundAt(UUID clinic, String phone) {
+            return Optional.of(AT.minusHours(1));
+        }
     }, notifier);
+
+    @Test
+    void theLastPatientMessageComesFromTheStoredHistory() {
+        assertEquals(Optional.of(AT.minusHours(1)), history.lastInboundAt(clinicId, "5215512345678"));
+    }
 
     @Test
     void recordingAMessageAnnouncesActivityInThatChat() {
