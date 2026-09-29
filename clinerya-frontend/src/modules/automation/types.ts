@@ -77,6 +77,19 @@ export interface ChatSummary {
   patientNames: string[];
   lastMessageAt: string;
   messageCount: number;
+  /** Lo atiende una persona de la clinica (el agente calla). */
+  humanAttention?: boolean;
+  /** Quien lo tomo; null: lo pidio el agente. */
+  attentionUserId?: string | null;
+  attentionSince?: string | null;
+}
+
+/** Quien atiende un chat y hasta cuando WhatsApp permite escribirle texto libre. */
+export interface ChatAttention {
+  human: boolean;
+  since: string | null;
+  byUserId: string | null;
+  replyUntil: string | null;
 }
 
 /** Un chat en pantalla: lo que manda el backend mas si tuvo actividad desde que se vio. */
@@ -87,10 +100,12 @@ export interface ChatListItem extends ChatSummary {
 export interface ChatMessage {
   id: string;
   phone: string;
-  direction: "INBOUND" | "OUTBOUND";
+  direction: "INBOUND" | "OUTBOUND" | "STAFF";
   text: string;
   optionLabels: string[];
   at: string;
+  /** Quien del personal lo escribio (solo STAFF). */
+  authorUserId?: string | null;
 }
 
 export interface ChatAccess {
