@@ -118,6 +118,19 @@ class ChatContactServiceTest {
     }
 
     @Test
+    void theChatListShowsTheWhatsAppProfileNameOfEachNumber() {
+        ChatHistoryServiceTest.InMemoryHistory history = new ChatHistoryServiceTest.InMemoryHistory();
+        history.record(new com.jclinical.automation.domain.model.ChatMessage(UUID.randomUUID(), clinicId, FOREIGN,
+                com.jclinical.automation.domain.model.ChatMessage.Direction.INBOUND, "Hola", List.of(), NOW));
+        contacts.saveProfileName(clinicId, FOREIGN, "Promociones MX", NOW);
+        ChatHistoryService chats = new ChatHistoryService(history, null, new ConversationServiceTest.FakePatients(),
+                new ChannelSettingsServiceTest.InMemorySettings(), (clinic, user, permission) -> true,
+                Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC), null, contacts);
+
+        assertEquals("Promociones MX", chats.listChats(receptionistId, clinicId).getFirst().profileName());
+    }
+
+    @Test
     void onlyStaffWhoCanReadChatsSeeTheContact() {
         assertThrows(ClinicAccessDeniedException.class, () -> service.contact(UUID.randomUUID(), clinicId, MEXICAN));
     }
