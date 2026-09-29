@@ -118,6 +118,7 @@ import type {
   ChannelSettingsView,
   ChatAccess,
   ChatAttention,
+  ChatContact,
   ChatMessage,
   ChatSummary,
   ConnectionTestResult,
@@ -1561,6 +1562,9 @@ export const whatsAppChatsApi = {
   /** true: lo toma una persona (el agente calla); false: lo regresa al agente. */
   setAttention: (clinicId: string, phone: string, human: boolean) =>
     request<ChatAttention>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/attention`, putJson({ human })),
+  /** Ficha breve de quien escribe (paciente registrado o numero desconocido). */
+  contact: (clinicId: string, phone: string) =>
+    request<ChatContact>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/contact`),
   sendMessage: (clinicId: string, phone: string, text: string) =>
     request<void>(`${automationBase(clinicId)}/chats/${encodeURIComponent(phone)}/messages`, postJson({ text }))
 };

@@ -4,7 +4,8 @@ import { getFriendlyError, staffApi, whatsAppChatsApi, type ClinicStaffResponse 
 import type { ChatAccess, ChatActivityPush, ChatAttention, ChatListItem, ChatMessage } from "../types";
 import { appendNewMessages, applyChatActivity, chatTitle, describeAccess } from "../logic/chats";
 import { attentionSubtitle, humanAttentionChats, messageAuthor, replyWindow } from "../logic/attention";
-import { maskPhone } from "../logic/phone";
+import { chatPhone } from "../logic/contact";
+import { ChatContactCard } from "../components/ChatContactCard";
 import { receivedAgo } from "../logic/requests";
 import { chatsTopic } from "../realtime/destinations";
 import { useRealtimeTopic } from "../realtime/useRealtimeTopic";
@@ -24,7 +25,17 @@ function formatDateTime(value: string) {
  * queda auditado. Con "Atencion humana" una persona toma el chat, el agente calla y se le puede
  * escribir al paciente mientras WhatsApp lo permita (24 h desde su ultimo mensaje).
  */
-export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: string; canSeeAccessLog: boolean }) {
+export function WhatsAppChatsScreen({
+  clinicId,
+  canSeeAccessLog,
+  onOpenPatients,
+  onRegisterPatient
+}: {
+  clinicId?: string;
+  canSeeAccessLog: boolean;
+  onOpenPatients?: () => void;
+  onRegisterPatient?: () => void;
+}) {
   const [view, setView] = useState<"chats" | "audit">("chats");
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [openPhone, setOpenPhone] = useState<string | null>(null);
@@ -43,6 +54,8 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -93,6 +106,8 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
   const openChat = async (phone: string) => {
     if (!clinicId) return;
     setOpenPhone(phone);
+    setContactOpen(false);
+    setCopiedPhone(false);
     setAttention(null);
     setDraft("");
     void loadAttention(phone);
@@ -257,8 +272,11 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                       <span className="wa-sub">{receivedAgo(chat.lastMessageAt, new Date())}</span>
                     )}
                   </div>
+                  {chat.patientNames.length === 0 && chat.profileName && (
+                    <div className="wa-sub">"{chat.profileName}" en WhatsApp</div>
+                  )}
                   <div className="wa-sub">
-                    {maskPhone(chat.phone)} · {attentionSubtitle(chat, staff)
+                    <span className="wa-phone">{chatPhone(chat.phone)}</span> · {attentionSubtitle(chat, staff)
                       ?? `${chat.messageCount} ${chat.messageCount === 1 ? "mensaje" : "mensajes"}`}
                     {chat.humanAttention && chat.unread && " · Actividad nueva"}
                   </div>
@@ -272,8 +290,30 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
             <div className="wa-thread">
               <div className="wa-thread-head attention">
                 <div>
-                  <h2 style={{ margin: 0, fontSize: 16 }}>{chatTitle(openChatSummary)}</h2>
-                  <div className="wa-sub">{maskPhone(openPhone)}</div>
+                  <h2 style={{ margin: 0, fontSize: 16 }}>
+                    <button
+                      type="button"
+                      className="wa-name-button"
+                      aria-haspopup="dialog"
+                      aria-expanded={contactOpen}
+                      title="Ver quién es"
+                      onClick={() => setContactOpen((open) => !open)}
+                    >
+                      {chatTitle(openChatSummary)}
+                    </button>
+                  </h2>
+                  <div className="wa-sub">
+                    <span className="wa-phone">{chatPhone(openPhone)}</span>
+                    <button
+                      type="button"
+                      className="wa-link"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(chatPhone(openPhone)).then(() => setCopiedPhone(true), () => undefined);
+                      }}
+                    >
+                      {copiedPhone ? "Copiado" : "Copiar"}
+                    </button>
+                  </div>
                 </div>
                 <div className="wa-row" style={{ gap: 12 }}>
                   <span className={`wa-pill ${human ? "warn" : "info"}`}>{human ? "Activa" : "Agente"}</span>
@@ -290,6 +330,15 @@ export function WhatsAppChatsScreen({ clinicId, canSeeAccessLog }: { clinicId?: 
                   </label>
                 </div>
               </div>
+              {contactOpen && clinicId && (
+                <ChatContactCard
+                  clinicId={clinicId}
+                  phone={openPhone}
+                  onClose={() => setContactOpen(false)}
+                  onOpenPatients={onOpenPatients}
+                  onRegisterPatient={onRegisterPatient}
+                />
+              )}
               <div className={`wa-attention-note${human ? " human" : ""}`} role="status">
                 {human ? (
                   <>
@@ -463,7 +512,7 @@ function AccessLogView({ clinicId, chats }: { clinicId: string; chats: ChatListI
                 <tr key={row.id}>
                   <td>{formatDateTime(row.accessedAt)}</td>
                   <td>{who.name}{who.role && <div className="wa-sub">{who.role}</div>}</td>
-                  <td>{chat ? chatTitle(chat) : "Chat"}<div className="wa-sub">{maskPhone(row.phone)}</div></td>
+                  <td>{chat ? chatTitle(chat) : "Chat"}<div className="wa-sub wa-phone">{chatPhone(row.phone)}</div></td>
                 </tr>
               );
             })}

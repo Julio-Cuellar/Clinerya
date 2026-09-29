@@ -394,7 +394,15 @@ export function AppShell({
           ) : active === "solicitudes" ? (
             <AppointmentRequestsScreen clinicId={activeClinicId} userId={user.id} />
           ) : active === "chats" ? (
-            <WhatsAppChatsScreen clinicId={activeClinicId} canSeeAccessLog={hasPermission("MANAGE_CLINIC")} />
+            <WhatsAppChatsScreen
+              clinicId={activeClinicId}
+              canSeeAccessLog={hasPermission("MANAGE_CLINIC")}
+              onOpenPatients={() => navigateModule("pacientes")}
+              onRegisterPatient={() => {
+                navigateModule("pacientes");
+                setPatientModalOpen(true);
+              }}
+            />
           ) : active === "consultorios" ? (
             <ConsultoriosScreen clinicId={activeClinicId} hasClinic={Boolean(activeClinicId)} />
           ) : active === "atencion" && canAttendPatients ? (

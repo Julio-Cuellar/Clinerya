@@ -8521,6 +8521,21 @@ h2 {
 .wa-compose-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: 12px; }
 .wa-compose-foot .open { color: var(--color-success); }
 .wa-compose-foot .closed { color: var(--color-error); }
+/* Celular visible y ficha del contacto */
+.wa-phone { font-variant-numeric: tabular-nums; }
+.wa-link { border: 0; background: transparent; color: var(--color-primary); font-size: 12px; cursor: pointer; padding: 0 6px; }
+.wa-name-button { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 4px; }
+.wa-name-button:hover, .wa-name-button:focus-visible { color: var(--color-primary); }
+.wa-thread { position: relative; }
+.wa-contact-card { position: absolute; top: 64px; left: 16px; z-index: 5; width: 360px; max-width: calc(100% - 32px); max-height: 70vh; overflow: auto; background: var(--color-card); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.wa-contact-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.wa-contact-head h3 { margin: 0; font-size: 15px; }
+.wa-contact-flags { display: flex; gap: 6px; flex-wrap: wrap; }
+.wa-contact-data { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; margin: 0; }
+.wa-contact-data dt { color: var(--color-text-2); }
+.wa-contact-data dd { margin: 0; }
+.wa-contact-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--color-border); padding-top: 12px; }
+@media (max-width: 640px) { .wa-contact-card { position: fixed; inset: auto 12px 12px 12px; top: auto; width: auto; max-width: none; } }
 .wa-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: var(--space-3); align-items: end; }
 
 @media (max-width: 900px) {
