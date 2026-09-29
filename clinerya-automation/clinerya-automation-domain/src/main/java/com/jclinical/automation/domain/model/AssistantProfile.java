@@ -6,5 +6,5 @@ package com.jclinical.automation.domain.model;
  */
 public record AssistantProfile(String assistantName, String faq, boolean showPrices) {
 
-    public static final AssistantProfile EMPTY = new AssistantProfile(null, null, false);
+    public static final AssistantProfile EMPTY = new AssistantProfile(null, null, true);
 }
