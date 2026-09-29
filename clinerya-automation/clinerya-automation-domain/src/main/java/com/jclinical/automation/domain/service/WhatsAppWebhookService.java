@@ -10,6 +10,7 @@ import com.jclinical.automation.domain.model.WhatsAppInboundMessage.Kind;
 import com.jclinical.automation.domain.model.WhatsAppMessageReceivedEvent;
 import com.jclinical.automation.domain.ports.in.ReceiveWhatsAppWebhookUseCase;
 import com.jclinical.automation.domain.ports.out.ChannelSettingsRepositoryPort;
+import com.jclinical.automation.domain.ports.out.ChatContactsPort;
 import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import com.jclinical.automation.domain.ports.out.DeliveryStatusPort;
 import com.jclinical.automation.domain.ports.out.DoctorChannelRepositoryPort;
@@ -45,6 +46,7 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
     private final DoctorChannelRepositoryPort doctorChannels;
     private final DomainEventPublisherPort events;
     private final Clock clock;
+    private ChatContactsPort chatContacts;
 
     public WhatsAppWebhookService(ChannelSettingsRepositoryPort settings, WebhookPayloadParserPort parser,
                                   InboundMessageLedgerPort ledger, DeliveryStatusPort deliveryStatus,
@@ -58,6 +60,11 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
         this.doctorChannels = doctorChannels;
         this.events = events;
         this.clock = clock;
+    }
+
+    /** Donde se guarda el nombre de perfil de WhatsApp de cada contacto (ficha del contacto en Chats). */
+    public void setChatContacts(ChatContactsPort chatContacts) {
+        this.chatContacts = chatContacts;
     }
 
     @Override
@@ -116,6 +123,9 @@ public class WhatsAppWebhookService implements ReceiveWhatsAppWebhookUseCase {
         String text = message.kind() == Kind.UNSUPPORTED ? UNSUPPORTED_PLACEHOLDER : message.text();
         history.record(new ChatMessage(UUID.randomUUID(), clinicId, message.fromPhone(), ChatMessage.Direction.INBOUND,
                 text, List.of(), now));
+        if (chatContacts != null && message.profileName() != null && !message.profileName().isBlank()) {
+            chatContacts.saveProfileName(clinicId, message.fromPhone(), message.profileName().strip(), now);
+        }
     }
 
     private static boolean isForThisNumber(ChannelSettings clinic, String phoneNumberId) {

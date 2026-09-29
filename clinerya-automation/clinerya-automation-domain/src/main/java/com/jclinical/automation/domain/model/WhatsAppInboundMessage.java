@@ -13,8 +13,15 @@ public record WhatsAppInboundMessage(
         Kind kind,
         String text,
         String selectedOptionId,
-        LocalDateTime sentAt
+        LocalDateTime sentAt,
+        /** Nombre que el contacto puso en su perfil de WhatsApp (Meta lo manda en contacts[]); puede faltar. */
+        String profileName
 ) {
+    public WhatsAppInboundMessage(String phoneNumberId, String waMessageId, String fromPhone, Kind kind, String text,
+                                  String selectedOptionId, LocalDateTime sentAt) {
+        this(phoneNumberId, waMessageId, fromPhone, kind, text, selectedOptionId, sentAt, null);
+    }
+
 
     public enum Kind {
         /** Texto libre. */
