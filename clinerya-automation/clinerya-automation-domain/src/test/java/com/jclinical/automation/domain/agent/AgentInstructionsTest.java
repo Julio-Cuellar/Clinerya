@@ -75,4 +75,18 @@ class AgentInstructionsTest {
 
         assertTrue(instructions.contains(AgentInstructions.STYLE), instructions);
     }
+
+    @Test
+    void pricesComeOnlyFromTheCatalogAndDiscountsGoToAPerson() {
+        String instructions = AgentInstructions.build(new AgentPersona("Clínica Sonrisa", null, null));
+
+        assertTrue(instructions.contains(AgentInstructions.PRICE_RULE), instructions);
+        assertTrue(AgentInstructions.PRICE_RULE.contains(ServicesToolName.NAME));
+        assertTrue(AgentInstructions.PRICE_RULE.contains(ConversationAgent.HANDOFF));
+    }
+
+    /** Alias para leer la prueba: la herramienta de servicios y precios. */
+    private static final class ServicesToolName {
+        static final String NAME = com.jclinical.automation.domain.agent.tools.ServicesTool.NAME;
+    }
 }
