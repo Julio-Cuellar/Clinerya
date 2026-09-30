@@ -5,7 +5,9 @@ import com.jclinical.agenda.domain.ports.in.OnlineBookingUseCase.UpcomingAppoint
 import com.jclinical.automation.domain.ports.out.AppointmentCancellationPort;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort.UpcomingVisit;
 import com.jclinical.automation.domain.ports.out.TreatmentCatalogPort.CatalogTreatment;
-import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase.PublicTreatment;
+import com.jclinical.treatments.domain.model.PricingType;
+import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase;
+import com.jclinical.treatments.domain.ports.in.PublicTreatmentCatalogUseCase.PublicService;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -26,13 +28,50 @@ class AgentReadAdaptersTest {
     private final UUID clinicId = UUID.randomUUID();
 
     @Test
-    void theCatalogIsWhatTheTreatmentsModulePublishes() {
-        TreatmentCatalogAdapter adapter = new TreatmentCatalogAdapter(clinic -> List.of(
-                new PublicTreatment("Limpieza dental", "Preventivo", new BigDecimal("650.00")),
-                new PublicTreatment("Resina", null, null)));
+    void theAgentOnlySeesTheServicesTheTreatmentsModuleOffersForTheAssistant() {
+        PublicTreatmentCatalogUseCase catalog = mock(PublicTreatmentCatalogUseCase.class);
+        UUID cleaning = UUID.randomUUID();
+        UUID braces = UUID.randomUUID();
+        when(catalog.assistantServices(clinicId)).thenReturn(List.of(
+                new PublicService(cleaning, "Limpieza dental", "Preventivo", "Retiramos sarro y placa con ultrasonido.",
+                        PricingType.FIXED, new BigDecimal("650.00"), 45),
+                new PublicService(braces, "Ortodoncia", null, "Brackets; el plan se define en la valoración.",
+                        PricingType.VARIES_BY_PATIENT, null, 60)));
 
-        assertEquals(List.of(new CatalogTreatment("Limpieza dental", "Preventivo", new BigDecimal("650.00")),
-                new CatalogTreatment("Resina", null, null)), adapter.activeTreatments(clinicId));
+        assertEquals(List.of(
+                new CatalogTreatment(cleaning, "Limpieza dental", "Preventivo", "Retiramos sarro y placa con ultrasonido.",
+                        true, new BigDecimal("650.00"), 45),
+                new CatalogTreatment(braces, "Ortodoncia", null, "Brackets; el plan se define en la valoración.", false, null, 60)),
+                new TreatmentCatalogAdapter(catalog).activeTreatments(clinicId));
+    }
+
+    @Test
+    void slotsForAServiceAreAskedWithItsDuration() {
+        OnlineBookingUseCase agenda = mock(OnlineBookingUseCase.class);
+        UUID doctorId = UUID.randomUUID();
+        java.time.LocalDate from = java.time.LocalDate.of(2026, 10, 1);
+        LocalDateTime start = from.atTime(9, 0);
+        when(agenda.findAvailableSlots(clinicId, doctorId, from, 7, 10, 45))
+                .thenReturn(List.of(new com.jclinical.agenda.domain.model.BookableSlot(start, start.plusMinutes(45))));
+
+        List<com.jclinical.automation.domain.model.AvailableSlot> slots =
+                new SlotAvailabilityAdapter(agenda).availableSlots(clinicId, doctorId, from, 7, 10, 45);
+
+        assertEquals(List.of(new com.jclinical.automation.domain.model.AvailableSlot(start, start.plusMinutes(45))), slots);
+    }
+
+    @Test
+    void bookingAHeldSlotForAServicePassesTheServiceToTheAgenda() {
+        com.jclinical.agenda.domain.service.OnlineBookingService agenda =
+                mock(com.jclinical.agenda.domain.service.OnlineBookingService.class);
+        UUID holdId = UUID.randomUUID();
+        UUID patientId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        UUID appointmentId = UUID.randomUUID();
+        when(agenda.bookHeldSlot(new OnlineBookingUseCase.BookHeldSlotCommand(clinicId, holdId, patientId, "WhatsApp", serviceId)))
+                .thenReturn(appointmentId);
+
+        assertEquals(appointmentId, new SlotBookingAdapter(agenda).book(clinicId, holdId, patientId, "WhatsApp", serviceId));
     }
 
     @Test
