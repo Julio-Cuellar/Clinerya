@@ -4,6 +4,7 @@ import { ApiClientError, getFriendlyError, whatsAppSettingsApi } from "@shared/a
 import type { ChannelSettingsView, ConnectionTestResult, PromptMode, SecretKind } from "../types";
 import { assistantStatus, setupSteps } from "../logic/assistant";
 import { DoctorChannelsSection } from "./DoctorChannelsSection";
+import { AssistantProfileSection } from "./AssistantProfileSection";
 
 const MAX_PROMPT = 4000;
 const MIN_RETENTION = 1;
@@ -155,6 +156,16 @@ export function WhatsAppAssistantCard({ clinicId, canManage }: { clinicId: strin
         </div>
         <span className={`wa-pill ${status.tone}`}>{status.label}</span>
       </div>
+      {!view.enabled && (
+        <div className="wa-off-banner" role="alert">
+          <span>
+            <strong>El asistente está apagado.</strong> Los pacientes no reciben respuesta y los mensajes de Chats no se envían.
+            {view.missingToEnable.length > 0
+              ? ` Falta: ${view.missingToEnable.join(", ")}.`
+              : " Cambiar la clave o el modelo de Gemini lo apaga hasta que lo vuelvas a activar abajo."}
+          </span>
+        </div>
+      )}
       {!canManage && <p className="wa-help">Solo quien administra las integraciones puede cambiar esta configuración.</p>}
       {error && <p className="alert error" style={{ marginTop: 12 }}>{error}</p>}
       {notice && <p className="alert success" style={{ marginTop: 12 }}>{notice}</p>}
@@ -341,6 +352,7 @@ export function WhatsAppAssistantCard({ clinicId, canManage }: { clinicId: strin
           </label>
         )}
       </div>
+      <AssistantProfileSection clinicId={clinicId} canManage={canManage} />
     </section>
   );
 }

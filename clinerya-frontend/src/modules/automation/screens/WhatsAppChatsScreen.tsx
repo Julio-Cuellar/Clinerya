@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconLock } from "@tabler/icons-react";
-import { getFriendlyError, staffApi, whatsAppChatsApi, type ClinicStaffResponse } from "@shared/api/api";
+import { assistantProfileApi, getFriendlyError, staffApi, whatsAppChatsApi, type ClinicStaffResponse } from "@shared/api/api";
 import type { ChatAccess, ChatActivityPush, ChatAttention, ChatListItem, ChatMessage } from "../types";
 import { appendNewMessages, applyChatActivity, chatTitle, describeAccess } from "../logic/chats";
 import { attentionSubtitle, humanAttentionChats, messageAuthor, replyWindow } from "../logic/attention";
@@ -55,6 +55,12 @@ export function WhatsAppChatsScreen({
   const [busy, setBusy] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [assistantOn, setAssistantOn] = useState(true);
+
+  useEffect(() => {
+    if (!clinicId) return;
+    assistantProfileApi.status(clinicId).then((status) => setAssistantOn(status.enabled)).catch(() => setAssistantOn(true));
+  }, [clinicId]);
   const [copiedPhone, setCopiedPhone] = useState(false);
 
   useEffect(() => {
@@ -228,6 +234,14 @@ export function WhatsAppChatsScreen({
         </div>
       </div>
       {error && <p className="alert error">{error}</p>}
+      {!assistantOn && (
+        <div className="wa-off-banner" role="alert">
+          <span>
+            <strong>El asistente está apagado.</strong> Los pacientes no reciben respuesta y los mensajes que escribas aquí no se
+            envían. Actívalo en Configuración → Clínica e Integraciones → Asistente de WhatsApp.
+          </span>
+        </div>
+      )}
 
       {view === "audit" && canSeeAccessLog ? (
         <AccessLogView clinicId={clinicId} chats={chats} />
