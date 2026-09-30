@@ -1500,12 +1500,19 @@ const putJson = (body: unknown): RequestInit => ({ method: "PUT", body: JSON.str
 const postJson = (body?: unknown): RequestInit => ({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 /** Ajustes del asistente (nombre, preguntas frecuentes, compartir precios) y si esta encendido. */
+export interface AssistantProfileBody {
+  assistantName: string | null;
+  faq: string | null;
+  showPrices: boolean;
+  remindersEnabled: boolean;
+  reminderHoursBefore: number;
+  reminderTemplateName: string | null;
+}
+
 export const assistantProfileApi = {
-  get: (clinicId: string) =>
-    request<{ assistantName: string | null; faq: string | null; showPrices: boolean }>(`${automationBase(clinicId)}/assistant-profile`),
-  update: (clinicId: string, body: { assistantName: string; faq: string; showPrices: boolean }) =>
-    request<{ assistantName: string | null; faq: string | null; showPrices: boolean }>(
-      `${automationBase(clinicId)}/assistant-profile`, putJson(body)),
+  get: (clinicId: string) => request<AssistantProfileBody>(`${automationBase(clinicId)}/assistant-profile`),
+  update: (clinicId: string, body: AssistantProfileBody) =>
+    request<AssistantProfileBody>(`${automationBase(clinicId)}/assistant-profile`, putJson(body)),
   status: (clinicId: string) => request<{ enabled: boolean }>(`${automationBase(clinicId)}/assistant-status`)
 };
 

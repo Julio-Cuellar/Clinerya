@@ -8564,3 +8564,7 @@ h2 {
 .wa-profile-bubble { display: inline-block; background: #DCF8C6; color: #1a2a2a; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
 .wa-profile-review { font-size: 13px; background: var(--color-surface); border-radius: 10px; padding: 10px 14px; }
 .wa-profile-review ul { margin: 6px 0 0; padding-left: 18px; }
+/* Recordatorio de citas (plan v2, S6) */
+.wa-reminder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.wa-reminder-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.wa-reminder-buttons span { background: #fff; color: #1f7aec; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 600; }

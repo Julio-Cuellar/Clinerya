@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { assistantProfileApi, clinicsApi, getFriendlyError, treatmentCatalogApi } from "@shared/api/api";
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
-import { catalogReview, greetingPreview } from "../logic/assistantProfile";
+import { REMINDER_HOURS, catalogReview, greetingPreview, reminderPreview, reminderTemplateError } from "../logic/assistantProfile";
 
 const MAX_NAME = 60;
 const MAX_FAQ = 4000;
@@ -14,6 +14,9 @@ export function AssistantProfileSection({ clinicId, canManage }: { clinicId: str
   const [name, setName] = useState("");
   const [faq, setFaq] = useState("");
   const [showPrices, setShowPrices] = useState(true);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderHours, setReminderHours] = useState(24);
+  const [reminderTemplate, setReminderTemplate] = useState("");
   const [clinicName, setClinicName] = useState("tu clínica");
   const [services, setServices] = useState<TreatmentCatalogItemResponse[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -33,6 +36,9 @@ export function AssistantProfileSection({ clinicId, canManage }: { clinicId: str
         setName(profile.assistantName ?? "");
         setFaq(profile.faq ?? "");
         setShowPrices(profile.showPrices);
+        setRemindersEnabled(profile.remindersEnabled);
+        setReminderHours(profile.reminderHoursBefore);
+        setReminderTemplate(profile.reminderTemplateName ?? "");
         if (clinic?.name) setClinicName(clinic.name);
         setServices(catalog);
         setLoaded(true);
@@ -43,15 +49,27 @@ export function AssistantProfileSection({ clinicId, canManage }: { clinicId: str
     };
   }, [clinicId]);
 
+  const templateError = reminderTemplateError(reminderTemplate);
+
   const save = async () => {
+    if (templateError) {
+      setError(templateError);
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const saved = await assistantProfileApi.update(clinicId, { assistantName: name, faq, showPrices });
+      const saved = await assistantProfileApi.update(clinicId, {
+        assistantName: name, faq, showPrices, remindersEnabled, reminderHoursBefore: reminderHours,
+        reminderTemplateName: reminderTemplate.trim() || null
+      });
       setName(saved.assistantName ?? "");
       setFaq(saved.faq ?? "");
       setShowPrices(saved.showPrices);
+      setRemindersEnabled(saved.remindersEnabled);
+      setReminderHours(saved.reminderHoursBefore);
+      setReminderTemplate(saved.reminderTemplateName ?? "");
       setNotice("Ajustes del asistente guardados.");
     } catch (caught) {
       setError(getFriendlyError(caught));
@@ -66,6 +84,9 @@ export function AssistantProfileSection({ clinicId, canManage }: { clinicId: str
 
   const readOnly = !canManage || busy;
   const review = catalogReview(services);
+  const reminder = reminderPreview(clinicName);
+  const hourOptions = REMINDER_HOURS.includes(reminderHours as (typeof REMINDER_HOURS)[number])
+    ? [...REMINDER_HOURS] : [...REMINDER_HOURS, reminderHours].sort((a, b) => a - b);
 
   return (
     <div className="wa-profile" aria-labelledby="wa-profile-title">
@@ -112,6 +133,40 @@ export function AssistantProfileSection({ clinicId, canManage }: { clinicId: str
           </li>
         </ul>
       </div>
+
+      <h4 id="wa-reminder-title">Recordatorio de citas</h4>
+      <label className="wa-row" style={{ gap: 10 }}>
+        <input type="checkbox" role="switch" checked={remindersEnabled} disabled={readOnly}
+          onChange={(event) => setRemindersEnabled(event.target.checked)} />
+        <strong>Enviar un recordatorio antes de cada cita</strong>
+      </label>
+      <p className="wa-help">Solo a pacientes que autorizaron WhatsApp. Confirma, cancela o pide reprogramar desde el mismo mensaje.</p>
+      <div className="wa-reminder-grid">
+        <label className="field">
+          <span>Enviar</span>
+          <select value={reminderHours} disabled={readOnly || !remindersEnabled}
+            onChange={(event) => setReminderHours(Number(event.target.value))}>
+            {hourOptions.map((hours) => <option key={hours} value={hours}>{hours} horas antes</option>)}
+          </select>
+        </label>
+        <label className="field">
+          <span>Plantilla aprobada en Meta</span>
+          <input value={reminderTemplate} maxLength={512} disabled={readOnly || !remindersEnabled} placeholder="recordatorio_cita"
+            aria-invalid={templateError ? true : undefined} onChange={(event) => setReminderTemplate(event.target.value)} />
+        </label>
+      </div>
+      {templateError && <p className="alert error">{templateError}</p>}
+      <div className="wa-profile-preview">
+        <span className="wa-profile-bubble">
+          {reminder.text}
+          <span className="wa-reminder-buttons">{reminder.buttons.map((label) => <span key={label}>{label}</span>)}</span>
+        </span>
+      </div>
+      <p className="wa-help">
+        Confirmo marca la cita como confirmada en la agenda. Reprogramar sigue necesitando la aprobación del médico. Un solo
+        recordatorio por cita. Si pasaron más de 24 h desde el último mensaje del paciente, WhatsApp exige esta plantilla: créala
+        en Meta con cuatro variables (nombre, clínica, fecha y hora, médico) y esos tres botones de respuesta rápida, en ese orden.
+      </p>
 
       {canManage && (
         <div className="wa-row end">
