@@ -238,11 +238,12 @@ public class AutomationConfig {
             AppointmentCancellationPort automationAppointmentCancellation, DoctorNotificationService doctorNotifications,
             PatientRegistrationPort automationPatientRegistration) {
         PatientAppointmentsPort appointments = new PatientAppointmentsAdapter(onlineBooking);
+        TreatmentCatalogAdapter serviceCatalog = new TreatmentCatalogAdapter(treatmentCatalog);
         List<AgentTool> tools = List.of(
                 new ClinicInfoTool(automationClinicInfo, assistantProfiles),
-                new ServicesTool(new TreatmentCatalogAdapter(treatmentCatalog), assistantProfiles),
+                new ServicesTool(serviceCatalog, assistantProfiles),
                 new DoctorsTool(doctors),
-                new SlotsTool(doctors, slots),
+                new SlotsTool(doctors, slots, serviceCatalog),
                 new MyAppointmentsTool(appointments, doctors),
                 new ProposeBookingTool(doctors, agentPendingActions),
                 new ProposeCancellationTool(appointments, doctors, agentPendingActions),

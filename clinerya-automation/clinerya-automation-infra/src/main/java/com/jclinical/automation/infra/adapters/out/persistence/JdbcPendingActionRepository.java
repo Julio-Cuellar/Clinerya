@@ -19,19 +19,19 @@ import java.util.UUID;
 public class JdbcPendingActionRepository implements PendingActionPort {
 
     private static final String COLUMNS = "conversation_id, kind, patient_id, patient_name, doctor_staff_id, doctor_name, "
-            + "start_at, end_at, appointment_id, note, proposed_at";
+            + "start_at, end_at, appointment_id, note, proposed_at, service_id";
 
     private static final String FIND_SQL =
             "SELECT " + COLUMNS + " FROM automation.agent_pending_actions WHERE conversation_id = ?";
 
     private static final String UPSERT_SQL = """
             INSERT INTO automation.agent_pending_actions (%s)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (conversation_id) DO UPDATE
                SET kind = EXCLUDED.kind, patient_id = EXCLUDED.patient_id, patient_name = EXCLUDED.patient_name,
                    doctor_staff_id = EXCLUDED.doctor_staff_id, doctor_name = EXCLUDED.doctor_name,
                    start_at = EXCLUDED.start_at, end_at = EXCLUDED.end_at, appointment_id = EXCLUDED.appointment_id,
-                   note = EXCLUDED.note, proposed_at = EXCLUDED.proposed_at
+                   note = EXCLUDED.note, proposed_at = EXCLUDED.proposed_at, service_id = EXCLUDED.service_id
             """.formatted(COLUMNS);
 
     private static final String DELETE_SQL = "DELETE FROM automation.agent_pending_actions WHERE conversation_id = ?";
@@ -49,7 +49,8 @@ public class JdbcPendingActionRepository implements PendingActionPort {
     public void save(PendingAction action) {
         jdbcTemplate.update(UPSERT_SQL, action.conversationId(), action.kind().name(), action.patientId(),
                 encrypt(action.patientName()), action.doctorStaffId(), action.doctorName(), timestamp(action.start()),
-                timestamp(action.end()), action.appointmentId(), encrypt(action.note()), timestamp(action.proposedAt()));
+                timestamp(action.end()), action.appointmentId(), encrypt(action.note()), timestamp(action.proposedAt()),
+                action.serviceId());
     }
 
     @Override
@@ -79,7 +80,8 @@ public class JdbcPendingActionRepository implements PendingActionPort {
                 localDateTime(row.getTimestamp("end_at")),
                 row.getObject("appointment_id", UUID.class),
                 row.getTimestamp("proposed_at").toLocalDateTime(),
-                decrypt(row.getString("note")));
+                decrypt(row.getString("note")),
+                row.getObject("service_id", UUID.class));
     }
 
     private String encrypt(String value) {

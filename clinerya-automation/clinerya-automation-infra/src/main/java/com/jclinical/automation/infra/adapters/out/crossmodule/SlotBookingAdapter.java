@@ -41,8 +41,13 @@ public class SlotBookingAdapter implements SlotBookingPort {
 
     @Override
     public UUID book(UUID clinicId, UUID holdId, UUID patientId, String reason) {
+        return book(clinicId, holdId, patientId, reason, null);
+    }
+
+    @Override
+    public UUID book(UUID clinicId, UUID holdId, UUID patientId, String reason, UUID serviceId) {
         try {
-            return onlineBooking.bookHeldSlot(new BookHeldSlotCommand(clinicId, holdId, patientId, reason));
+            return onlineBooking.bookHeldSlot(new BookHeldSlotCommand(clinicId, holdId, patientId, reason, serviceId));
         } catch (SlotUnavailableException unavailable) {
             throw new SlotNoLongerAvailableException(unavailable.getMessage());
         }

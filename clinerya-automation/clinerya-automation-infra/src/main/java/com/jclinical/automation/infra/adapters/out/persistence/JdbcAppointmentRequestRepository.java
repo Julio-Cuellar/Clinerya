@@ -22,12 +22,12 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
     private static final String COLUMNS = """
             id, clinic_id, conversation_id, patient_id, patient_name, patient_phone, doctor_staff_id,
             doctor_name, start_at, end_at, hold_id, status, proposed_options, appointment_id,
-            rejection_reason, created_at, responded_at, replaces_appointment_id
+            rejection_reason, created_at, responded_at, replaces_appointment_id, service_id
             """;
 
     private static final String UPSERT_SQL = """
             INSERT INTO automation.appointment_requests (%s)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (id) DO UPDATE SET
                 status = EXCLUDED.status,
                 proposed_options = EXCLUDED.proposed_options,
@@ -80,7 +80,7 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
                 Timestamp.valueOf(request.start()), Timestamp.valueOf(request.end()), request.holdId(),
                 request.status().name(), codec.encode(request.proposedOptions()), request.appointmentId(),
                 request.rejectionReason(), Timestamp.valueOf(request.createdAt()), timestamp(request.respondedAt()),
-                request.replacesAppointmentId());
+                request.replacesAppointmentId(), request.serviceId());
         return request;
     }
 
@@ -131,7 +131,8 @@ public class JdbcAppointmentRequestRepository implements AppointmentRequestRepos
                 row.getString("rejection_reason"),
                 row.getTimestamp("created_at").toLocalDateTime(),
                 localDateTime(row.getTimestamp("responded_at")),
-                row.getObject("replaces_appointment_id", UUID.class));
+                row.getObject("replaces_appointment_id", UUID.class),
+                row.getObject("service_id", UUID.class));
     }
 
     private static Timestamp timestamp(LocalDateTime value) {

@@ -19,7 +19,16 @@ public class SlotAvailabilityAdapter implements SlotAvailabilityPort {
 
     @Override
     public List<AvailableSlot> availableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit) {
-        return onlineBooking.findAvailableSlots(clinicId, doctorStaffId, from, days, limit).stream()
+        return availableSlots(clinicId, doctorStaffId, from, days, limit, null);
+    }
+
+    @Override
+    public List<AvailableSlot> availableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit,
+                                              Integer durationMinutes) {
+        var found = durationMinutes == null
+                ? onlineBooking.findAvailableSlots(clinicId, doctorStaffId, from, days, limit)
+                : onlineBooking.findAvailableSlots(clinicId, doctorStaffId, from, days, limit, durationMinutes);
+        return found.stream()
                 .map(slot -> new AvailableSlot(slot.start(), slot.end()))
                 .toList();
     }
