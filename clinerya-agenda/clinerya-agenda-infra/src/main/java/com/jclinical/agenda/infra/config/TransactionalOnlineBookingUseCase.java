@@ -63,6 +63,12 @@ public class TransactionalOnlineBookingUseCase implements OnlineBookingUseCase {
 
     @Override
     @Transactional
+    public void confirmByPatient(UUID clinicId, UUID appointmentId, UUID patientId) {
+        onlineBookingService.confirmByPatient(clinicId, appointmentId, patientId);
+    }
+
+    @Override
+    @Transactional
     public void cancelByPatient(UUID clinicId, UUID appointmentId, UUID patientId, String reason) {
         onlineBookingService.cancelByPatient(clinicId, appointmentId, patientId, reason);
     }

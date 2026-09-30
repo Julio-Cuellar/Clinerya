@@ -73,6 +73,22 @@ public interface OnlineBookingUseCase {
     record VisitSummary(LocalDateTime nextStart, UUID nextDoctorStaffId, LocalDateTime lastAttendedStart,
                         UUID lastAttendedDoctorStaffId, int attended, int cancelled, int noShows) {}
 
+    /**
+     * El paciente confirma su propia cita vigente y futura desde el recordatorio de WhatsApp (ruta interna).
+     * Si ya estaba confirmada no cambia nada.
+     *
+     * @throws AppointmentNotConfirmableException si la cita no es suya, ya paso o ya no esta vigente.
+     */
+    default void confirmByPatient(UUID clinicId, UUID appointmentId, UUID patientId) {
+        throw new UnsupportedOperationException();
+    }
+
+    class AppointmentNotConfirmableException extends RuntimeException {
+        public AppointmentNotConfirmableException(String message) {
+            super(message);
+        }
+    }
+
     class AppointmentNotCancellableException extends RuntimeException {
         public AppointmentNotCancellableException(String message) {
             super(message);

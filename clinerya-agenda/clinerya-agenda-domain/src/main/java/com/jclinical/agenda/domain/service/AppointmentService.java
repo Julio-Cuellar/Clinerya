@@ -17,6 +17,7 @@ import com.jclinical.agenda.domain.ports.out.RoomValidatorPort;
 import com.jclinical.agenda.domain.ports.out.StaffValidatorPort;
 import com.jclinical.agenda.domain.ports.out.StaffValidatorPort.DoctorSnapshot;
 import com.jclinical.core.events.AppointmentCancelledEvent;
+import com.jclinical.core.events.AppointmentConfirmedEvent;
 import com.jclinical.core.events.AppointmentDeletedEvent;
 import com.jclinical.core.events.AppointmentRescheduledEvent;
 import com.jclinical.core.events.AppointmentScheduledEvent;
@@ -334,6 +335,12 @@ public class AppointmentService implements ManageAppointmentsUseCase {
         if (shouldReleaseMaterials) {
             eventPublisher.publish(DomainEventRoutingKeys.MATERIAL_RESERVATION_RELEASED, new MaterialReservationReleasedEvent(
                     UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now()));
+        }
+
+        if (targetStatus == AppointmentStatus.CONFIRMED) {
+            eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_CONFIRMED, new AppointmentConfirmedEvent(
+                    UUID.randomUUID(), clinicId, appointmentId, LocalDateTime.now(), saved.getPatientId(),
+                    saved.getDoctorStaffId(), saved.getScheduledStart()));
         }
 
         if (targetStatus == AppointmentStatus.CANCELLED) {

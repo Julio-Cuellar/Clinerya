@@ -154,6 +154,18 @@ public class OnlineBookingService implements OnlineBookingUseCase {
     }
 
     @Override
+    public void confirmByPatient(UUID clinicId, UUID appointmentId, UUID patientId) {
+        Appointment appointment = appointments.findByIdAndClinicId(appointmentId, clinicId)
+                .filter(found -> patientId != null && patientId.equals(found.getPatientId()))
+                .filter(found -> found.getStatus() == AppointmentStatus.SCHEDULED || found.getStatus() == AppointmentStatus.CONFIRMED)
+                .filter(found -> found.getScheduledStart().isAfter(LocalDateTime.now(clock)))
+                .orElseThrow(() -> new AppointmentNotConfirmableException("Esa cita ya no se puede confirmar por aquí."));
+        if (appointment.getStatus() == AppointmentStatus.SCHEDULED) {
+            appointmentCreator.transitionStatus(appointment.getId(), clinicId, AppointmentStatus.CONFIRMED, null, null);
+        }
+    }
+
+    @Override
     public List<UpcomingAppointment> upcomingAppointments(UUID clinicId, UUID patientId, int limit) {
         LocalDateTime now = LocalDateTime.now(clock);
         return appointments.findByPatientIdAndClinicId(patientId, clinicId).stream()
