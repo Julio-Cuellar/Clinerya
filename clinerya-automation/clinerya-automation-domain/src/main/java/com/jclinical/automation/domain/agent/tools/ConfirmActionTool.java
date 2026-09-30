@@ -82,7 +82,7 @@ public final class ConfirmActionTool implements AgentTool {
         try {
             UUID requestId = requests.submit(new NewAppointmentRequest(context.clinicId(), context.conversationId(),
                     action.patientId(), action.doctorStaffId(), action.start(), action.end(), context.phone(),
-                    action.patientName(), action.doctorName(), replaces));
+                    action.patientName(), action.doctorName(), replaces, action.serviceId()));
             Conversations.setRequest(conversations, context.conversationId(), requestId);
         } catch (SlotNoLongerAvailableException taken) {
             return ToolOutcome.of(Map.of("error", "Ese horario se acaba de ocupar; hay que buscar otro."));

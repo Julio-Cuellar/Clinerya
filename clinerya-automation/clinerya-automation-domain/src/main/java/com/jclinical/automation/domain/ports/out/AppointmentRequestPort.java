@@ -36,12 +36,22 @@ public interface AppointmentRequestPort {
             String patientName,
             String doctorName,
             /** La cita que esta solicitud reemplaza (reprogramar); se cancela cuando el medico aprueba. */
-            UUID replacesAppointmentId
+            UUID replacesAppointmentId,
+            /** Servicio del catalogo de la cita (opcional); al aprobarse, la cita copia su precio. */
+            UUID serviceId
     ) {
         public NewAppointmentRequest(UUID clinicId, UUID conversationId, UUID patientId, UUID doctorStaffId,
                                      LocalDateTime start, LocalDateTime end, String patientPhone, String patientName,
                                      String doctorName) {
-            this(clinicId, conversationId, patientId, doctorStaffId, start, end, patientPhone, patientName, doctorName, null);
+            this(clinicId, conversationId, patientId, doctorStaffId, start, end, patientPhone, patientName, doctorName, null,
+                    null);
+        }
+
+        public NewAppointmentRequest(UUID clinicId, UUID conversationId, UUID patientId, UUID doctorStaffId,
+                                     LocalDateTime start, LocalDateTime end, String patientPhone, String patientName,
+                                     String doctorName, UUID replacesAppointmentId) {
+            this(clinicId, conversationId, patientId, doctorStaffId, start, end, patientPhone, patientName, doctorName,
+                    replacesAppointmentId, null);
         }
     }
 

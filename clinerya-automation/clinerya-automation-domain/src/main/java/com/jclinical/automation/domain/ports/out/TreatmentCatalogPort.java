@@ -11,5 +11,14 @@ public interface TreatmentCatalogPort {
     List<CatalogTreatment> activeTreatments(UUID clinicId);
 
     /** {@code category} y {@code price} pueden faltar. */
-    record CatalogTreatment(String name, String category, BigDecimal price) {}
+    /**
+     * Servicio que el asistente puede ofrecer. {@code fixedPrice}: el precio es lo que cuesta; si no, es
+     * referencia "desde" (puede faltar). {@code id} y {@code durationMinutes} sirven para agendarlo.
+     */
+    record CatalogTreatment(UUID id, String name, String category, String description, boolean fixedPrice,
+                            BigDecimal price, Integer durationMinutes) {
+        public CatalogTreatment(String name, String category, BigDecimal price) {
+            this(null, name, category, null, true, price, null);
+        }
+    }
 }

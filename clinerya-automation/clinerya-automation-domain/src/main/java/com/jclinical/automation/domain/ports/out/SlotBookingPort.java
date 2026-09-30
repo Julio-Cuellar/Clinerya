@@ -22,6 +22,11 @@ public interface SlotBookingPort {
      */
     UUID book(UUID clinicId, UUID holdId, UUID patientId, String reason);
 
+    /** Agenda el apartado como cita de un servicio del catalogo (la cita copia su precio). */
+    default UUID book(UUID clinicId, UUID holdId, UUID patientId, String reason, UUID serviceId) {
+        return book(clinicId, holdId, patientId, reason);
+    }
+
     /** Miembro del personal que corresponde al usuario de Clinerya en la clinica. */
     Optional<UUID> doctorStaffIdOfUser(UUID clinicId, UUID userId);
 }

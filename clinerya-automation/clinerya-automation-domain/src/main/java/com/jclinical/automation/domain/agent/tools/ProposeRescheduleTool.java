@@ -59,7 +59,7 @@ public final class ProposeRescheduleTool implements AgentTool {
         }
         pending.save(new PendingAction(context.conversationId(), PendingAction.Kind.RESCHEDULE, appointment.patient().patientId(),
                 appointment.patient().displayName(), slot.doctorId(), appointment.doctorName(), slot.start(), slot.end(),
-                appointment.visit().appointmentId(), context.now()));
+                appointment.visit().appointmentId(), context.now(), null, slot.serviceId()));
         String from = SlotLabel.of(appointment.visit().start());
         String to = SlotLabel.of(slot.start());
         return new ToolOutcome(Map.of("resumen", "Mover la cita del " + from + " al " + to + " con " + appointment.doctorName(),

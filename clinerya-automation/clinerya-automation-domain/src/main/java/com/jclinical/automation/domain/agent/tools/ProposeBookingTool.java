@@ -69,7 +69,7 @@ public final class ProposeBookingTool implements AgentTool {
         String doctorName = doctors.listDoctors(context.clinicId()).stream().filter(d -> d.staffId().equals(doctorId))
                 .map(DoctorContact::displayName).findFirst().orElse("tu médico");
         pending.save(new PendingAction(context.conversationId(), PendingAction.Kind.BOOK, patient.get().patientId(),
-                patient.get().displayName(), doctorId, doctorName, start, end, null, context.now()));
+                patient.get().displayName(), doctorId, doctorName, start, end, null, context.now(), null, slot.serviceId()));
         String label = SlotLabel.of(start);
         String summary = label + " con " + doctorName + " para " + patient.get().displayName();
         return new ToolOutcome(Map.of("resumen", summary, "pide_confirmacion", true),

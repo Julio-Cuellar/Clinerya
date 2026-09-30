@@ -8,6 +8,8 @@ import com.jclinical.automation.domain.model.AvailableSlot;
 import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort.DoctorContact;
+import com.jclinical.automation.domain.ports.out.TreatmentCatalogPort;
+import com.jclinical.automation.domain.ports.out.TreatmentCatalogPort.CatalogTreatment;
 import com.jclinical.automation.domain.ports.out.SlotAvailabilityPort;
 import com.jclinical.automation.domain.service.SlotLabel;
 
@@ -36,10 +38,16 @@ public final class SlotsTool implements AgentTool {
 
     private final DoctorDirectoryPort doctors;
     private final SlotAvailabilityPort slots;
+    private final TreatmentCatalogPort catalog;
 
-    public SlotsTool(DoctorDirectoryPort doctors, SlotAvailabilityPort slots) {
+    public SlotsTool(DoctorDirectoryPort doctors, SlotAvailabilityPort slots, TreatmentCatalogPort catalog) {
         this.doctors = doctors;
         this.slots = slots;
+        this.catalog = catalog;
+    }
+
+    public SlotsTool(DoctorDirectoryPort doctors, SlotAvailabilityPort slots) {
+        this(doctors, slots, null);
     }
 
     @Override
@@ -49,7 +57,9 @@ public final class SlotsTool implements AgentTool {
                                 "Id de la opción del médico (doctor:...). Puede omitirse si la clínica tiene un solo médico.", false),
                         new ToolSpec.Parameter("desde", "string", "Fecha desde la que se busca, AAAA-MM-DD. Por omisión, hoy.", false),
                         new ToolSpec.Parameter("dias", "integer", "Cuántos días buscar, de 1 a 14. Por omisión, 7.", false),
-                        new ToolSpec.Parameter("turno", "string", "mañana, tarde o noche, si el paciente lo pidió.", false)));
+                        new ToolSpec.Parameter("turno", "string", "mañana, tarde o noche, si el paciente lo pidió.", false),
+                        new ToolSpec.Parameter("servicio", "string", "Id de la opción del servicio (servicio:...) o su nombre: "
+                                + "los horarios duran lo que el servicio.", false)));
     }
 
     @Override
@@ -74,27 +84,42 @@ public final class SlotsTool implements AgentTool {
             return ToolOutcome.of(Map.of("error", "Ese médico no atiende en la clínica."));
         }
 
+        Optional<CatalogTreatment> service = Optional.empty();
+        String requestedService = ToolArgs.text(arguments, "servicio");
+        if (!requestedService.isEmpty() && catalog != null) {
+            service = findService(context.clinicId(), requestedService);
+            if (service.isEmpty()) {
+                return ToolOutcome.of(Map.of("error", "Ese servicio no se agenda por aquí; revisa los servicios disponibles."));
+            }
+        }
+        Integer duration = service.map(CatalogTreatment::durationMinutes).orElse(null);
+        String serviceSuffix = service.map(CatalogTreatment::id).map(id -> "|" + id).orElse("");
+
         LocalDate today = context.now().toLocalDate();
         LocalDate requestedFrom = ToolArgs.date(arguments, "desde");
         LocalDate from = requestedFrom == null || requestedFrom.isBefore(today) ? today : requestedFrom;
         int days = Math.max(1, Math.min(MAX_DAYS, ToolArgs.integer(arguments, "dias", DEFAULT_DAYS)));
         Predicate<LocalDateTime> daypart = daypart(ToolArgs.text(arguments, "turno"));
         UUID doctorId = doctor.get().staffId();
-        List<AvailableSlot> found = slots.availableSlots(context.clinicId(), doctorId, from, days, SEARCH_LIMIT).stream()
+        List<AvailableSlot> found = slots.availableSlots(context.clinicId(), doctorId, from, days, SEARCH_LIMIT, duration).stream()
                 .filter(slot -> slot.start().isAfter(context.now()) && daypart.test(slot.start()))
                 .limit(MAX_OPTIONS)
                 .toList();
 
         Map<String, Object> content = new LinkedHashMap<>();
         content.put("medico", doctor.get().displayName());
+        service.ifPresent(chosen -> {
+            content.put("servicio", chosen.name());
+            content.put("duracion_minutos", chosen.durationMinutes());
+        });
         if (found.isEmpty()) {
             content.put("sin_horarios", true);
             content.put("sugerencia", "Prueba otro día, otro turno o buscar más días.");
             return new ToolOutcome(content, List.of(), List.of(doctor.get().displayName()));
         }
         List<ConversationOption> options = found.stream()
-                .map(slot -> new ConversationOption(OPTION_PREFIX + doctorId + "|" + slot.start() + "|" + slot.end(),
-                        SlotLabel.of(slot.start())))
+                .map(slot -> new ConversationOption(OPTION_PREFIX + doctorId + "|" + slot.start() + "|" + slot.end()
+                        + serviceSuffix, SlotLabel.of(slot.start())))
                 .toList();
         List<String> labels = options.stream().map(ConversationOption::label).toList();
         content.put("horarios", labels);
@@ -103,12 +128,25 @@ public final class SlotsTool implements AgentTool {
         return new ToolOutcome(content, options, facts);
     }
 
-    /** Horario de una opcion "slot:medico|inicio|fin". */
-    record ChosenSlot(UUID doctorId, LocalDateTime start, LocalDateTime end) {}
+    /** Horario de una opcion "slot:medico|inicio|fin[|servicio]"; {@code serviceId} puede faltar. */
+    record ChosenSlot(UUID doctorId, LocalDateTime start, LocalDateTime end, UUID serviceId) {}
 
     static ChosenSlot parse(String optionId) {
         String[] parts = optionId.substring(OPTION_PREFIX.length()).split("[|]");
-        return new ChosenSlot(UUID.fromString(parts[0]), LocalDateTime.parse(parts[1]), LocalDateTime.parse(parts[2]));
+        UUID serviceId = parts.length > 3 && !parts[3].isBlank() ? UUID.fromString(parts[3]) : null;
+        return new ChosenSlot(UUID.fromString(parts[0]), LocalDateTime.parse(parts[1]), LocalDateTime.parse(parts[2]),
+                serviceId);
+    }
+
+    /** Por el id de la opcion (servicio:uuid) o por su nombre, entre los servicios del asistente. */
+    private Optional<CatalogTreatment> findService(UUID clinicId, String requested) {
+        String raw = requested.startsWith(ServicesTool.OPTION_PREFIX)
+                ? requested.substring(ServicesTool.OPTION_PREFIX.length()).trim() : requested.trim();
+        String name = ToolArgs.normalize(raw);
+        return catalog.activeTreatments(clinicId).stream()
+                .filter(item -> item.durationMinutes() != null)
+                .filter(item -> (item.id() != null && item.id().toString().equals(raw)) || ToolArgs.normalize(item.name()).equals(name))
+                .findFirst();
     }
 
     private static UUID parseId(String requested) {

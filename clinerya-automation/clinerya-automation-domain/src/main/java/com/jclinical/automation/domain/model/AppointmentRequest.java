@@ -29,14 +29,25 @@ public record AppointmentRequest(
         LocalDateTime createdAt,
         LocalDateTime respondedAt,
         /** Cita que esta solicitud reemplaza (reprogramar); null en una solicitud nueva. */
-        UUID replacesAppointmentId
+        UUID replacesAppointmentId,
+        /** Servicio del catalogo de la cita (opcional). */
+        UUID serviceId
 ) {
+    public AppointmentRequest(UUID id, UUID clinicId, UUID conversationId, UUID patientId, String patientName,
+                              String patientPhone, UUID doctorStaffId, String doctorName, LocalDateTime start,
+                              LocalDateTime end, UUID holdId, Status status, List<ProposedOption> proposedOptions,
+                              UUID appointmentId, String rejectionReason, LocalDateTime createdAt, LocalDateTime respondedAt,
+                              UUID replacesAppointmentId) {
+        this(id, clinicId, conversationId, patientId, patientName, patientPhone, doctorStaffId, doctorName, start, end, holdId,
+                status, proposedOptions, appointmentId, rejectionReason, createdAt, respondedAt, replacesAppointmentId, null);
+    }
+
     public AppointmentRequest(UUID id, UUID clinicId, UUID conversationId, UUID patientId, String patientName,
                               String patientPhone, UUID doctorStaffId, String doctorName, LocalDateTime start,
                               LocalDateTime end, UUID holdId, Status status, List<ProposedOption> proposedOptions,
                               UUID appointmentId, String rejectionReason, LocalDateTime createdAt, LocalDateTime respondedAt) {
         this(id, clinicId, conversationId, patientId, patientName, patientPhone, doctorStaffId, doctorName, start, end, holdId,
-                status, proposedOptions, appointmentId, rejectionReason, createdAt, respondedAt, null);
+                status, proposedOptions, appointmentId, rejectionReason, createdAt, respondedAt, null, null);
     }
 
 
@@ -93,6 +104,6 @@ public record AppointmentRequest(
                                     String reason, LocalDateTime newRespondedAt) {
         return new AppointmentRequest(id, clinicId, conversationId, patientId, patientName, patientPhone,
                 doctorStaffId, doctorName, start, end, holdId, newStatus, options, newAppointmentId, reason,
-                createdAt, newRespondedAt, replacesAppointmentId);
+                createdAt, newRespondedAt, replacesAppointmentId, serviceId);
     }
 }

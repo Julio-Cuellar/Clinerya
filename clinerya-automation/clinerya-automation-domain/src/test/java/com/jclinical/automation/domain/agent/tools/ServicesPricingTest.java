@@ -37,7 +37,7 @@ class ServicesPricingTest {
         ToolOutcome outcome = tool.run(context(), Map.of("busqueda", "¿Cuánto cuesta la consulta general?"));
 
         assertEquals(List.of("Consulta general odontológica"), names(outcome));
-        assertEquals("$500", services(outcome).getFirst().get("precio_desde"));
+        assertEquals("$500", services(outcome).getFirst().get("precio"), "un precio fijo es lo que cuesta");
         assertTrue(outcome.facts().contains("$500"));
         assertTrue(outcome.options().isEmpty(), "con una sola coincidencia no se pregunta cual");
     }

@@ -95,11 +95,11 @@ class ReadToolsTest {
         ToolOutcome withoutPrices = hidden.run(context(), Map.of());
 
         List<Map<String, Object>> services = services(withPrices);
-        assertEquals(Map.of("nombre", "Limpieza dental", "categoria", "Preventivo", "precio_desde", "$650"), services.get(0));
-        assertEquals("$1,200.50", services.get(1).get("precio_desde"));
-        assertFalse(services.get(2).containsKey("precio_desde"), "sin precio en el catalogo no se inventa uno");
+        assertEquals(Map.of("nombre", "Limpieza dental", "categoria", "Preventivo", "precio", "$650"), services.get(0));
+        assertEquals("$1,200.50", services.get(1).get("precio"));
+        assertEquals(ServicesTool.QUOTED_AT_ASSESSMENT, services.get(2).get("precio"), "sin precio en el catalogo no se inventa uno");
         assertTrue(withPrices.facts().contains("$650"), withPrices.facts().toString());
-        assertTrue(services(withoutPrices).stream().noneMatch(service -> service.containsKey("precio_desde")));
+        assertTrue(services(withoutPrices).stream().noneMatch(service -> service.containsKey("precio")));
         assertTrue(String.valueOf(withoutPrices.content().get("nota_precios")).contains("valoración"));
         assertFalse(withoutPrices.facts().contains("$650"));
     }

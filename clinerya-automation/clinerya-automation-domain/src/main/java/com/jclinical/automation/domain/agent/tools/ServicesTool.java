@@ -34,7 +34,8 @@ public final class ServicesTool implements AgentTool {
     public static final String OPTION_PREFIX = "servicio:";
     public static final String QUOTED_AT_ASSESSMENT = "Se cotiza en la valoración.";
     public static final String OFFER_TO_BOOK = "Ofrece agendarle una cita para ese servicio.";
-    static final String PRICES_SHOWN = "Son precios desde; el precio final lo define el médico en la valoración.";
+    static final String PRICES_SHOWN = "precio es lo que cuesta (precio fijo). precio_desde es solo referencia: el precio "
+            + "exacto lo define el médico en la valoración.";
     static final String PRICES_HIDDEN = "Los precios no se comparten por chat; se revisan en la valoración.";
     private static final int MAX_SERVICES = 25;
     /** Limite de filas de una lista de WhatsApp. */
@@ -93,7 +94,8 @@ public final class ServicesTool implements AgentTool {
             content.put("siguiente_paso", OFFER_TO_BOOK);
         }
         List<ConversationOption> options = several && matched.size() <= MAX_OPTIONS
-                ? matched.stream().map(item -> new ConversationOption(OPTION_PREFIX + item.name(), item.name())).toList()
+                ? matched.stream().map(item -> new ConversationOption(OPTION_PREFIX + (item.id() == null ? item.name()
+                        : item.id().toString()), item.name())).toList()
                 : List.of();
         return new ToolOutcome(content, options, facts);
     }
@@ -105,9 +107,21 @@ public final class ServicesTool implements AgentTool {
         if (item.category() != null && !item.category().isBlank()) {
             service.put("categoria", item.category());
         }
+        if (item.description() != null && !item.description().isBlank()) {
+            service.put("descripcion", item.description());
+            facts.add(item.description());
+        }
+        if (item.durationMinutes() != null) {
+            service.put("duracion_minutos", item.durationMinutes());
+        }
         if (showPrices && item.price() != null) {
             String price = ToolArgs.price(item.price());
-            service.put("precio_desde", price);
+            if (item.fixedPrice()) {
+                service.put("precio", price);
+            } else {
+                service.put("precio_desde", price);
+                service.put("precio_varia", true);
+            }
             facts.add(price);
         } else if (showPrices) {
             service.put("precio", QUOTED_AT_ASSESSMENT);

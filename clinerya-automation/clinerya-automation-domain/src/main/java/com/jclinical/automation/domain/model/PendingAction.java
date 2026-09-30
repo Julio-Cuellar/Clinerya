@@ -10,12 +10,20 @@ import java.util.UUID;
  */
 public record PendingAction(UUID conversationId, Kind kind, UUID patientId, String patientName, UUID doctorStaffId,
                             String doctorName, LocalDateTime start, LocalDateTime end, UUID appointmentId,
-                            LocalDateTime proposedAt, String note) {
+                            LocalDateTime proposedAt, String note, UUID serviceId) {
 
     public PendingAction(UUID conversationId, Kind kind, UUID patientId, String patientName, UUID doctorStaffId,
                          String doctorName, LocalDateTime start, LocalDateTime end, UUID appointmentId,
                          LocalDateTime proposedAt) {
-        this(conversationId, kind, patientId, patientName, doctorStaffId, doctorName, start, end, appointmentId, proposedAt, null);
+        this(conversationId, kind, patientId, patientName, doctorStaffId, doctorName, start, end, appointmentId, proposedAt,
+                null, null);
+    }
+
+    public PendingAction(UUID conversationId, Kind kind, UUID patientId, String patientName, UUID doctorStaffId,
+                         String doctorName, LocalDateTime start, LocalDateTime end, UUID appointmentId,
+                         LocalDateTime proposedAt, String note) {
+        this(conversationId, kind, patientId, patientName, doctorStaffId, doctorName, start, end, appointmentId, proposedAt,
+                note, null);
     }
 
     public enum Kind {

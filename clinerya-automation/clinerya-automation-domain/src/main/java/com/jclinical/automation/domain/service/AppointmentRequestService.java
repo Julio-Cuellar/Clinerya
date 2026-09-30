@@ -91,7 +91,7 @@ public class AppointmentRequestService
         AppointmentRequest saved = requests.save(new AppointmentRequest(requestId, request.clinicId(),
                 request.conversationId(), request.patientId(), request.patientName(), request.patientPhone(),
                 request.doctorStaffId(), request.doctorName(), request.start(), request.end(), holdId, Status.PENDING,
-                List.of(), null, null, now(), null, request.replacesAppointmentId()));
+                List.of(), null, null, now(), null, request.replacesAppointmentId(), request.serviceId()));
         alerts.newRequest(saved);
         return requestId;
     }
@@ -107,7 +107,7 @@ public class AppointmentRequestService
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Ese horario no está entre las opciones propuestas."));
 
-        UUID appointmentId = booking.book(clinicId, chosen.holdId(), request.patientId(), BOOKING_REASON);
+        UUID appointmentId = booking.book(clinicId, chosen.holdId(), request.patientId(), BOOKING_REASON, request.serviceId());
         request.proposedOptions().stream()
                 .filter(option -> !option.holdId().equals(chosen.holdId()))
                 .forEach(option -> booking.release(clinicId, option.holdId()));
@@ -153,7 +153,7 @@ public class AppointmentRequestService
         AppointmentRequest request = pendingOfDoctor(actingUserId, clinicId, requestId);
         UUID appointmentId;
         try {
-            appointmentId = booking.book(clinicId, request.holdId(), request.patientId(), BOOKING_REASON);
+            appointmentId = booking.book(clinicId, request.holdId(), request.patientId(), BOOKING_REASON, request.serviceId());
         } catch (SlotNoLongerAvailableException refused) {
             throw new IllegalStateException(refused.getMessage());
         }
