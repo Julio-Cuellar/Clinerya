@@ -20,6 +20,10 @@ public class AutomationRabbitConfig {
     public static final String REQUEST_RESOLVED_QUEUE = "automation.appointment-request.resolved";
     public static final String DEAD_LETTER_QUEUE = "automation.dlq";
     public static final String WHATSAPP_MESSAGE_RECEIVED_QUEUE = "automation.whatsapp.message.received";
+    public static final String REMINDER_SCHEDULED_QUEUE = "automation.reminders.appointment.scheduled";
+    public static final String REMINDER_RESCHEDULED_QUEUE = "automation.reminders.appointment.rescheduled";
+    public static final String REMINDER_CANCELLED_QUEUE = "automation.reminders.appointment.cancelled";
+    public static final String REMINDER_DELETED_QUEUE = "automation.reminders.appointment.deleted";
 
     @Bean
     public Queue automationRequestResolvedQueue() {
@@ -68,5 +72,101 @@ public class AutomationRabbitConfig {
         return BindingBuilder.bind(automationDeadLetterQueue)
                 .to(domainEventsDeadLetterExchange)
                 .with(DomainEventRoutingKeys.APPOINTMENT_REQUEST_RESOLVED);
+    }
+
+    // Recordatorio de cita (plan v2, S6): appointment_scheduled
+    @Bean
+    public Queue automationReminderScheduledQueue() {
+        return QueueBuilder.durable(REMINDER_SCHEDULED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.APPOINTMENT_SCHEDULED)
+                .build();
+    }
+
+    @Bean
+    public Binding automationReminderScheduledBinding(Queue automationReminderScheduledQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(automationReminderScheduledQueue)
+                .to(domainEventsExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED);
+    }
+
+    @Bean
+    public Binding automationReminderScheduledDeadLetterBinding(Queue automationDeadLetterQueue,
+                                                             DirectExchange domainEventsDeadLetterExchange) {
+        return BindingBuilder.bind(automationDeadLetterQueue)
+                .to(domainEventsDeadLetterExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED);
+    }
+
+    // Recordatorio de cita (plan v2, S6): appointment_rescheduled
+    @Bean
+    public Queue automationReminderRescheduledQueue() {
+        return QueueBuilder.durable(REMINDER_RESCHEDULED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.APPOINTMENT_RESCHEDULED)
+                .build();
+    }
+
+    @Bean
+    public Binding automationReminderRescheduledBinding(Queue automationReminderRescheduledQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(automationReminderRescheduledQueue)
+                .to(domainEventsExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_RESCHEDULED);
+    }
+
+    @Bean
+    public Binding automationReminderRescheduledDeadLetterBinding(Queue automationDeadLetterQueue,
+                                                             DirectExchange domainEventsDeadLetterExchange) {
+        return BindingBuilder.bind(automationDeadLetterQueue)
+                .to(domainEventsDeadLetterExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_RESCHEDULED);
+    }
+
+    // Recordatorio de cita (plan v2, S6): appointment_cancelled
+    @Bean
+    public Queue automationReminderCancelledQueue() {
+        return QueueBuilder.durable(REMINDER_CANCELLED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.APPOINTMENT_CANCELLED)
+                .build();
+    }
+
+    @Bean
+    public Binding automationReminderCancelledBinding(Queue automationReminderCancelledQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(automationReminderCancelledQueue)
+                .to(domainEventsExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_CANCELLED);
+    }
+
+    @Bean
+    public Binding automationReminderCancelledDeadLetterBinding(Queue automationDeadLetterQueue,
+                                                             DirectExchange domainEventsDeadLetterExchange) {
+        return BindingBuilder.bind(automationDeadLetterQueue)
+                .to(domainEventsDeadLetterExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_CANCELLED);
+    }
+
+    // Recordatorio de cita (plan v2, S6): appointment_deleted
+    @Bean
+    public Queue automationReminderDeletedQueue() {
+        return QueueBuilder.durable(REMINDER_DELETED_QUEUE)
+                .withArgument("x-dead-letter-exchange", DomainEventRoutingKeys.DEAD_LETTER_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DomainEventRoutingKeys.APPOINTMENT_DELETED)
+                .build();
+    }
+
+    @Bean
+    public Binding automationReminderDeletedBinding(Queue automationReminderDeletedQueue, TopicExchange domainEventsExchange) {
+        return BindingBuilder.bind(automationReminderDeletedQueue)
+                .to(domainEventsExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_DELETED);
+    }
+
+    @Bean
+    public Binding automationReminderDeletedDeadLetterBinding(Queue automationDeadLetterQueue,
+                                                             DirectExchange domainEventsDeadLetterExchange) {
+        return BindingBuilder.bind(automationDeadLetterQueue)
+                .to(domainEventsDeadLetterExchange)
+                .with(DomainEventRoutingKeys.APPOINTMENT_DELETED);
     }
 }

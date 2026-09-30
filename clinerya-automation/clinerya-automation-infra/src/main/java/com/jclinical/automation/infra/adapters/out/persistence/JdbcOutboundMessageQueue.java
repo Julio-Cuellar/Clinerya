@@ -17,14 +17,16 @@ import java.util.UUID;
 /**
  * Cola de mensajes al paciente. Se escribe en la misma transaccion que mueve la conversacion, asi
  * que un mensaje nunca queda sin su cambio de estado (ni al reves). El despachador los envia despues.
- * Si hubiera que usar plantilla, el texto completo va como su unico parametro.
+ * Si hubiera que usar plantilla, el texto completo va como su unico parametro, salvo que el mensaje traiga
+ * su propia plantilla con sus parametros (el recordatorio de cita).
  */
 public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort, DoctorNoticeQueuePort {
 
     private static final String INSERT_SQL = """
             INSERT INTO automation.outbound_messages
-                (id, clinic_id, phone, audience, body, options, template_parameters, status, attempts, next_attempt_at, created_at)
-            VALUES (?, ?, ?, 'PATIENT', ?, ?, ?, 'PENDING', 0, ?, ?)
+                (id, clinic_id, phone, audience, body, options, template_parameters, template_name, status, attempts,
+                 next_attempt_at, created_at)
+            VALUES (?, ?, ?, 'PATIENT', ?, ?, ?, ?, 'PENDING', 0, ?, ?)
             """;
 
     private static final String INSERT_DOCTOR_SQL = """
@@ -51,7 +53,9 @@ public class JdbcOutboundMessageQueue implements OutboundMessageQueuePort, Docto
         Timestamp now = Timestamp.valueOf(LocalDateTime.now(clock));
         jdbcTemplate.update(INSERT_SQL, UUID.randomUUID(), notification.clinicId(), notification.phone(),
                 notification.reply().text(), optionsCodec.encode(notification.reply().options()),
-                json(List.of(notification.reply().text())), now, now);
+                json(notification.templateParameters().isEmpty() ? List.of(notification.reply().text())
+                        : notification.templateParameters()),
+                notification.templateName(), now, now);
     }
 
     /** Aviso al medico: el despachador usa la plantilla de medicos si la ventana de 24 h esta cerrada. */

@@ -28,7 +28,7 @@ public class JdbcOutboundDispatchRepository implements OutboundDispatchRepositor
 
     private static final String NEXT_DUE_SQL = """
             SELECT o.id, o.clinic_id, o.phone, o.audience, o.body, o.options, o.template_parameters,
-                   o.attempts, o.created_at
+                   o.attempts, o.created_at, o.template_name
               FROM automation.outbound_messages o
              WHERE o.status = 'PENDING'
                AND (o.next_attempt_at IS NULL OR o.next_attempt_at <= ?)
@@ -96,7 +96,8 @@ public class JdbcOutboundDispatchRepository implements OutboundDispatchRepositor
                 new OutboundReply(row.getString("body"), optionsCodec.decode(row.getString("options"))),
                 parameters(row.getString("template_parameters")),
                 row.getInt("attempts"),
-                row.getTimestamp("created_at").toLocalDateTime());
+                row.getTimestamp("created_at").toLocalDateTime(),
+                row.getString("template_name"));
     }
 
     private List<String> parameters(String json) {
