@@ -138,6 +138,22 @@ class OutboundDispatcherTest {
     }
 
     @Test
+    void aReminderUsesItsOwnTemplateWithItsButtonsOutsideTheWindow() {
+        lastInbound = NOW.minusHours(25);
+        OutboundReply reply = new OutboundReply("Hola Ana, te recordamos tu cita", List.of(
+                new ConversationOption("recordatorio:confirmar:1", "Confirmo"),
+                new ConversationOption("recordatorio:cancelar:1", "Cancelar")));
+        queue.due.add(new QueuedMessage(UUID.randomUUID(), clinicId, PHONE, Audience.PATIENT, reply, List.of("Ana", "Clínica"), 0,
+                NOW.minusMinutes(1), "recordatorio_cita"));
+
+        dispatcher.dispatchNext();
+
+        assertEquals(List.of("plantilla:" + PHONE + ":recordatorio_cita:es_MX:[Ana, Clínica]:botones"
+                + "[recordatorio:confirmar:1, recordatorio:cancelar:1]"), sender.calls);
+        assertEquals(List.of("sent:wamid.OUT:true"), queue.outcomes);
+    }
+
+    @Test
     void aClinicWithTheAssistantOffSendsNothing() {
         settings.save(settings.stored.get(clinicId).toBuilder().enabled(false).build());
         queue.due.add(message(Audience.PATIENT, OutboundReply.text("Hola"), 0));
@@ -195,6 +211,14 @@ class OutboundDispatcherTest {
                                        List<String> parameters) {
             lastCredentials = credentials;
             calls.add("plantilla:" + to + ":" + templateName + ":" + languageCode + ":" + parameters);
+            return next;
+        }
+
+        @Override
+        public SendResult sendTemplate(Credentials credentials, String to, String templateName, String languageCode,
+                                       List<String> parameters, List<String> buttonPayloads) {
+            lastCredentials = credentials;
+            calls.add("plantilla:" + to + ":" + templateName + ":" + languageCode + ":" + parameters + ":botones" + buttonPayloads);
             return next;
         }
     }
