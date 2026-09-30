@@ -25,6 +25,11 @@ public class TreatmentCatalogItem {
     private String description;
     private BigDecimal defaultPrice;
     private Integer estimatedDurationMinutes;
+    /** Fijo o varia por paciente; los servicios anteriores a esta regla quedan como fijos. */
+    @Builder.Default
+    private PricingType pricingType = PricingType.FIXED;
+    /** El asistente de WhatsApp lo ofrece; exige descripcion y duracion. */
+    private boolean availableInAssistant;
     @Builder.Default
     private List<TreatmentCatalogMaterial> materials = new ArrayList<>();
     private boolean active;

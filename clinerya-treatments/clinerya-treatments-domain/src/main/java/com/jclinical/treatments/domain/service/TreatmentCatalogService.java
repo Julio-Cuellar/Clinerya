@@ -1,5 +1,6 @@
 package com.jclinical.treatments.domain.service;
 
+import com.jclinical.treatments.domain.model.PricingType;
 import com.jclinical.treatments.domain.model.TreatmentCatalogItem;
 import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
 import com.jclinical.treatments.domain.model.TreatmentCatalogSeeds;
@@ -25,6 +26,12 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, PublicTreatmentCatalogUseCase {
+
+    /** La descripcion que usa el asistente: breve, para el paciente. */
+    public static final int MIN_ASSISTANT_DESCRIPTION = 20;
+    public static final int MAX_ASSISTANT_DESCRIPTION = 300;
+    /** Una jornada: ningun servicio dura mas. */
+    public static final int MAX_DURATION_MINUTES = 600;
 
     private final TreatmentCatalogRepositoryPort catalogRepository;
     private final InventoryMaterialPort inventoryMaterialPort;
@@ -92,7 +99,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
     public TreatmentCatalogItem createCatalogItem(UUID actingUserId, UUID clinicId, CreateCatalogItemCommand command) {
         requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
                 "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
-        validate(command.name(), command.defaultPrice());
+        validate(command.name(), command.pricingType(), command.defaultPrice(), command.estimatedDurationMinutes(),
+                command.availableInAssistant(), command.description());
 
         TreatmentCatalogItem item = TreatmentCatalogItem.builder()
                 .id(UUID.randomUUID())
@@ -102,6 +110,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
                 .description(command.description())
                 .defaultPrice(command.defaultPrice())
                 .estimatedDurationMinutes(command.estimatedDurationMinutes())
+                .pricingType(command.pricingType())
+                .availableInAssistant(command.availableInAssistant())
                 .materials(toMaterials(command.materials(), clinicId))
                 .active(true)
                 .createdAt(LocalDateTime.now())
@@ -115,7 +125,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
     public TreatmentCatalogItem updateCatalogItem(UUID actingUserId, UUID itemId, UUID clinicId, UpdateCatalogItemCommand command) {
         requirePermission(clinicId, actingUserId, StaffPermission.MANAGE_TREATMENT_CATALOG,
                 "No tienes permiso para gestionar el catalogo de tratamientos de esta clinica.");
-        validate(command.name(), command.defaultPrice());
+        validate(command.name(), command.pricingType(), command.defaultPrice(), command.estimatedDurationMinutes(),
+                command.availableInAssistant(), command.description());
 
         TreatmentCatalogItem item = catalogRepository.findByIdAndClinicId(itemId, clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El servicio no existe en esta clínica."));
@@ -125,6 +136,8 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
         item.setDescription(command.description());
         item.setDefaultPrice(command.defaultPrice());
         item.setEstimatedDurationMinutes(command.estimatedDurationMinutes());
+        item.setPricingType(command.pricingType());
+        item.setAvailableInAssistant(command.availableInAssistant());
         item.setMaterials(toMaterials(command.materials(), clinicId));
         item.setActive(command.active());
         item.setUpdatedAt(LocalDateTime.now());
@@ -166,6 +179,39 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
                 .toList();
     }
 
+    @Override
+    public List<PublicService> assistantServices(UUID clinicId) {
+        return catalogRepository.findByClinicId(clinicId, false).stream()
+                .filter(item -> item.isActive() && item.isAvailableInAssistant() && readyForAssistant(item))
+                .sorted(java.util.Comparator.comparing(item -> item.getName().toLowerCase(Locale.ROOT)))
+                .map(TreatmentCatalogService::toPublicService)
+                .toList();
+    }
+
+    @Override
+    public Optional<PublicService> activeService(UUID clinicId, UUID serviceId) {
+        if (clinicId == null || serviceId == null) {
+            return Optional.empty();
+        }
+        return catalogRepository.findByIdAndClinicId(serviceId, clinicId)
+                .filter(TreatmentCatalogItem::isActive)
+                .map(TreatmentCatalogService::toPublicService);
+    }
+
+    /** Completo para el asistente: descripcion breve valida y duracion. */
+    private static boolean readyForAssistant(TreatmentCatalogItem item) {
+        String description = item.getDescription() == null ? "" : item.getDescription().strip();
+        return item.getEstimatedDurationMinutes() != null && item.getEstimatedDurationMinutes() > 0
+                && description.length() >= MIN_ASSISTANT_DESCRIPTION && description.length() <= MAX_ASSISTANT_DESCRIPTION;
+    }
+
+    private static PublicService toPublicService(TreatmentCatalogItem item) {
+        return new PublicService(item.getId(), item.getName(), item.getCategory(),
+                item.getDescription() == null ? null : item.getDescription().strip(),
+                item.getPricingType() == null ? PricingType.FIXED : item.getPricingType(), item.getDefaultPrice(),
+                item.getEstimatedDurationMinutes());
+    }
+
     private void requirePermission(UUID clinicId, UUID actingUserId, StaffPermission permission, String deniedMessage) {
         if (actingUserId == null) {
             throw new ClinicAccessDeniedException("Usuario no autenticado.");
@@ -199,12 +245,34 @@ public class TreatmentCatalogService implements ManageTreatmentCatalogUseCase, P
                 .build();
     }
 
-    private void validate(String name, BigDecimal defaultPrice) {
+    /**
+     * Reglas del servicio: nombre, tipo de precio, precio (obligatorio si es fijo), duracion y, si el
+     * asistente lo ofrece, una descripcion breve para el paciente.
+     */
+    private void validate(String name, PricingType pricingType, BigDecimal defaultPrice, Integer durationMinutes,
+                          boolean availableInAssistant, String description) {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("El nombre del servicio es obligatorio.");
         }
-        if (defaultPrice == null || defaultPrice.signum() < 0) {
+        if (pricingType == null) {
+            throw new IllegalArgumentException("Elige si el servicio tiene precio fijo o varía por paciente.");
+        }
+        if (pricingType == PricingType.FIXED && defaultPrice == null) {
+            throw new IllegalArgumentException("Un servicio de precio fijo necesita su precio.");
+        }
+        if (defaultPrice != null && defaultPrice.signum() < 0) {
             throw new IllegalArgumentException("El precio debe ser mayor o igual a cero.");
+        }
+        if (durationMinutes == null || durationMinutes <= 0 || durationMinutes > MAX_DURATION_MINUTES) {
+            throw new IllegalArgumentException("La duración del servicio es obligatoria (entre 1 y " + MAX_DURATION_MINUTES
+                    + " minutos).");
+        }
+        if (availableInAssistant) {
+            String text = description == null ? "" : description.strip();
+            if (text.length() < MIN_ASSISTANT_DESCRIPTION || text.length() > MAX_ASSISTANT_DESCRIPTION) {
+                throw new IllegalArgumentException("Para ofrecerlo por el asistente escribe una descripción para el paciente de "
+                        + MIN_ASSISTANT_DESCRIPTION + " a " + MAX_ASSISTANT_DESCRIPTION + " caracteres.");
+            }
         }
     }
 }

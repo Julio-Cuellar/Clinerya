@@ -1,7 +1,10 @@
 package com.jclinical.treatments.domain.ports.in;
 
+import com.jclinical.treatments.domain.model.PricingType;
+
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -15,4 +18,21 @@ public interface PublicTreatmentCatalogUseCase {
     List<PublicTreatment> activeTreatments(UUID clinicId);
 
     record PublicTreatment(String name, String category, BigDecimal price) {}
+
+    /**
+     * Servicios que el asistente de WhatsApp puede ofrecer: activos, disponibles en el asistente y
+     * completos (descripcion y duracion). Ordenados por nombre.
+     */
+    default List<PublicService> assistantServices(UUID clinicId) {
+        throw new UnsupportedOperationException();
+    }
+
+    /** Un servicio activo de la clinica, para agendarlo (duracion y precio vigentes). */
+    default Optional<PublicService> activeService(UUID clinicId, UUID serviceId) {
+        throw new UnsupportedOperationException();
+    }
+
+    /** {@code price}: el que se cobra si es fijo; referencia "desde" (puede faltar) si varia por paciente. */
+    record PublicService(UUID id, String name, String category, String description, PricingType pricingType,
+                         BigDecimal price, Integer durationMinutes) {}
 }

@@ -1,5 +1,6 @@
 package com.jclinical.treatments.domain.ports.in;
 
+import com.jclinical.treatments.domain.model.PricingType;
 import com.jclinical.treatments.domain.model.TreatmentCatalogItem;
 
 import java.math.BigDecimal;
@@ -42,8 +43,16 @@ public interface ManageTreatmentCatalogUseCase {
         String description,
         BigDecimal defaultPrice,
         Integer estimatedDurationMinutes,
-        List<CatalogMaterialCommand> materials
-    ) {}
+        List<CatalogMaterialCommand> materials,
+        PricingType pricingType,
+        boolean availableInAssistant
+    ) {
+        /** Precio fijo y fuera del asistente, como eran todos los servicios antes de estas reglas. */
+        public CreateCatalogItemCommand(String name, String category, String description, BigDecimal defaultPrice,
+                                        Integer estimatedDurationMinutes, List<CatalogMaterialCommand> materials) {
+            this(name, category, description, defaultPrice, estimatedDurationMinutes, materials, PricingType.FIXED, false);
+        }
+    }
 
     record UpdateCatalogItemCommand(
         String name,
@@ -52,6 +61,15 @@ public interface ManageTreatmentCatalogUseCase {
         BigDecimal defaultPrice,
         Integer estimatedDurationMinutes,
         List<CatalogMaterialCommand> materials,
-        boolean active
-    ) {}
+        boolean active,
+        PricingType pricingType,
+        boolean availableInAssistant
+    ) {
+        public UpdateCatalogItemCommand(String name, String category, String description, BigDecimal defaultPrice,
+                                        Integer estimatedDurationMinutes, List<CatalogMaterialCommand> materials,
+                                        boolean active) {
+            this(name, category, description, defaultPrice, estimatedDurationMinutes, materials, active, PricingType.FIXED,
+                    false);
+        }
+    }
 }
