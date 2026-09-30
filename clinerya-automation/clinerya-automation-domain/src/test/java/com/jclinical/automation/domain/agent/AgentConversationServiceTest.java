@@ -18,6 +18,13 @@ import com.jclinical.automation.domain.model.OutboundReply;
 import com.jclinical.automation.domain.ports.out.ChatHistoryPort;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
+import com.jclinical.automation.domain.agent.tools.ConfirmActionTool;
+import com.jclinical.automation.domain.model.PendingAction;
+import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
+import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort.UpcomingVisit;
+import com.jclinical.automation.domain.ports.out.PendingActionPort;
+import com.jclinical.automation.domain.service.AppointmentReminderService;
+import java.util.HashMap;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -312,6 +319,98 @@ class AgentConversationServiceTest {
         assertEquals(0, current().unrecognizedCount());
         assertTrue(current().offeredOptions().isEmpty());
         assertEquals(new User("hola"), model.transcripts.get(0).getFirst());
+    }
+
+    // ---- respuestas al recordatorio de cita (plan v2, S6) -------------------------------------
+
+    private final UUID patientId = UUID.randomUUID();
+    private final UUID doctorId = UUID.randomUUID();
+    private final UUID appointmentId = UUID.randomUUID();
+    private final List<UUID> confirmed = new ArrayList<>();
+    private final Map<UUID, PendingAction> pendingActions = new HashMap<>();
+    private boolean confirmable = true;
+
+    private AgentConversationService withReminders(ScriptedModel model) {
+        patients.add(new PatientDirectoryPort.PatientContact(patientId, "Ana López"));
+        AgentConversationService service = service(model);
+        service.setReminderReplies(new ReminderReplyHandler(
+                (clinic, patient, limit) -> patient.equals(patientId)
+                        ? List.of(new UpcomingVisit(appointmentId, doctorId, NOW.plusDays(1), NOW.plusDays(1).plusMinutes(30), false))
+                        : List.of(),
+                new DoctorDirectoryPort() {
+                    @Override public List<DoctorContact> listDoctors(UUID clinic) { return List.of(new DoctorContact(doctorId, "Dra. Ramírez")); }
+                    @Override public Optional<DoctorContact> lastDoctorOf(UUID clinic, UUID patient) { return Optional.empty(); }
+                },
+                new PendingActionPort() {
+                    @Override public void save(PendingAction action) { pendingActions.put(action.conversationId(), action); }
+                    @Override public Optional<PendingAction> find(UUID conversationId) { return Optional.ofNullable(pendingActions.get(conversationId)); }
+                    @Override public void clear(UUID conversationId) { pendingActions.remove(conversationId); }
+                },
+                (clinic, appointment, patient) -> {
+                    if (!clinic.equals(clinicId) || !patient.equals(patientId)) throw new AssertionError("otra clinica o paciente");
+                    confirmed.add(appointment);
+                    return confirmable;
+                }));
+        return service;
+    }
+
+    @Test
+    void tappingConfirmoConfirmsTheAppointmentWithoutAskingTheModel() {
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("No debería hablar")));
+
+        List<OutboundReply> replies = send(withReminders(model), null, AppointmentReminderService.CONFIRM + appointmentId);
+
+        assertEquals(List.of(appointmentId), confirmed);
+        assertTrue(model.transcripts.isEmpty());
+        assertTrue(replies.getFirst().text().contains("confirmada") && replies.getFirst().text().contains("Dra. Ramírez"),
+                replies.getFirst().text());
+    }
+
+    @Test
+    void ifTheAgendaNoLongerAllowsConfirmingThePatientIsTold() {
+        confirmable = false;
+
+        List<OutboundReply> replies = send(withReminders(new ScriptedModel()), null, AppointmentReminderService.CONFIRM + appointmentId);
+
+        assertTrue(replies.getFirst().text().contains("no pude confirmarla"), replies.getFirst().text());
+    }
+
+    @Test
+    void aReminderButtonForAnAppointmentThatIsNotTheirsOrNoLongerUpcomingDoesNothing() {
+        ScriptedModel model = new ScriptedModel();
+
+        List<OutboundReply> replies = send(withReminders(model), null, AppointmentReminderService.CONFIRM + UUID.randomUUID());
+
+        assertTrue(confirmed.isEmpty());
+        assertTrue(model.transcripts.isEmpty());
+        assertTrue(replies.getFirst().text().contains("ya no está vigente"), replies.getFirst().text());
+    }
+
+    @Test
+    void tappingCancelarAsksForConfirmationBeforeCancelling() {
+        ScriptedModel model = new ScriptedModel();
+
+        List<OutboundReply> replies = send(withReminders(model), null, AppointmentReminderService.CANCEL + appointmentId);
+
+        PendingAction pending = pendingActions.get(current().id());
+        assertEquals(PendingAction.Kind.CANCEL, pending.kind());
+        assertEquals(appointmentId, pending.appointmentId());
+        assertEquals(NOW, pending.proposedAt());
+        assertEquals(ConfirmActionTool.CONFIRMATION_OPTIONS, replies.getLast().options());
+        assertEquals(ConfirmActionTool.CONFIRMATION_OPTIONS, current().offeredOptions());
+        assertTrue(model.transcripts.isEmpty());
+        assertTrue(confirmed.isEmpty());
+    }
+
+    @Test
+    void tappingReprogramarHandsItToTheAgentWithTheAppointment() {
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("Claro, ¿qué día te acomoda?")));
+
+        send(withReminders(model), null, AppointmentReminderService.RESCHEDULE + appointmentId);
+
+        AgentMessage last = model.transcripts.getFirst().getLast();
+        assertTrue(last instanceof User user && user.text().contains("reprogramar") && user.text().contains("cita:" + appointmentId),
+                last.toString());
     }
 
     // ---- utilidades --------------------------------------------------------------------------
