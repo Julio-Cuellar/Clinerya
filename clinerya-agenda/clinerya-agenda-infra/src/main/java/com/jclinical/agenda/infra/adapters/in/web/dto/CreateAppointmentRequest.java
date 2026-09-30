@@ -14,5 +14,7 @@ public record CreateAppointmentRequest(
         LocalDateTime scheduledStart,
         LocalDateTime scheduledEnd,
         String reason,
-        String notes
+        String notes,
+        /** Servicio del catalogo (opcional): su duracion fija el fin si no llega y su precio se copia. */
+        UUID serviceId
 ) {}

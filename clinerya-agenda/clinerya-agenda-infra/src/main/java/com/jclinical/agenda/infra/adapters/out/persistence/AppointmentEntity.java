@@ -1,6 +1,7 @@
 package com.jclinical.agenda.infra.adapters.out.persistence;
 
 import com.jclinical.agenda.domain.model.AppointmentStatus;
+import com.jclinical.agenda.domain.model.ServicePricing;
 import jakarta.persistence.Column;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.ElementCollection;
@@ -17,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,6 +62,19 @@ public class AppointmentEntity {
     @Column(name = "quotation_item_id", nullable = false)
     @Builder.Default
     private List<UUID> quotationItemIds = new ArrayList<>();
+
+    @Column(name = "service_id")
+    private UUID serviceId;
+
+    @Column(name = "service_name", length = 200)
+    private String serviceName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_pricing", length = 30)
+    private ServicePricing servicePricing;
+
+    @Column(name = "service_price", precision = 12, scale = 2)
+    private BigDecimal servicePrice;
 
     @Column(name = "series_id")
     private UUID seriesId;

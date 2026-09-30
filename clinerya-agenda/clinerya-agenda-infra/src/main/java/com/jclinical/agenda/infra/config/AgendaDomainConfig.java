@@ -50,11 +50,14 @@ public class AgendaDomainConfig {
             com.jclinical.agenda.domain.ports.out.RoomBlockRepositoryPort roomBlockRepository,
             com.jclinical.agenda.domain.ports.out.RoomValidatorPort roomValidator,
             StaffPermissionCheckerPort permissionChecker,
-            com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort slotHoldRepository) {
-        return new AppointmentService(
+            com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort slotHoldRepository,
+            com.jclinical.agenda.domain.ports.out.ServiceCatalogPort serviceCatalog) {
+        AppointmentService service = new AppointmentService(
                 appointmentRepository, clinicScheduleService, patientValidator, staffValidator, quotationValidator,
                 materialReservationSchedulingService, eventPublisher, roomBlockRepository, roomValidator, permissionChecker,
                 slotHoldRepository);
+        service.setServiceCatalog(serviceCatalog);
+        return service;
     }
 
     @Bean
@@ -125,6 +128,10 @@ public class AgendaDomainConfig {
                         .quotationId(domain.getQuotationId())
                         .quotationItemId(domain.getQuotationItemId())
                         .quotationItemIds(domain.getQuotationItemIds())
+                        .serviceId(domain.getServiceId())
+                        .serviceName(domain.getServiceName())
+                        .servicePricing(domain.getServicePricing())
+                        .servicePrice(domain.getServicePrice())
                         .seriesId(domain.getSeriesId())
                         .scheduledStart(domain.getScheduledStart())
                         .scheduledEnd(domain.getScheduledEnd())
@@ -155,6 +162,10 @@ public class AgendaDomainConfig {
                         .quotationId(entity.getQuotationId())
                         .quotationItemId(entity.getQuotationItemId())
                         .quotationItemIds(entity.getQuotationItemIds())
+                        .serviceId(entity.getServiceId())
+                        .serviceName(entity.getServiceName())
+                        .servicePricing(entity.getServicePricing())
+                        .servicePrice(entity.getServicePrice())
                         .seriesId(entity.getSeriesId())
                         .scheduledStart(entity.getScheduledStart())
                         .scheduledEnd(entity.getScheduledEnd())

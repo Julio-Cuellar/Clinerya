@@ -2,6 +2,7 @@ package com.jclinical.agenda.infra.adapters.in.web.dto;
 
 import com.jclinical.agenda.domain.model.AppointmentStatus;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -26,5 +27,10 @@ public record AppointmentResponse(
         AppointmentStatus status,
         boolean materialsReserved,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        /** Servicio del catalogo copiado al agendar; precio solo si es fijo (FIXED). */
+        UUID serviceId,
+        String serviceName,
+        String servicePricing,
+        BigDecimal servicePrice
 ) {}

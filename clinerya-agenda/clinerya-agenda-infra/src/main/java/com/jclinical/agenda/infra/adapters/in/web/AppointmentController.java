@@ -52,7 +52,9 @@ public class AppointmentController {
                 request.scheduledStart(),
                 request.scheduledEnd(),
                 request.reason(),
-                request.notes()
+                request.notes(),
+                false,
+                request.serviceId()
         );
         Appointment appointment = appointmentsUseCase.createAppointment(currentUserResolver.getCurrentUserId(), clinicId, command);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(appointment));
@@ -196,7 +198,11 @@ public class AppointmentController {
                 appointment.getStatus(),
                 appointment.isMaterialsReserved(),
                 appointment.getCreatedAt(),
-                appointment.getUpdatedAt()
+                appointment.getUpdatedAt(),
+                appointment.getServiceId(),
+                appointment.getServiceName(),
+                appointment.getServicePricing() == null ? null : appointment.getServicePricing().name(),
+                appointment.getServicePrice()
         );
     }
 }
