@@ -1,6 +1,7 @@
 package com.jclinical.automation.domain.service;
 
 import com.jclinical.automation.domain.model.ChannelSettings;
+import com.jclinical.automation.domain.model.ConversationOption;
 import com.jclinical.automation.domain.model.QueuedMessage;
 import com.jclinical.automation.domain.model.QueuedMessage.Audience;
 import com.jclinical.automation.domain.ports.in.DispatchOutboundMessagesUseCase;
@@ -65,17 +66,21 @@ public class OutboundDispatcher implements DispatchOutboundMessagesUseCase {
             record(message, sender.sendMessage(credentials, message.phone(), message.reply()), false, now);
             return true;
         }
-        String template = message.audience() == Audience.DOCTOR
-                ? clinic.get().doctorTemplateName()
-                : clinic.get().patientTemplateName();
+        boolean ownTemplate = message.templateName() != null && !message.templateName().isBlank();
+        String template = ownTemplate ? message.templateName()
+                : message.audience() == Audience.DOCTOR ? clinic.get().doctorTemplateName() : clinic.get().patientTemplateName();
         if (template == null || template.isBlank()) {
             queue.markFailed(message.id(), message.attempts() + 1,
                     "Pasaron más de 24 h desde el último mensaje de ese número y la clínica no tiene una plantilla aprobada configurada.",
                     now);
             return true;
         }
-        record(message, sender.sendTemplate(credentials, message.phone(), template, clinic.get().templateLanguage(),
-                message.templateParameters()), true, now);
+        SendResult result = ownTemplate
+                ? sender.sendTemplate(credentials, message.phone(), template, clinic.get().templateLanguage(),
+                        message.templateParameters(), message.reply().options().stream().map(ConversationOption::id).toList())
+                : sender.sendTemplate(credentials, message.phone(), template, clinic.get().templateLanguage(),
+                        message.templateParameters());
+        record(message, result, true, now);
         return true;
     }
 
