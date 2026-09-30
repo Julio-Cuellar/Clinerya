@@ -80,6 +80,19 @@ class AssistantProfileServiceTest {
     }
 
     @Test
+    void theReminderSettingsAreKeptAndChecked() {
+        AssistantProfile saved = service.update(admin, clinicId,
+                new AssistantProfile("Sofi", null, true, false, 48, "  recordatorio_cita  "));
+
+        assertEquals(new AssistantProfile("Sofi", null, true, false, 48, "recordatorio_cita"), saved);
+        assertEquals(saved, profiles.byClinic.get(clinicId));
+        assertThrows(IllegalArgumentException.class, () -> service.update(admin, clinicId,
+                new AssistantProfile(null, null, true, true, AssistantProfileService.MAX_REMINDER_HOURS + 1, null)));
+        assertThrows(IllegalArgumentException.class, () -> service.update(admin, clinicId,
+                new AssistantProfile(null, null, true, true, 24, "Recordatorio Cita!")));
+    }
+
+    @Test
     void onlyWhoManagesIntegrationsChangesItAndOnlySettingsViewersReadIt() {
         assertThrows(ClinicAccessDeniedException.class,
                 () -> service.update(viewer, clinicId, new AssistantProfile("Sofi", null, true)));
