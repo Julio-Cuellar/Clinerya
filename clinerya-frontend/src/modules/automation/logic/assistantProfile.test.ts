@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogReview, greetingPreview } from "./assistantProfile";
+import { catalogReview, greetingPreview, reminderPreview, reminderTemplateError } from "./assistantProfile";
 
 const service = (overrides: Record<string, unknown> = {}) => ({
   name: "Limpieza dental",
@@ -32,5 +32,26 @@ describe("catalogReview", () => {
 
   it("says when there is no consultation the assistant can price", () => {
     expect(catalogReview([service()]).consultation).toBeNull();
+  });
+});
+
+describe("reminderPreview", () => {
+  it("shows what the patient receives with the clinic name and the three buttons", () => {
+    const preview = reminderPreview("Clínica Sonrisa");
+
+    expect(preview.text).toContain("Clínica Sonrisa");
+    expect(preview.text).toContain("¿Nos confirmas tu asistencia?");
+    expect(preview.buttons).toEqual(["Confirmo", "Cancelar", "Reprogramar"]);
+  });
+});
+
+describe("reminderTemplateError", () => {
+  it("accepts an empty name or one written as Meta names templates", () => {
+    expect(reminderTemplateError("")).toBeNull();
+    expect(reminderTemplateError(" recordatorio_cita ")).toBeNull();
+  });
+
+  it("explains the format when the name cannot be a Meta template", () => {
+    expect(reminderTemplateError("Recordatorio Cita!")).toMatch(/minúsculas/);
   });
 });
