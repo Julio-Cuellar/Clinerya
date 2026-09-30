@@ -64,6 +64,13 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         this.attentionLog = attentionLog;
     }
 
+    private ReminderReplyHandler reminderReplies;
+
+    /** Botones del recordatorio de cita (S6); sin configurar, esos botones llegan al agente como cualquier opcion. */
+    public void setReminderReplies(ReminderReplyHandler reminderReplies) {
+        this.reminderReplies = reminderReplies;
+    }
+
     private void logAttention(UUID clinicId, String phone, Action action, LocalDateTime at) {
         attentionLog.record(new ChatAttentionEvent(UUID.randomUUID(), clinicId, phone, action, null, at));
     }
@@ -79,6 +86,15 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
             return List.of();
         }
         List<PatientContact> contacts = patients.findByPhone(message.clinicId(), message.fromPhone());
+        Optional<ReminderReplyHandler.Outcome> reminder = reminderReplies == null ? Optional.empty()
+                : reminderReplies.handle(message.clinicId(), conversation.id(), contacts, message.selectedOptionId(), now);
+        if (reminder.isPresent() && reminder.get() instanceof ReminderReplyHandler.Outcome.Reply direct) {
+            conversations.save(copy(conversation, ConversationState.CONVERSANDO, direct.reply().options(), 0, now));
+            return List.of(direct.reply());
+        }
+        if (reminder.isPresent() && reminder.get() instanceof ReminderReplyHandler.Outcome.ForAgent forAgent) {
+            message = new InboundMessage(message.clinicId(), message.fromPhone(), forAgent.text(), null, message.receivedAt());
+        }
         // Las herramientas que dependen de lo que respondio el paciente (aceptar la autorizacion) leen su
         // mensaje real, no la interpretacion del modelo.
         String patientMessage = message.selectedOptionId() != null ? message.selectedOptionId() : message.text();
