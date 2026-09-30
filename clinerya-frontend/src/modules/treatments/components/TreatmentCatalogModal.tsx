@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { MAX_ASSISTANT_DESCRIPTION, MIN_ASSISTANT_DESCRIPTION, validateService, type PricingType } from "../logic/catalogRules";
 import { IconDental, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { getFriendlyError, materialsApi, treatmentCatalogApi } from "@shared/api/api";
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
@@ -35,6 +36,9 @@ export function TreatmentCatalogModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pricingType, setPricingType] = useState<PricingType>(item?.pricingType ?? "FIXED");
+  const [availableInAssistant, setAvailableInAssistant] = useState(item?.availableInAssistant ?? false);
+  const [description, setDescription] = useState(item?.description ?? "");
   const [materials, setMaterials] = useState<MaterialResponse[]>([]);
   const [materialLines, setMaterialLines] = useState<EditableMaterialLine[]>(() =>
     item && item.materials.length > 0
@@ -67,6 +71,15 @@ export function TreatmentCatalogModal({
     setError("");
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) ?? "").trim();
+    const price = value("defaultPrice") ? Number(value("defaultPrice")) : null;
+    const duration = value("estimatedDurationMinutes") ? Number(value("estimatedDurationMinutes")) : undefined;
+    const problem = validateService({ description, defaultPrice: price, estimatedDurationMinutes: duration, pricingType,
+      availableInAssistant });
+    if (problem) {
+      setError(problem);
+      setLoading(false);
+      return;
+    }
 
     const materialsPayload = materialLines
       .filter((line) => line.materialId)
@@ -80,21 +93,25 @@ export function TreatmentCatalogModal({
         const updated = await treatmentCatalogApi.update(clinicId, item.id, {
           name: value("name"),
           category: value("category") || undefined,
-          description: value("description") || undefined,
-          defaultPrice: Number(value("defaultPrice")) || 0,
-          estimatedDurationMinutes: value("estimatedDurationMinutes") ? Number(value("estimatedDurationMinutes")) : undefined,
+          description: description.trim() || undefined,
+          defaultPrice: price,
+          estimatedDurationMinutes: duration,
           materials: materialsPayload,
-          active: item.active
+          active: item.active,
+          pricingType,
+          availableInAssistant
         });
         onSaved(updated);
       } else {
         const created = await treatmentCatalogApi.create(clinicId, {
           name: value("name"),
           category: value("category") || undefined,
-          description: value("description") || undefined,
-          defaultPrice: Number(value("defaultPrice")) || 0,
-          estimatedDurationMinutes: value("estimatedDurationMinutes") ? Number(value("estimatedDurationMinutes")) : undefined,
-          materials: materialsPayload
+          description: description.trim() || undefined,
+          defaultPrice: price,
+          estimatedDurationMinutes: duration,
+          materials: materialsPayload,
+          pricingType,
+          availableInAssistant
         });
         onSaved(created);
       }
@@ -117,22 +134,51 @@ export function TreatmentCatalogModal({
         <form className="profile-form" onSubmit={submit}>
           <Field name="name" label="Nombre del servicio" defaultValue={item?.name} required />
           <Field name="category" label="Categoría" defaultValue={item?.category} placeholder="Preventiva, Restaurativa, Cirugía..." />
+          <fieldset className="field field-full catalog-pricing" aria-label="Tipo de precio">
+            <span>Tipo de precio *</span>
+            <div className="catalog-pricing-options">
+              <label className={`catalog-pricing-option${pricingType === "FIXED" ? " on" : ""}`}>
+                <input type="radio" name="pricingType" checked={pricingType === "FIXED"} onChange={() => setPricingType("FIXED")} />
+                <span><strong>Precio fijo</strong><small>Se cobra siempre lo mismo. Se copia a la cita y suma al ingreso estimado.</small></span>
+              </label>
+              <label className={`catalog-pricing-option${pricingType === "VARIES_BY_PATIENT" ? " on" : ""}`}>
+                <input type="radio" name="pricingType" checked={pricingType === "VARIES_BY_PATIENT"}
+                  onChange={() => setPricingType("VARIES_BY_PATIENT")} />
+                <span><strong>Varía por paciente</strong><small>Depende de la valoración. En la agenda queda "precio por definir".</small></span>
+              </label>
+            </div>
+          </fieldset>
           <Field
             name="defaultPrice"
-            label={profile.laborPriceLabel}
+            label={pricingType === "FIXED" ? `${profile.laborPriceLabel} *` : 'Precio de referencia "desde" (opcional)'}
             type="number"
-            defaultValue={item ? String(item.defaultPrice) : undefined}
-            required
+            defaultValue={item?.defaultPrice != null ? String(item.defaultPrice) : undefined}
+            required={pricingType === "FIXED"}
           />
           <Field
             name="estimatedDurationMinutes"
-            label="Duración estimada (minutos)"
+            label="Duración (minutos) *"
             type="number"
             defaultValue={item?.estimatedDurationMinutes ? String(item.estimatedDurationMinutes) : undefined}
+            required
           />
+          <label className="field field-full catalog-assistant-toggle">
+            <span className="catalog-assistant-row">
+              <input type="checkbox" role="switch" checked={availableInAssistant}
+                onChange={(event) => setAvailableInAssistant(event.target.checked)} />
+              <strong>Disponible en el asistente de WhatsApp</strong>
+            </span>
+            <small>El asistente solo ofrece los servicios disponibles; necesita una descripción para el paciente.</small>
+          </label>
           <label className="field field-full">
-            <span>Descripción</span>
-            <textarea name="description" defaultValue={item?.description} />
+            <span>{availableInAssistant ? "Descripción para el paciente *" : "Descripción"}</span>
+            <textarea name="description" value={description} maxLength={availableInAssistant ? MAX_ASSISTANT_DESCRIPTION : undefined}
+              onChange={(event) => setDescription(event.target.value)} />
+            {availableInAssistant && (
+              <small className={description.trim().length < MIN_ASSISTANT_DESCRIPTION ? "catalog-counter short" : "catalog-counter"}>
+                {description.trim().length} / {MAX_ASSISTANT_DESCRIPTION} · mínimo {MIN_ASSISTANT_DESCRIPTION} · la usa el asistente para explicar el servicio
+              </small>
+            )}
           </label>
 
           <div className="quotation-items-editor field-full">

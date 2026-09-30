@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { priceLabel } from "../logic/catalogRules";
 import {
   IconAlertCircle,
   IconArrowLeft,
@@ -339,7 +340,7 @@ export function PatientCareScreen({
       if (existing) {
         return prev.map((item) => (item.catalogItemId === catalogItemId ? { ...item, quantity: item.quantity + quantity } : item));
       }
-      return [...prev, { catalogItemId, name: serviceObj.name, price: serviceObj.defaultPrice, quantity }];
+      return [...prev, { catalogItemId, name: serviceObj.name, price: serviceObj.defaultPrice ?? 0, quantity }];
     });
 
     setAdditionalPlannedMaterials((previous) => {
@@ -1158,7 +1159,7 @@ export function PatientCareScreen({
                         <option value="">Seleccionar servicio del catálogo...</option>
                         {catalogServices.map((service) => (
                           <option key={service.id} value={service.id}>
-                            {service.name} - ${service.defaultPrice} {service.category ? `(${service.category})` : ""}
+                            {service.name} - {priceLabel(service)} {service.category ? `(${service.category})` : ""}
                           </option>
                         ))}
                       </select>

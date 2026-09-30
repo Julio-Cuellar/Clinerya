@@ -8543,3 +8543,15 @@ h2 {
   .wa-grid, .wa-grid.three, .wa-filters { grid-template-columns: 1fr; }
   .wa-bubble { max-width: 85%; }
 }
+
+/* Reglas del catalogo de servicios (plan v2) */
+.catalog-pricing { border: 0; padding: 0; margin: 0; }
+.catalog-pricing-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.catalog-pricing-option { flex: 1; min-width: 220px; display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.catalog-pricing-option.on { border-color: var(--color-primary); background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
+.catalog-pricing-option small { display: block; color: var(--color-text-2); font-weight: 400; }
+.catalog-assistant-row { display: flex; align-items: center; gap: 10px; }
+.catalog-assistant-toggle small, .catalog-counter { color: var(--color-text-2); font-size: 12px; }
+.catalog-counter { display: block; text-align: right; }
+.catalog-counter.short { color: var(--color-warning); }
+.catalog-warning { margin-bottom: var(--space-3); }

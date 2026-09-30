@@ -652,7 +652,7 @@ export function QuotationEditorScreen({
     updateItem(key, {
       catalogItemId,
       description: catalogItem.name,
-      laborCharge: String(catalogItem.defaultPrice),
+      laborCharge: String(catalogItem.defaultPrice ?? 0),
       materials: catalogItem.materials.map((material) => ({
         key: `mat_${material.id}_${Math.random().toString(36).slice(2, 6)}`,
         materialId: material.materialId,

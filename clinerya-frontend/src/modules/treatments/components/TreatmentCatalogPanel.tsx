@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { assistantStatus, catalogWarning, priceLabel } from "../logic/catalogRules";
 import { IconInfoCircle, IconPlus, IconSearch, IconWand } from "@tabler/icons-react";
 import { getFriendlyError, treatmentCatalogApi } from "@shared/api/api";
 import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
@@ -80,7 +81,9 @@ export function TreatmentCatalogPanel({
             materialId: material.materialId,
             typicalQuantity: material.typicalQuantity
           })),
-          active: true
+          active: true,
+          pricingType: item.pricingType,
+          availableInAssistant: item.availableInAssistant
         });
         setItems((prev) => prev.map((current) => (current.id === item.id ? updated : current)));
       }
@@ -165,6 +168,12 @@ export function TreatmentCatalogPanel({
         </div>
       )}
 
+      {hasClinic && !loading && catalogWarning(items) && (
+        <p className="alert warning catalog-warning" role="status">
+          <strong>{catalogWarning(items)}</strong> Ábrelos con "Editar" para completarlos.
+        </p>
+      )}
+
       {hasClinic && !loading && items.length > 0 && (
         <div className="table-wrapper">
           <table className="data-table">
@@ -174,6 +183,7 @@ export function TreatmentCatalogPanel({
                 <th>Categoría</th>
                 <th>Precio</th>
                 <th>Duración</th>
+                <th>Asistente</th>
                 <th>Estado</th>
                 <th aria-label="Acciones" />
               </tr>
@@ -186,8 +196,18 @@ export function TreatmentCatalogPanel({
                     {item.description && <div>{item.description}</div>}
                   </td>
                   <td>{item.category || "—"}</td>
-                  <td>{currencyFormatter.format(item.defaultPrice)}</td>
+                  <td>
+                    {priceLabel(item)}{" "}
+                    <span className={`badge ${item.pricingType === "VARIES_BY_PATIENT" ? "info" : "success"}`}>
+                      {item.pricingType === "VARIES_BY_PATIENT" ? "Varía" : "Fijo"}
+                    </span>
+                  </td>
                   <td>{item.estimatedDurationMinutes ? `${item.estimatedDurationMinutes} min` : "—"}</td>
+                  <td>
+                    <span className={`badge ${assistantStatus(item).tone === "ok" ? "success" : assistantStatus(item).tone === "warn" ? "warning" : "neutral"}`}>
+                      {assistantStatus(item).label}
+                    </span>
+                  </td>
                   <td>
                     <span className={`badge ${item.active ? "success" : "neutral"}`}>
                       {item.active ? "Activo" : "Inactivo"}
@@ -213,7 +233,7 @@ export function TreatmentCatalogPanel({
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={6}>Sin resultados para "{search}"</td>
+                  <td colSpan={7}>Sin resultados para "{search}"</td>
                 </tr>
               )}
             </tbody>

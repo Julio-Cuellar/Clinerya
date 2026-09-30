@@ -16,8 +16,11 @@ export interface TreatmentCatalogItemResponse {
   name: string;
   category?: string;
   description?: string;
-  defaultPrice: number;
+  /** Obligatorio si el precio es fijo; referencia "desde" (puede faltar) si varia por paciente. */
+  defaultPrice: number | null;
   estimatedDurationMinutes?: number;
+  pricingType: "FIXED" | "VARIES_BY_PATIENT";
+  availableInAssistant: boolean;
   materials: CatalogMaterialResponse[];
   active: boolean;
   createdAt: string;
@@ -34,9 +37,11 @@ export interface CreateTreatmentCatalogItemRequest {
   name: string;
   category?: string;
   description?: string;
-  defaultPrice: number;
+  defaultPrice: number | null;
   estimatedDurationMinutes?: number;
   materials: CatalogMaterialRequest[];
+  pricingType: "FIXED" | "VARIES_BY_PATIENT";
+  availableInAssistant: boolean;
 }
 
 export interface UpdateTreatmentCatalogItemRequest extends CreateTreatmentCatalogItemRequest {
