@@ -63,16 +63,34 @@ public class MetaWhatsAppSender implements WhatsAppSenderPort {
     @Override
     public SendResult sendTemplate(Credentials credentials, String to, String templateName, String languageCode,
                                    List<String> parameters) {
+        return sendTemplate(credentials, to, templateName, languageCode, parameters, List.of());
+    }
+
+    /** Cada boton de respuesta rapida de la plantilla lleva su payload, en el orden en que se aprobo en Meta. */
+    @Override
+    public SendResult sendTemplate(Credentials credentials, String to, String templateName, String languageCode,
+                                   List<String> parameters, List<String> buttonPayloads) {
         ObjectNode payload = envelope(to);
         payload.put("type", "template");
         ObjectNode template = payload.putObject("template");
         template.put("name", templateName);
         template.putObject("language").put("code", languageCode);
+        if (parameters.isEmpty() && buttonPayloads.isEmpty()) {
+            return post(credentials, payload);
+        }
+        ArrayNode components = template.putArray("components");
         if (!parameters.isEmpty()) {
-            ObjectNode body = template.putArray("components").addObject();
+            ObjectNode body = components.addObject();
             body.put("type", "body");
             ArrayNode values = body.putArray("parameters");
             parameters.forEach(value -> values.addObject().put("type", "text").put("text", value));
+        }
+        for (int index = 0; index < buttonPayloads.size(); index++) {
+            ObjectNode button = components.addObject();
+            button.put("type", "button");
+            button.put("sub_type", "quick_reply");
+            button.put("index", String.valueOf(index));
+            button.putArray("parameters").addObject().put("type", "payload").put("payload", buttonPayloads.get(index));
         }
         return post(credentials, payload);
     }
