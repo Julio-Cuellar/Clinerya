@@ -125,6 +125,26 @@ class MetaWhatsAppSenderTest {
     }
 
     @Test
+    void aReminderTemplateCarriesOneQuickReplyPayloadPerButton() throws Exception {
+        expectSend();
+
+        sender.sendTemplate(credentials, "5215512345678", "recordatorio_cita", "es_MX", List.of("Ana", "Clínica Sonrisa"),
+                List.of("recordatorio:confirmar:1", "recordatorio:cancelar:1", "recordatorio:reprogramar:1"));
+
+        JsonNode components = objectMapper.readTree(body.get()).at("/template/components");
+        assertEquals("body", components.path(0).path("type").asText());
+        assertEquals("Clínica Sonrisa", components.path(0).at("/parameters/1/text").asText());
+        for (int index = 0; index < 3; index++) {
+            JsonNode button = components.path(index + 1);
+            assertEquals("button", button.path("type").asText());
+            assertEquals("quick_reply", button.path("sub_type").asText());
+            assertEquals(String.valueOf(index), button.path("index").asText());
+            assertEquals("payload", button.at("/parameters/0/type").asText());
+        }
+        assertEquals("recordatorio:cancelar:1", components.path(2).at("/parameters/0/payload").asText());
+    }
+
+    @Test
     void rateLimitsAndServerErrorsAreRetryable() {
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
         server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
