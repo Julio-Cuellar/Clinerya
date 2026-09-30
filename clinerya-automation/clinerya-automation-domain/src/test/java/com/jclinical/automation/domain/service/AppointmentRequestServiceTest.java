@@ -140,6 +140,18 @@ class AppointmentRequestServiceTest {
     // ---- aceptar ----------------------------------------------------------------------------
 
     @Test
+    void acceptingARequestForAServiceBooksTheAppointmentWithThatService() {
+        UUID serviceId = UUID.randomUUID();
+        UUID requestId = service.submit(new NewAppointmentRequest(clinicId, conversationId, patientId, doctorId, START,
+                START.plusMinutes(45), "5215512345678", "Ana López", "Dra. Ramos", null, serviceId));
+
+        assertEquals(serviceId, requests.byId.get(requestId).serviceId());
+        service.accept(doctorUserId, clinicId, requestId);
+
+        assertEquals(serviceId, booking.lastService);
+    }
+
+    @Test
     void acceptingBooksTheHeldSlotAndNotifiesTheConversation() {
         UUID requestId = service.submit(newRequest(doctorId, START));
         UUID holdId = requests.byId.get(requestId).holdId();
@@ -489,7 +501,14 @@ class AppointmentRequestServiceTest {
         final Map<UUID, UUID> doctorOfUser = new HashMap<>();
         final UUID appointmentId = UUID.randomUUID();
         UUID lastPatient;
+        UUID lastService;
         String rejectBookingWith;
+
+        @Override
+        public UUID book(UUID clinicId, UUID holdId, UUID patientId, String reason, UUID serviceId) {
+            lastService = serviceId;
+            return book(clinicId, holdId, patientId, reason);
+        }
 
         @Override
         public UUID hold(UUID clinicId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end, UUID reference, int holdMinutes) {
