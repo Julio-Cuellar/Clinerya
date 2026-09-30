@@ -13,12 +13,16 @@ import com.jclinical.core.security.StaffPermissionCheckerPort;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /** Ajustes del asistente: como se presenta, que responde y si comparte precios. */
 public class AssistantProfileService implements ManageAssistantProfileUseCase {
 
     public static final int MAX_NAME = 60;
     public static final int MAX_FAQ = 4000;
+    public static final int MAX_REMINDER_HOURS = 72;
+    /** Como Meta nombra las plantillas aprobadas. */
+    private static final Pattern TEMPLATE_NAME = Pattern.compile("[a-z0-9_]{1,512}");
 
     private final AssistantProfileStorePort profiles;
     private final ChannelSettingsRepositoryPort settings;
@@ -57,7 +61,15 @@ public class AssistantProfileService implements ManageAssistantProfileUseCase {
         if (faq != null && faq.length() > MAX_FAQ) {
             throw new IllegalArgumentException("Las preguntas frecuentes admiten hasta " + MAX_FAQ + " caracteres.");
         }
-        AssistantProfile cleaned = new AssistantProfile(name, faq, profile.showPrices());
+        if (profile.reminderHoursBefore() > MAX_REMINDER_HOURS) {
+            throw new IllegalArgumentException("El recordatorio se envía entre 1 y " + MAX_REMINDER_HOURS + " horas antes de la cita.");
+        }
+        String template = blankToNull(profile.reminderTemplateName());
+        if (template != null && !TEMPLATE_NAME.matcher(template).matches()) {
+            throw new IllegalArgumentException("El nombre de la plantilla es como aparece en Meta: minúsculas, números y guion bajo.");
+        }
+        AssistantProfile cleaned = new AssistantProfile(name, faq, profile.showPrices(), profile.remindersEnabled(),
+                profile.reminderHoursBefore(), template);
         profiles.save(clinicId, cleaned);
         audit.record(clinicId, actingUserId, "ASSISTANT_PROFILE_UPDATED", LocalDateTime.now(clock));
         return cleaned;
