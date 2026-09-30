@@ -10,5 +10,8 @@ public record UpdateTreatmentCatalogItemRequest(
     BigDecimal defaultPrice,
     Integer estimatedDurationMinutes,
     List<CatalogMaterialRequest> materials,
-    boolean active
+    boolean active,
+    /** FIXED o VARIES_BY_PATIENT; si no llega se toma FIXED (clientes anteriores). */
+    String pricingType,
+    Boolean availableInAssistant
 ) {}

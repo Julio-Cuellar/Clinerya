@@ -1,6 +1,9 @@
 package com.jclinical.treatments.infra.adapters.out.persistence;
 
 import jakarta.persistence.CascadeType;
+import com.jclinical.treatments.domain.model.PricingType;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -42,11 +45,19 @@ public class TreatmentCatalogItemEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "default_price", nullable = false)
+    /** Obligatorio si el precio es fijo; referencia opcional si varia por paciente. */
+    @Column(name = "default_price")
     private BigDecimal defaultPrice;
 
     @Column(name = "estimated_duration_minutes")
     private Integer estimatedDurationMinutes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pricing_type", nullable = false, length = 30)
+    private PricingType pricingType;
+
+    @Column(name = "available_in_assistant", nullable = false)
+    private boolean availableInAssistant;
 
     @Builder.Default
     @OneToMany(mappedBy = "catalogItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

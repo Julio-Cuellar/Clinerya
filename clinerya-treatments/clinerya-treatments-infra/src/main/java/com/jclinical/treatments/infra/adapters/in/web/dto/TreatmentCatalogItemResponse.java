@@ -13,6 +13,8 @@ public record TreatmentCatalogItemResponse(
     String description,
     BigDecimal defaultPrice,
     Integer estimatedDurationMinutes,
+    String pricingType,
+    boolean availableInAssistant,
     List<CatalogMaterialResponse> materials,
     boolean active,
     LocalDateTime createdAt,

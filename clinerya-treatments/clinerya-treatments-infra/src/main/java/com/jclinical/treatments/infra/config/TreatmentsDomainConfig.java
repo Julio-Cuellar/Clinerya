@@ -5,6 +5,7 @@ import com.jclinical.treatments.domain.model.Quotation;
 import com.jclinical.treatments.domain.model.QuotationItem;
 import com.jclinical.treatments.domain.model.QuotationItemMaterial;
 import com.jclinical.treatments.domain.model.QuotationStatus;
+import com.jclinical.treatments.domain.model.PricingType;
 import com.jclinical.treatments.domain.model.TreatmentCatalogItem;
 import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
 import com.jclinical.treatments.domain.model.Visit;
@@ -119,6 +120,8 @@ public class TreatmentsDomainConfig {
                         .description(domain.getDescription())
                         .defaultPrice(domain.getDefaultPrice())
                         .estimatedDurationMinutes(domain.getEstimatedDurationMinutes())
+                        .pricingType(domain.getPricingType() == null ? PricingType.FIXED : domain.getPricingType())
+                        .availableInAssistant(domain.isAvailableInAssistant())
                         .active(domain.isActive())
                         .createdAt(domain.getCreatedAt())
                         .updatedAt(domain.getUpdatedAt())
@@ -153,6 +156,8 @@ public class TreatmentsDomainConfig {
                         .description(entity.getDescription())
                         .defaultPrice(entity.getDefaultPrice())
                         .estimatedDurationMinutes(entity.getEstimatedDurationMinutes())
+                        .pricingType(entity.getPricingType() == null ? PricingType.FIXED : entity.getPricingType())
+                        .availableInAssistant(entity.isAvailableInAssistant())
                         .active(entity.isActive())
                         .createdAt(entity.getCreatedAt())
                         .updatedAt(entity.getUpdatedAt())

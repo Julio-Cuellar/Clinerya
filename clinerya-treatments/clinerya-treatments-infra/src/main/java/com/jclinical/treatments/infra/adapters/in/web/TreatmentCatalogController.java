@@ -1,5 +1,6 @@
 package com.jclinical.treatments.infra.adapters.in.web;
 
+import com.jclinical.treatments.domain.model.PricingType;
 import com.jclinical.treatments.domain.model.TreatmentCatalogItem;
 import com.jclinical.treatments.domain.model.TreatmentCatalogMaterial;
 import com.jclinical.treatments.domain.ports.in.ManageTreatmentCatalogUseCase;
@@ -47,7 +48,9 @@ public class TreatmentCatalogController {
                 request.description(),
                 request.defaultPrice(),
                 request.estimatedDurationMinutes(),
-                toMaterialCommands(request.materials())
+                toMaterialCommands(request.materials()),
+                pricingType(request.pricingType()),
+                Boolean.TRUE.equals(request.availableInAssistant())
         );
         TreatmentCatalogItem item = catalogUseCase.createCatalogItem(
                 currentUserResolver.getCurrentUserId(), clinicId, command);
@@ -97,7 +100,9 @@ public class TreatmentCatalogController {
                 request.defaultPrice(),
                 request.estimatedDurationMinutes(),
                 toMaterialCommands(request.materials()),
-                request.active()
+                request.active(),
+                pricingType(request.pricingType()),
+                Boolean.TRUE.equals(request.availableInAssistant())
         );
         TreatmentCatalogItem item = catalogUseCase.updateCatalogItem(
                 currentUserResolver.getCurrentUserId(), itemId, clinicId, command);
@@ -112,6 +117,18 @@ public class TreatmentCatalogController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Clientes anteriores no mandan el tipo: se conserva el comportamiento de antes (precio fijo). */
+    private static PricingType pricingType(String value) {
+        if (value == null || value.isBlank()) {
+            return PricingType.FIXED;
+        }
+        try {
+            return PricingType.valueOf(value.trim());
+        } catch (IllegalArgumentException unknown) {
+            throw new IllegalArgumentException("Tipo de precio no válido: usa FIXED o VARIES_BY_PATIENT.");
+        }
+    }
+
     private TreatmentCatalogItemResponse toResponse(TreatmentCatalogItem item) {
         List<CatalogMaterialResponse> materials = item.getMaterials() == null
                 ? List.of()
@@ -124,6 +141,8 @@ public class TreatmentCatalogController {
                 item.getDescription(),
                 item.getDefaultPrice(),
                 item.getEstimatedDurationMinutes(),
+                item.getPricingType() == null ? PricingType.FIXED.name() : item.getPricingType().name(),
+                item.isAvailableInAssistant(),
                 materials,
                 item.isActive(),
                 item.getCreatedAt(),
