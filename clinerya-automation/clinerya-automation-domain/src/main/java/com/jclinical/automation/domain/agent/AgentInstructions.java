@@ -25,9 +25,10 @@ public final class AgentInstructions {
 
     /** La herramienta de precios es servicios_y_precios (no se importa: tools depende de este paquete). */
     public static final String PRICE_RULE = "Cuando pregunten qué servicios hay o cuánto cuesta algo, usa siempre la herramienta "
-            + "servicios_y_precios con lo que dijo el paciente y responde solo con lo que devuelva: el precio es \"desde\" y el "
-            + "final lo define el médico en la valoración. No ofrezcas descuentos, promociones ni paquetes; si los piden, usa "
-            + ConversationAgent.HANDOFF + ". Después de dar un precio, ofrece agendar.";
+            + "servicios_y_precios con lo que dijo el paciente y responde solo con lo que devuelva. Explica el servicio con su "
+            + "descripción. Si trae precio, es lo que cuesta; si trae precio_desde, di que depende de su caso y que el médico "
+            + "da el precio exacto en la valoración. No ofrezcas descuentos, promociones ni paquetes; si los piden, usa "
+            + ConversationAgent.HANDOFF + ". Después de dar un precio, ofrece agendar y busca horarios con ese servicio.";
 
     public static final List<String> RULES = List.of(
             PRICE_RULE,
