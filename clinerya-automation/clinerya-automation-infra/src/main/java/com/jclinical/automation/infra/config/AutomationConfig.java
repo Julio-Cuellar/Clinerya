@@ -22,6 +22,8 @@ import com.jclinical.automation.domain.agent.tools.RegisterPatientTool;
 import com.jclinical.automation.domain.agent.tools.ServicesTool;
 import com.jclinical.automation.domain.agent.tools.SlotsTool;
 import com.jclinical.automation.domain.ports.out.AppointmentCancellationPort;
+import com.jclinical.automation.domain.ports.out.AssistantProfileStorePort;
+import com.jclinical.automation.domain.service.AssistantProfileService;
 import com.jclinical.automation.domain.ports.out.AssistantProfilePort;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort;
 import com.jclinical.automation.infra.adapters.out.crossmodule.AppointmentCancellationAdapter;
@@ -219,8 +221,16 @@ public class AutomationConfig {
     }
 
     @Bean
-    public AssistantProfilePort assistantProfiles(JdbcTemplate jdbcTemplate) {
+    public AssistantProfileStorePort assistantProfiles(JdbcTemplate jdbcTemplate) {
         return new JdbcAssistantProfileRepository(jdbcTemplate);
+    }
+
+    @Bean
+    public AssistantProfileService assistantProfileService(AssistantProfileStorePort assistantProfiles,
+                                                           ChannelSettingsRepositoryPort channelSettings,
+                                                           StaffPermissionCheckerPort permissions,
+                                                           ChannelSettingsAuditPort audit) {
+        return new AssistantProfileService(assistantProfiles, channelSettings, permissions, audit, Clock.systemDefaultZone());
     }
 
     /**
