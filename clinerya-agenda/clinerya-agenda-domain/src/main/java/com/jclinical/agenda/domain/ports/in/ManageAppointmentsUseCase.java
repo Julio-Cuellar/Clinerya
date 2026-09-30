@@ -75,8 +75,17 @@ public interface ManageAppointmentsUseCase {
             LocalDateTime scheduledEnd,
             String reason,
             String notes,
-            boolean externalImport
+            boolean externalImport,
+            /** Servicio del catalogo (opcional): su duracion fija el fin si no se indica y su precio se copia. */
+            UUID serviceId
     ) {
+        public CreateAppointmentCommand(UUID patientId, UUID doctorStaffId, UUID roomId, UUID quotationId,
+                                        UUID quotationItemId, List<UUID> quotationItemIds, LocalDateTime scheduledStart,
+                                        LocalDateTime scheduledEnd, String reason, String notes, boolean externalImport) {
+            this(patientId, doctorStaffId, roomId, quotationId, quotationItemId, quotationItemIds, scheduledStart,
+                    scheduledEnd, reason, notes, externalImport, null);
+        }
+
         public CreateAppointmentCommand(
                 UUID patientId,
                 UUID doctorStaffId,

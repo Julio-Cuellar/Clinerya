@@ -52,9 +52,16 @@ public class OnlineBookingService implements OnlineBookingUseCase {
 
     @Override
     public List<BookableSlot> findAvailableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit) {
+        return findAvailableSlots(clinicId, doctorStaffId, from, days, limit, null);
+    }
+
+    @Override
+    public List<BookableSlot> findAvailableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit,
+                                                 Integer durationMinutes) {
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime earliest = now.plusMinutes(settings.minLeadMinutes(clinicId, doctorStaffId));
         int slotMinutes = settings.slotMinutes(clinicId);
+        int length = durationMinutes == null || durationMinutes <= 0 ? slotMinutes : durationMinutes;
         List<BookableSlot> available = new ArrayList<>();
 
         for (int offset = 0; offset < days && available.size() < limit; offset++) {
@@ -69,9 +76,9 @@ public class OnlineBookingService implements OnlineBookingUseCase {
             List<SlotHold> held = holds.findActiveByDoctorAndRange(doctorStaffId, clinicId, dayStart, dayEnd, now);
 
             for (LocalDateTime start = dayStart;
-                 !start.plusMinutes(slotMinutes).isAfter(dayEnd) && available.size() < limit;
+                 !start.plusMinutes(length).isAfter(dayEnd) && available.size() < limit;
                  start = start.plusMinutes(slotMinutes)) {
-                LocalDateTime end = start.plusMinutes(slotMinutes);
+                LocalDateTime end = start.plusMinutes(length);
                 if (!start.isBefore(earliest) && isFree(start, end, busy, held)) {
                     available.add(new BookableSlot(start, end));
                 }
@@ -120,8 +127,8 @@ public class OnlineBookingService implements OnlineBookingUseCase {
         holds.save(hold.withStatus(SlotHold.Status.CONSUMED));
         try {
             return appointmentCreator.createAppointment(null, hold.clinicId(), new CreateAppointmentCommand(
-                    command.patientId(), hold.doctorStaffId(), null, null, null,
-                    hold.start(), hold.end(), command.reason(), null)).getId();
+                    command.patientId(), hold.doctorStaffId(), null, null, null, List.of(),
+                    hold.start(), hold.end(), command.reason(), null, false, command.serviceId())).getId();
         } catch (IllegalArgumentException | IllegalStateException rejected) {
             holds.save(hold);
             throw new SlotUnavailableException(rejected.getMessage());
@@ -187,7 +194,8 @@ public class OnlineBookingService implements OnlineBookingUseCase {
      */
     private boolean isOfferable(HoldSlotCommand command) {
         LocalDate date = command.start().toLocalDate();
-        return findAvailableSlots(command.clinicId(), command.doctorStaffId(), date, 1, Integer.MAX_VALUE).stream()
+        int length = (int) java.time.Duration.between(command.start(), command.end()).toMinutes();
+        return findAvailableSlots(command.clinicId(), command.doctorStaffId(), date, 1, Integer.MAX_VALUE, length).stream()
                 .anyMatch(slot -> slot.start().equals(command.start()) && slot.end().equals(command.end()));
     }
 

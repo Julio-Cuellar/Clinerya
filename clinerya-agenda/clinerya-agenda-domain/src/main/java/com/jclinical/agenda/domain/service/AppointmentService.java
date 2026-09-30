@@ -5,6 +5,9 @@ import com.jclinical.agenda.domain.model.AppointmentStatus;
 import com.jclinical.agenda.domain.model.ClinicSchedule;
 import com.jclinical.agenda.domain.ports.in.ManageAppointmentsUseCase;
 import com.jclinical.agenda.domain.ports.out.AppointmentRepositoryPort;
+import com.jclinical.agenda.domain.ports.out.ServiceCatalogPort;
+import com.jclinical.agenda.domain.ports.out.ServiceCatalogPort.ServiceSnapshot;
+import com.jclinical.agenda.domain.model.ServicePricing;
 import com.jclinical.agenda.domain.ports.out.SlotHoldRepositoryPort;
 import com.jclinical.agenda.domain.ports.out.PatientValidatorPort;
 import com.jclinical.agenda.domain.ports.out.QuotationValidatorPort;
@@ -26,6 +29,7 @@ import com.jclinical.core.security.StaffPermissionCheckerPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class AppointmentService implements ManageAppointmentsUseCase {
@@ -41,6 +45,7 @@ public class AppointmentService implements ManageAppointmentsUseCase {
     private final RoomValidatorPort roomValidator;
     private final StaffPermissionCheckerPort permissionChecker;
     private final SlotHoldRepositoryPort slotHoldRepository;
+    private ServiceCatalogPort serviceCatalog;
 
     public AppointmentService(
             AppointmentRepositoryPort appointmentRepository,
@@ -109,6 +114,28 @@ public class AppointmentService implements ManageAppointmentsUseCase {
         }
     }
 
+    /** El catalogo de servicios (modulo de tratamientos); sin el, las citas no pueden llevar servicio. */
+    public void setServiceCatalog(ServiceCatalogPort serviceCatalog) {
+        this.serviceCatalog = serviceCatalog;
+    }
+
+    private Optional<ServiceSnapshot> resolveService(UUID clinicId, UUID serviceId) {
+        if (serviceId == null) {
+            return Optional.empty();
+        }
+        if (serviceCatalog == null) {
+            throw new IllegalStateException("El catálogo de servicios no está disponible.");
+        }
+        return Optional.of(serviceCatalog.findActiveService(clinicId, serviceId)
+                .orElseThrow(() -> new IllegalArgumentException("El servicio no existe o no está activo en esta clínica.")));
+    }
+
+    private static CreateAppointmentCommand withEnd(CreateAppointmentCommand command, LocalDateTime scheduledEnd) {
+        return new CreateAppointmentCommand(command.patientId(), command.doctorStaffId(), command.roomId(),
+                command.quotationId(), command.quotationItemId(), command.quotationItemIds(), command.scheduledStart(),
+                scheduledEnd, command.reason(), command.notes(), command.externalImport(), command.serviceId());
+    }
+
     @Override
     public Appointment createAppointment(UUID actingUserId, UUID clinicId, CreateAppointmentCommand command) {
         requirePermission(clinicId, actingUserId, StaffPermission.CREATE_APPOINTMENTS,
@@ -126,6 +153,13 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         staffValidator.findActiveDoctor(command.doctorStaffId(), clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("El doctor indicado no existe o no está activo en esta clínica."));
+
+        Optional<ServiceSnapshot> chosenService = resolveService(clinicId, command.serviceId());
+        LocalDateTime scheduledEnd = command.scheduledEnd() != null || chosenService.isEmpty()
+                || command.scheduledStart() == null || chosenService.get().durationMinutes() == null
+                ? command.scheduledEnd()
+                : command.scheduledStart().plusMinutes(chosenService.get().durationMinutes());
+        command = withEnd(command, scheduledEnd);
 
         validateTimeRange(command.scheduledStart(), command.scheduledEnd());
         validateFutureStart(command.scheduledStart(), command.externalImport());
@@ -166,6 +200,11 @@ public class AppointmentService implements ManageAppointmentsUseCase {
                 .scheduledEnd(command.scheduledEnd())
                 .reason(command.reason())
                 .notes(command.notes())
+                .serviceId(chosenService.map(ServiceSnapshot::id).orElse(null))
+                .serviceName(chosenService.map(ServiceSnapshot::name).orElse(null))
+                .servicePricing(chosenService.map(ServiceSnapshot::pricing).orElse(null))
+                .servicePrice(chosenService.filter(found -> found.pricing() == ServicePricing.FIXED)
+                        .map(ServiceSnapshot::price).orElse(null))
                 .status(AppointmentStatus.SCHEDULED)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -175,7 +214,9 @@ public class AppointmentService implements ManageAppointmentsUseCase {
 
         eventPublisher.publish(DomainEventRoutingKeys.APPOINTMENT_SCHEDULED, new AppointmentScheduledEvent(
                 UUID.randomUUID(), clinicId, saved.getId(), saved.getDoctorStaffId(),
-                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now(), saved.getPatientId()));
+                saved.getScheduledStart(), saved.getScheduledEnd(), LocalDateTime.now(), saved.getPatientId(),
+                saved.getServiceId(), saved.getServiceName(), saved.getServicePrice(),
+                saved.getServicePricing() == null ? null : saved.getServicePricing().name()));
 
         materialReservationSchedulingService.processReservation(saved);
 

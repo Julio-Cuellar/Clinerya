@@ -17,6 +17,15 @@ public interface OnlineBookingUseCase {
 
     List<BookableSlot> findAvailableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit);
 
+    /**
+     * Cupos donde cabe un servicio de {@code durationMinutes}: el inicio sigue la rejilla de la clinica y
+     * el cupo dura lo que el servicio. Sin duracion, el largo del cupo de la clinica.
+     */
+    default List<BookableSlot> findAvailableSlots(UUID clinicId, UUID doctorStaffId, LocalDate from, int days, int limit,
+                                                  Integer durationMinutes) {
+        return findAvailableSlots(clinicId, doctorStaffId, from, days, limit);
+    }
+
     /** @throws SlotUnavailableException si el cupo ya no cumple las reglas o se ocupo. */
     SlotHold holdSlot(HoldSlotCommand command);
 
@@ -76,7 +85,12 @@ public interface OnlineBookingUseCase {
     record HoldSlotCommand(UUID clinicId, UUID doctorStaffId, LocalDateTime start, LocalDateTime end,
                            UUID reference, int holdMinutes) {}
 
-    record BookHeldSlotCommand(UUID clinicId, UUID holdId, UUID patientId, String reason) {}
+    /** {@code serviceId}: servicio del catalogo de la cita (opcional). */
+    record BookHeldSlotCommand(UUID clinicId, UUID holdId, UUID patientId, String reason, UUID serviceId) {
+        public BookHeldSlotCommand(UUID clinicId, UUID holdId, UUID patientId, String reason) {
+            this(clinicId, holdId, patientId, reason, null);
+        }
+    }
 
     class SlotUnavailableException extends RuntimeException {
         public SlotUnavailableException(String message) {

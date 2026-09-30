@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +26,12 @@ public class Appointment {
     private UUID quotationItemId;
     @Builder.Default
     private List<UUID> quotationItemIds = List.of();
+    /** Servicio del catalogo (opcional). Nombre, tipo y precio son copias del momento de agendar. */
+    private UUID serviceId;
+    private String serviceName;
+    private ServicePricing servicePricing;
+    /** Solo si el precio es fijo; con precio variable queda por definir (null). */
+    private BigDecimal servicePrice;
     private UUID seriesId;
     private LocalDateTime scheduledStart;
     private LocalDateTime scheduledEnd;
