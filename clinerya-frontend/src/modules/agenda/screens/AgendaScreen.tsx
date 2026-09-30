@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import {
   agendaApi,
+  treatmentCatalogApi,
   clinicRoomsApi,
   clinicScheduleApi,
   getFriendlyError,
@@ -40,6 +41,8 @@ import type { QuotationResponse } from "@modules/treatments/quotationTypes";
 import type { MaterialResponse } from "@modules/inventory/types";
 import type { PatientResponse } from "@modules/patients/types";
 import { CustomDateTimePicker } from "@modules/agenda/components/CustomDateTimePicker";
+import { endForService, estimatedRevenue as computeEstimatedRevenue } from "@modules/agenda/logic/revenue";
+import type { TreatmentCatalogItemResponse } from "@modules/treatments/types";
 import { CalendarSlotPickerModal } from "@modules/agenda/components/CalendarSlotPickerModal";
 
 interface EditableMaterialUsage {
@@ -329,6 +332,23 @@ function AppointmentFormModal({
   const [quotationId, setQuotationId] = useState("");
   const [quotationItemIds, setQuotationItemIds] = useState<string[]>([]);
   const [showSlotPicker, setShowSlotPicker] = useState(false);
+  const [services, setServices] = useState<TreatmentCatalogItemResponse[]>([]);
+  const [serviceId, setServiceId] = useState("");
+
+  useEffect(() => {
+    treatmentCatalogApi.list(clinicId, false).then(setServices).catch(() => setServices([]));
+  }, [clinicId]);
+
+  const selectedService = services.find((service) => service.id === serviceId);
+
+  /** Al elegir el servicio, la cita dura lo que el servicio. */
+  const chooseService = (id: string) => {
+    setServiceId(id);
+    const service = services.find((candidate) => candidate.id === id);
+    if (service?.estimatedDurationMinutes && scheduledStart) {
+      setScheduledEnd(endForService(scheduledStart, service.estimatedDurationMinutes));
+    }
+  };
 
   // Recurrence state
   const [isSeries, setIsSeries] = useState(false);
@@ -412,8 +432,9 @@ function AppointmentFormModal({
           quotationItemIds: quotationItemIds.length > 0 ? quotationItemIds : undefined,
           scheduledStart: `${scheduledStart}:00`,
           scheduledEnd: `${scheduledEnd}:00`,
-          reason: reason.trim() || undefined,
-          notes: notes.trim() || undefined
+          reason: reason.trim() || selectedService?.name || undefined,
+          notes: notes.trim() || undefined,
+          serviceId: serviceId || undefined
         });
       }
       onSaved();
@@ -454,6 +475,29 @@ function AppointmentFormModal({
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="field">
+            <span>Servicio</span>
+            <select value={serviceId} onChange={(event) => chooseService(event.target.value)} disabled={isSeries}>
+              <option value="">Otro / sin servicio</option>
+              {services.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                  {service.estimatedDurationMinutes ? ` · ${service.estimatedDurationMinutes} min` : ""}
+                  {service.pricingType === "VARIES_BY_PATIENT"
+                    ? " · precio por definir"
+                    : service.defaultPrice != null ? ` · ${currencyFormatter.format(service.defaultPrice)} (fijo)` : ""}
+                </option>
+              ))}
+            </select>
+            {selectedService && (
+              <small className="agenda-service-note">
+                {selectedService.pricingType === "VARIES_BY_PATIENT"
+                  ? "Precio por definir: se acuerda en la valoración y no suma al ingreso estimado."
+                  : `Precio de la cita: ${currencyFormatter.format(selectedService.defaultPrice ?? 0)} (precio fijo, se guarda con la cita aunque después cambie el catálogo).`}
+              </small>
+            )}
           </label>
 
           {rooms.length > 0 && (
@@ -987,6 +1031,17 @@ function AppointmentDetailModal({
               {new Date(appointment.scheduledEnd).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false })}
             </span>
           </div>
+          {appointment.serviceName && (
+            <div className="clinic-row">
+              <strong>Servicio</strong>
+              <span>
+                {appointment.serviceName} ·{" "}
+                {appointment.servicePricing === "FIXED" && appointment.servicePrice != null
+                  ? currencyFormatter.format(appointment.servicePrice)
+                  : "precio por definir"}
+              </span>
+            </div>
+          )}
           {appointment.reason && (
             <div className="clinic-row">
               <strong>Motivo</strong>
@@ -1739,22 +1794,9 @@ export function AgendaScreen({
   const visibleAppointments = appointments.filter((appointment) => matchesDoctor(appointment) && matchesRoom(appointment) && matchesSearch(appointment));
   const todayForStats = todayAppointments.filter(matchesDoctor);
   const confirmedToday = todayForStats.filter((appointment) => appointment.status === "CONFIRMED").length;
-  const estimatedRevenue = todayForStats
-    .filter((appointment) => isActiveStatus(appointment.status) && appointment.quotationId)
-    .reduce((sum, appointment) => {
-      const quotation = quotationCache.get(appointment.quotationId!);
-      if (!quotation) return sum;
-      if (appointment.quotationItemIds?.length) {
-        return sum + quotation.items
-          .filter((item) => appointment.quotationItemIds!.includes(item.id))
-          .reduce((itemSum, item) => itemSum + item.subtotal, 0);
-      }
-      if (appointment.quotationItemId) {
-        const item = quotation.items.find((it) => it.id === appointment.quotationItemId);
-        return sum + (item?.subtotal ?? 0);
-      }
-      return sum + quotation.grandTotal;
-    }, 0);
+  // Presupuestos ligados + precio fijo de las citas con servicio; las de precio variable se cuentan aparte.
+  const revenue = computeEstimatedRevenue(todayForStats, quotationCache);
+  const estimatedRevenue = revenue.total;
 
   const listDayAppointments = visibleAppointments
     .filter((appointment) => isSameDay(new Date(appointment.scheduledStart), listDate))
@@ -1922,6 +1964,9 @@ export function AgendaScreen({
           <div className="agenda-stat-card">
             <span>Ingresos estimados</span>
             <strong>{currencyFormatter.format(estimatedRevenue)}</strong>
+            {revenue.toDefine > 0 && (
+              <small>+ {revenue.toDefine} {revenue.toDefine === 1 ? "cita" : "citas"} con precio por definir</small>
+            )}
           </div>
         </div>
 
@@ -2003,7 +2048,17 @@ export function AgendaScreen({
                     <div className="agenda-list-info">
                       <strong>{patientName(patients, appointment.patientId)}</strong>
                       <span>
-                        {appointment.reason || "Consulta"} · {doctorName(doctors, appointment.doctorStaffId)}
+                        {appointment.serviceName || appointment.reason || "Consulta"} · {doctorName(doctors, appointment.doctorStaffId)}
+                        {appointment.serviceName && (
+                          <>
+                            {" · "}
+                            <b>
+                              {appointment.servicePricing === "FIXED" && appointment.servicePrice != null
+                                ? currencyFormatter.format(appointment.servicePrice)
+                                : "precio por definir"}
+                            </b>
+                          </>
+                        )}
                       </span>
                     </div>
                     <span className={`agenda-status-badge ${STATUS_CLASS[appointment.status]}`}>

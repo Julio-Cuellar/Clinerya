@@ -8555,3 +8555,4 @@ h2 {
 .catalog-counter { display: block; text-align: right; }
 .catalog-counter.short { color: var(--color-warning); }
 .catalog-warning { margin-bottom: var(--space-3); }
+.agenda-service-note { display: block; margin-top: 4px; font-size: 12px; color: var(--color-text-2); }

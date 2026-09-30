@@ -57,6 +57,11 @@ export interface AppointmentResponse {
   materialsReserved?: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Servicio del catalogo copiado al agendar; precio solo si es fijo. */
+  serviceId?: string | null;
+  serviceName?: string | null;
+  servicePricing?: "FIXED" | "VARIES_BY_PATIENT" | null;
+  servicePrice?: number | null;
 }
 
 export interface CreateAppointmentRequest {
@@ -70,6 +75,8 @@ export interface CreateAppointmentRequest {
   scheduledEnd: string;
   reason?: string;
   notes?: string;
+  /** Servicio del catalogo: su precio se copia a la cita. */
+  serviceId?: string;
 }
 
 export type RecurrenceFrequency = "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
