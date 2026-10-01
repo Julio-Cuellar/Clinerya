@@ -35,7 +35,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * El modelo de la conversacion con Gemini (function calling). Viaja el historial del chat, las
  * llamadas y resultados de herramientas del turno y las notas internas; las herramientas se declaran
  * con su esquema. Cada clinica usa su clave (en cabecera) y su modelo. Una falla se reporta como
- * excepcion: el agente la reintenta y, si sigue, pasa el chat a una persona.
+ * excepcion (tras reintentar una vez si Gemini esta saturado): el agente decide que decirle al paciente.
  */
 class GeminiConversationModelTest {
 

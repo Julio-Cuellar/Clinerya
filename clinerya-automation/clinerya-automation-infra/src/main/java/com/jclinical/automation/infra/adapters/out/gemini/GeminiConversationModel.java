@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -45,6 +46,8 @@ public class GeminiConversationModel implements ConversationModelPort {
 
     private static final double TEMPERATURE = 0.7;
     private static final int MAX_LOGGED_ERROR = 1000;
+    private static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(1);
+    private static final int TOO_MANY_REQUESTS = 429;
     private static final String BUBBLE_RULE = "\n\nSi quieres mandar varios mensajes de WhatsApp seguidos, "
             + "sepáralos con una línea que diga solo " + BUBBLE_SEPARATOR + ".";
     private static final String NOTE_PREFIX = "[Nota del sistema, el paciente no la ve] ";
@@ -54,13 +57,21 @@ public class GeminiConversationModel implements ConversationModelPort {
     private final ObjectMapper objectMapper;
     private final String baseUrl;
     private final ChannelSettingsRepositoryPort settings;
+    private final Duration retryDelay;
 
     public GeminiConversationModel(RestClient restClient, ObjectMapper objectMapper, String baseUrl,
                                    ChannelSettingsRepositoryPort settings) {
+        this(restClient, objectMapper, baseUrl, settings, DEFAULT_RETRY_DELAY);
+    }
+
+    /** {@code retryDelay}: espera antes de reintentar cuando Gemini esta saturado (429) o falla del lado del servidor. */
+    public GeminiConversationModel(RestClient restClient, ObjectMapper objectMapper, String baseUrl,
+                                   ChannelSettingsRepositoryPort settings, Duration retryDelay) {
         this.restClient = restClient;
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
         this.settings = settings;
+        this.retryDelay = retryDelay;
     }
 
     @Override
@@ -68,24 +79,55 @@ public class GeminiConversationModel implements ConversationModelPort {
         ChannelSettings clinic = settings.findByClinicId(clinicId)
                 .filter(found -> found.geminiApiKey() != null && !found.geminiApiKey().isBlank())
                 .orElseThrow(() -> new IllegalStateException("La clínica no tiene configurada su clave de Gemini"));
+        String body = json(request(systemInstruction, transcript, tools));
         try {
-            JsonNode response = restClient.post()
-                    .uri(baseUrl + "/v1beta/models/" + clinic.geminiModel() + ":generateContent")
-                    .header("x-goog-api-key", clinic.geminiApiKey())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(json(request(systemInstruction, transcript, tools)))
-                    .retrieve()
-                    .body(JsonNode.class);
-            return step(response);
-        } catch (RestClientResponseException rejected) {
-            // El cuerpo de error de Gemini explica la causa y nunca trae la clave (va en cabecera).
-            log.warn(">>>> [AGENTE] Gemini respondio {} (modelo {}, clinica {}): {}", rejected.getStatusCode(),
-                    clinic.geminiModel(), clinicId, abbreviate(rejected.getResponseBodyAsString()));
-            throw rejected;
+            return step(call(clinic, clinicId, body));
         } catch (RuntimeException failure) {
             log.warn(">>>> [AGENTE] Fallo la llamada a Gemini (modelo {}, clinica {}): {}", clinic.geminiModel(), clinicId,
                     failure.toString());
             throw failure;
+        }
+    }
+
+    /** Una sola llamada, con un reintento si Gemini esta saturado o falla de su lado; un rechazo (4xx) no se repite. */
+    private JsonNode call(ChannelSettings clinic, UUID clinicId, String body) {
+        try {
+            return post(clinic, body);
+        } catch (RestClientResponseException rejected) {
+            // El cuerpo de error de Gemini explica la causa y nunca trae la clave (va en cabecera).
+            log.warn(">>>> [AGENTE] Gemini respondio {} (modelo {}, clinica {}): {}", rejected.getStatusCode(),
+                    clinic.geminiModel(), clinicId, abbreviate(rejected.getResponseBodyAsString()));
+            if (!retryable(rejected)) {
+                throw rejected;
+            }
+            pause();
+            return post(clinic, body);
+        }
+    }
+
+    private JsonNode post(ChannelSettings clinic, String body) {
+        return restClient.post()
+                .uri(baseUrl + "/v1beta/models/" + clinic.geminiModel() + ":generateContent")
+                .header("x-goog-api-key", clinic.geminiApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(JsonNode.class);
+    }
+
+    private static boolean retryable(RestClientResponseException rejected) {
+        return rejected.getStatusCode().value() == TOO_MANY_REQUESTS || rejected.getStatusCode().is5xxServerError();
+    }
+
+    private void pause() {
+        if (retryDelay.isZero()) {
+            return;
+        }
+        try {
+            Thread.sleep(retryDelay.toMillis());
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Se interrumpio la espera para reintentar con Gemini", interrupted);
         }
     }
 
@@ -172,7 +214,7 @@ public class GeminiConversationModel implements ConversationModelPort {
     private ModelStep step(JsonNode response) {
         JsonNode parts = response == null ? null : response.at("/candidates/0/content/parts");
         if (parts == null || !parts.isArray() || parts.isEmpty()) {
-            throw new IllegalStateException("Gemini no devolvió contenido");
+            throw new IllegalStateException("Gemini no devolvió contenido (" + stopReason(response) + ")");
         }
         List<AgentMessage.ToolCall> calls = new ArrayList<>();
         StringBuilder text = new StringBuilder();
@@ -188,9 +230,22 @@ public class GeminiConversationModel implements ConversationModelPort {
         }
         List<String> bubbles = bubbles(text.toString());
         if (bubbles.isEmpty()) {
-            throw new IllegalStateException("Gemini devolvió una respuesta vacía");
+            throw new IllegalStateException("Gemini devolvió una respuesta vacía (" + stopReason(response) + ")");
         }
         return new ModelStep.Reply(bubbles);
+    }
+
+    /** Por que Gemini no dio contenido: lo bloqueo (blockReason) o se detuvo (finishReason). */
+    private static String stopReason(JsonNode response) {
+        if (response == null) {
+            return "sin cuerpo";
+        }
+        String blocked = response.at("/promptFeedback/blockReason").asText("");
+        if (!blocked.isBlank()) {
+            return "blockReason " + blocked;
+        }
+        String finish = response.at("/candidates/0/finishReason").asText("");
+        return finish.isBlank() ? "sin finishReason" : "finishReason " + finish;
     }
 
     private AgentMessage.ToolCall toolCall(JsonNode part) {
