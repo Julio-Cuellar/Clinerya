@@ -11,10 +11,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.util.HashMap;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,7 +54,7 @@ class GeminiConversationModelTest {
         server = MockRestServiceServer.bindTo(builder).build();
         settings.put(clinicId, ChannelSettings.unconfigured(clinicId).toBuilder().geminiApiKey("clave-de-prueba").build());
         model = new GeminiConversationModel(builder.build(), objectMapper, "https://generativelanguage.googleapis.com",
-                new SettingsById(settings));
+                new SettingsById(settings), Duration.ZERO);
     }
 
     @Test
@@ -120,11 +122,47 @@ class GeminiConversationModelTest {
     }
 
     @Test
-    void aServerErrorIsReportedToTheAgent() {
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+    void aServerErrorThatPersistsIsReportedToTheAgent() {
+        server.expect(ExpectedCount.twice(), requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
         assertThrows(RuntimeException.class,
                 () -> model.next(clinicId, "instrucciones", List.of(new AgentMessage.User("hola")), List.of()));
+        server.verify();
+    }
+
+    @Test
+    void aBusyOrOverloadedGeminiIsRetriedOnce() {
+        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+        server.expect(requestTo(URL)).andRespond(withSuccess(text("¡Hola!"), MediaType.APPLICATION_JSON));
+
+        ModelStep step = model.next(clinicId, "instrucciones", List.of(new AgentMessage.User("hola")), List.of());
+
+        assertEquals(new ModelStep.Reply(List.of("¡Hola!")), step);
+    }
+
+    @Test
+    void aRejectedRequestIsNotRetried() {
+        server.expect(ExpectedCount.once(), requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThrows(RuntimeException.class,
+                () -> model.next(clinicId, "instrucciones", List.of(new AgentMessage.User("hola")), List.of()));
+        server.verify();
+    }
+
+    @Test
+    void anAnswerWithoutContentSaysWhyGeminiStopped() {
+        server.expect(requestTo(URL)).andRespond(withSuccess(
+                "{\"candidates\":[{\"finishReason\":\"MALFORMED_FUNCTION_CALL\"}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(URL)).andRespond(withSuccess(
+                "{\"promptFeedback\":{\"blockReason\":\"SAFETY\"}}", MediaType.APPLICATION_JSON));
+
+        IllegalStateException malformed = assertThrows(IllegalStateException.class,
+                () -> model.next(clinicId, "instrucciones", List.of(new AgentMessage.User("hola")), List.of()));
+        IllegalStateException blocked = assertThrows(IllegalStateException.class,
+                () -> model.next(clinicId, "instrucciones", List.of(new AgentMessage.User("hola")), List.of()));
+
+        assertTrue(malformed.getMessage().contains("MALFORMED_FUNCTION_CALL"), malformed.getMessage());
+        assertTrue(blocked.getMessage().contains("SAFETY"), blocked.getMessage());
     }
 
     @Test
