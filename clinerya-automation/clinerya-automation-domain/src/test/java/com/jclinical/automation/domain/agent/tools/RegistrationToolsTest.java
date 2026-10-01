@@ -134,6 +134,7 @@ class RegistrationToolsTest {
                 PatientRegistrationPort.Sex.MALE, PHONE, "juan@correo.com", "v1")), registrations.registered);
         assertEquals(true, outcome.content().get("paciente_registrado"));
         assertTrue(pending.find(conversationId).isEmpty());
+        assertTrue(outcome.fallback() != null && outcome.fallback().contains("Juan"), String.valueOf(outcome.fallback()));
     }
 
     @Test
@@ -174,6 +175,7 @@ class RegistrationToolsTest {
         assertEquals(registrations.newId, booking.patientId());
         assertEquals(thursday, booking.start());
         assertEquals(ConfirmActionTool.CONFIRMATION_OPTIONS, outcome.options());
+        assertTrue(outcome.fallback() != null && outcome.fallback().contains("¿Confirmo"), String.valueOf(outcome.fallback()));
     }
 
     // ---- utilidades -----------------------------------------------------------------------------

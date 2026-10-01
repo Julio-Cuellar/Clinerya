@@ -111,18 +111,67 @@ class ConversationAgentTest {
     }
 
     @Test
-    void ifTheModelKeepsFailingItSaysSoHonestlyAndHandsOff() {
+    void ifTheModelKeepsFailingItAsksToRepeatWithoutHandingOff() {
         ScriptedModel model = new ScriptedModel(new IllegalStateException("503"), new IllegalStateException("503"));
 
         AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
 
         assertTrue(outcome.failed());
-        assertTrue(outcome.handoff());
+        assertFalse(outcome.handoff(), "una falla suelta no pasa el chat a una persona: la regla de 3 lo decide");
         assertEquals(List.of(ConversationAgent.UNAVAILABLE_REPLY), outcome.bubbles());
+        assertFalse(ConversationAgent.UNAVAILABLE_REPLY.contains("alguien de la clínica"), ConversationAgent.UNAVAILABLE_REPLY);
     }
 
     @Test
-    void anEndlessToolLoopStopsAndHandsOff() {
+    void anEmptyAnswerAfterAToolGetsANudgeToReplyWithTheResult() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "info_clinica", Map.of()))),
+                new ModelStep.Reply(List.of()),
+                new ModelStep.Reply(List.of("Estamos en el centro.")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("info_clinica", ToolOutcome.of(Map.of()))))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("Estamos en el centro."), outcome.bubbles());
+        assertFalse(outcome.failed());
+        AgentMessage nudge = model.transcripts.get(2).getLast();
+        assertTrue(nudge instanceof AgentMessage.Note, nudge.toString());
+    }
+
+    @Test
+    void ifTheModelFailsAfterAnActionTheToolsOwnFallbackGoesOut() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "registrar_paciente", Map.of()))),
+                new IllegalStateException("vacía"), new IllegalStateException("vacía"));
+        ToolOutcome registered = ToolOutcome.of(Map.of("paciente_registrado", true))
+                .withFallback("¡Listo, Juan! Ya quedaste registrado.");
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("registrar_paciente", registered)))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("¡Listo, Juan! Ya quedaste registrado."), outcome.bubbles());
+        assertFalse(outcome.failed(), "lo importante ya se hizo y se le dijo");
+        assertFalse(outcome.handoff());
+    }
+
+    @Test
+    void ifTheModelFailsAfterOfferingOptionsTheOptionsStillGoOut() {
+        List<ConversationOption> slots = List.of(new ConversationOption("slot:a", "Jue 16:00"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "buscar_horarios", Map.of()))),
+                new IllegalStateException("vacía"), new IllegalStateException("vacía"));
+
+        AgentOutcome outcome = new ConversationAgent(model,
+                List.of(new RecordingTool("buscar_horarios", ToolOutcome.of(Map.of()).withOptions(slots))))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of(ConversationAgent.OPTIONS_REPLY), outcome.bubbles());
+        assertEquals(slots, outcome.options());
+        assertFalse(outcome.handoff());
+    }
+
+    @Test
+    void anEndlessToolLoopStopsWithoutHandingOff() {
         List<Object> steps = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             steps.add(new ModelStep.CallTools(List.of(new ToolCall("c" + i, "info_clinica", Map.of()))));
@@ -132,7 +181,8 @@ class ConversationAgentTest {
         AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("info_clinica", ToolOutcome.of(Map.of()))))
                 .run(context, "instrucciones", transcript);
 
-        assertTrue(outcome.handoff());
+        assertFalse(outcome.handoff());
+        assertTrue(outcome.failed());
         assertEquals(ConversationAgent.MAX_STEPS, model.transcripts.size());
     }
 
@@ -212,7 +262,7 @@ class ConversationAgentTest {
     }
 
     @Test
-    void ifItInventsAgainASafeMessageGoesOutAndAPersonTakesOver() {
+    void ifItInventsAgainASafeMessageGoesOutAndItCountsAsAFailure() {
         ScriptedModel model = new ScriptedModel(
                 new ModelStep.Reply(List.of("La limpieza cuesta $700.")),
                 new ModelStep.Reply(List.of("Perdón, cuesta $800.")));
@@ -220,7 +270,8 @@ class ConversationAgentTest {
         AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
 
         assertEquals(List.of(ConversationAgent.UNVERIFIED_REPLY), outcome.bubbles());
-        assertTrue(outcome.handoff());
+        assertTrue(outcome.failed());
+        assertFalse(outcome.handoff());
     }
 
     @Test

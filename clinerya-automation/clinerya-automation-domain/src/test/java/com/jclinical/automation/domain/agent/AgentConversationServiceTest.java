@@ -233,12 +233,28 @@ class AgentConversationServiceTest {
     }
 
     @Test
-    void whenTheModelIsDownThePatientIsToldAndAPersonTakesOver() {
+    void whenTheModelFailsThePatientIsAskedToRepeatAndTheAgentKeepsTheChat() {
         ScriptedModel model = new ScriptedModel(new IllegalStateException("503"), new IllegalStateException("503"));
 
         List<OutboundReply> replies = send(service(model), "hola");
 
         assertEquals(List.of(OutboundReply.text(ConversationAgent.UNAVAILABLE_REPLY)), replies);
+        assertEquals(ConversationState.CONVERSANDO, current().state());
+        assertEquals(1, current().unrecognizedCount());
+        assertTrue(attentionLog.events.isEmpty());
+    }
+
+    @Test
+    void threeFailedTurnsInARowHandTheChatToAPerson() {
+        IllegalStateException down = new IllegalStateException("503");
+        ScriptedModel model = new ScriptedModel(down, down, down, down, down, down);
+        AgentConversationService service = service(model);
+
+        send(service, "hola");
+        send(service, "¿hola?");
+        List<OutboundReply> third = send(service, "¿me escuchan?");
+
+        assertEquals(List.of(OutboundReply.text(AgentConversationService.HANDOFF_REPLY)), third);
         assertEquals(ConversationState.ATENCION_HUMANA, current().state());
     }
 
