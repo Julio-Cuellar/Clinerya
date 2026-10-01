@@ -66,6 +66,12 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
     }
 
     private ReminderReplyHandler reminderReplies;
+    private ConfirmationReplyHandler confirmationReplies;
+
+    /** "Si, confirmalo" / "Cambiar": los resuelve el codigo; sin configurar, llegan al agente como cualquier opcion. */
+    public void setConfirmationReplies(ConfirmationReplyHandler confirmationReplies) {
+        this.confirmationReplies = confirmationReplies;
+    }
 
     /** Botones del recordatorio de cita (S6); sin configurar, esos botones llegan al agente como cualquier opcion. */
     public void setReminderReplies(ReminderReplyHandler reminderReplies) {
@@ -101,9 +107,26 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         String patientMessage = message.selectedOptionId() != null ? message.selectedOptionId() : message.text();
         ToolContext context = new ToolContext(message.clinicId(), conversation.id(), message.fromPhone(), contacts,
                 conversation.offeredOptions(), now, patientMessage);
+        Optional<ReminderReplyHandler.Outcome> confirmation = confirmationReplies == null ? Optional.empty()
+                : confirmationReplies.handle(context, message.selectedOptionId());
+        if (confirmation.isPresent() && confirmation.get() instanceof ReminderReplyHandler.Outcome.Reply confirmed) {
+            Conversation latestAfterAction = conversations.findById(conversation.id()).orElse(conversation);
+            conversations.save(copy(latestAfterAction, ConversationState.CONVERSANDO, confirmed.reply().options(), 0, now));
+            return List.of(confirmed.reply());
+        }
+        if (confirmation.isPresent() && confirmation.get() instanceof ReminderReplyHandler.Outcome.ForAgent changed) {
+            message = new InboundMessage(message.clinicId(), message.fromPhone(), changed.text(), null, message.receivedAt());
+        }
         String instructions = AgentInstructions.build(personas.apply(message.clinicId()), now,
                 contacts.stream().map(PatientContact::displayName).toList(), conversation.offeredOptions());
         AgentOutcome outcome = agent.run(context, instructions, transcript(message, conversation));
+        if (outcome.failed() && confirmationReplies != null) {
+            // Si el modelo fallo con algo esperando confirmacion, vuelven los botones de confirmar, no otra lista.
+            Optional<OutboundReply> prompt = confirmationReplies.pendingPrompt(conversation.id(), now);
+            if (prompt.isPresent()) {
+                outcome = new AgentOutcome(List.of(prompt.get().text()), prompt.get().options(), outcome.notUnderstood(), false, true);
+            }
+        }
 
         // No entender y que el modelo falle cuentan igual: a la tercera seguida, a una persona.
         int misunderstood = outcome.notUnderstood() || outcome.failed() ? conversation.unrecognizedCount() + 1 : 0;

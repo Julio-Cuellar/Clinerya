@@ -64,6 +64,7 @@ public final class ConversationAgent {
         String verbatim = null;
         List<ConversationOption> verbatimOptions = List.of();
         String fallback = null;
+        String closing = null;
         List<ConversationOption> fallbackOptions = List.of();
         boolean notUnderstood = false;
         boolean handoff = false;
@@ -86,6 +87,9 @@ public final class ConversationAgent {
                             options = outcome.options();
                         }
                         facts.addAll(outcome.facts());
+                        if (outcome.closing() != null && !outcome.closing().isBlank()) {
+                            closing = outcome.closing();
+                        }
                         if (outcome.verbatim() != null && !outcome.verbatim().isBlank()) {
                             verbatim = outcome.verbatim();
                             verbatimOptions = outcome.options();
@@ -100,6 +104,9 @@ public final class ConversationAgent {
                 continue;
             }
             List<String> bubbles = next instanceof ModelStep.Reply reply ? bubbles(reply.bubbles()) : List.of();
+            if (!bubbles.isEmpty() && closing != null) {
+                return new AgentOutcome(List.of(closing), List.of(), notUnderstood, handoff, false);
+            }
             if (!bubbles.isEmpty()) {
                 List<String> invented = GroundingGuard.inventedFigures(String.join("\n", bubbles),
                         trusted(systemInstruction, working, facts), patientSaid(working));
@@ -116,20 +123,20 @@ public final class ConversationAgent {
                 if (corrected) {
                     return !invented.isEmpty() && fallback == null
                             ? new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, handoff, true)
-                            : giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+                            : giveUp(closing, fallback, fallbackOptions, options, notUnderstood, handoff);
                 }
                 corrected = true;
                 working.add(new AgentMessage.Note(problem));
                 continue;
             }
             if (++failures >= MAX_FAILURES) {
-                return giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+                return giveUp(closing, fallback, fallbackOptions, options, notUnderstood, handoff);
             }
             if (!working.isEmpty() && working.getLast() instanceof ToolResult) {
                 working.add(new AgentMessage.Note(NUDGE));
             }
         }
-        return giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+        return giveUp(closing, fallback, fallbackOptions, options, notUnderstood, handoff);
     }
 
     /** Que corregirle a una respuesta antes de mandarla; null si se puede mandar. */
@@ -149,13 +156,16 @@ public final class ConversationAgent {
     }
 
     /** El modelo dejo de responder: lo que ya se hizo se dice, lo ya ofrecido se muestra; si no, que lo repita. */
-    private static AgentOutcome giveUp(String fallback, List<ConversationOption> fallbackOptions,
+    private static AgentOutcome giveUp(String closing, String fallback, List<ConversationOption> fallbackOptions,
                                        List<ConversationOption> options, boolean notUnderstood, boolean handoff) {
+        if (closing != null) {
+            return new AgentOutcome(List.of(closing), List.of(), notUnderstood, handoff, false);
+        }
         if (fallback != null) {
             return new AgentOutcome(List.of(fallback), fallbackOptions, notUnderstood, handoff, false);
         }
         if (!options.isEmpty()) {
-            return new AgentOutcome(List.of(OPTIONS_REPLY), options, notUnderstood, handoff, false);
+            return new AgentOutcome(List.of(OPTIONS_REPLY), options, notUnderstood, handoff, true);
         }
         return new AgentOutcome(List.of(UNAVAILABLE_REPLY), List.of(), notUnderstood, handoff, true);
     }

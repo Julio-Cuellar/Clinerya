@@ -27,6 +27,7 @@ import com.jclinical.automation.domain.service.AssistantProfileService;
 import com.jclinical.automation.domain.ports.out.AssistantProfilePort;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort;
 import com.jclinical.automation.infra.adapters.out.crossmodule.AppointmentCancellationAdapter;
+import com.jclinical.automation.domain.agent.ConfirmationReplyHandler;
 import com.jclinical.automation.domain.agent.ReminderReplyHandler;
 import com.jclinical.automation.domain.service.AppointmentReminderService;
 import com.jclinical.automation.infra.adapters.out.crossmodule.AppointmentConfirmationAdapter;
@@ -279,12 +280,16 @@ public class AutomationConfig {
             ClinicInfoPort automationClinicInfo, AssistantProfilePort assistantProfiles,
             ChannelSettingsRepositoryPort channelSettings, ConversationAgent conversationAgent,
             ChatAttentionLogPort chatAttentionLog, OnlineBookingUseCase onlineBooking, DoctorDirectoryPort doctors,
-            JdbcPendingActionRepository agentPendingActions) {
+            JdbcPendingActionRepository agentPendingActions, AppointmentRequestService requests,
+            AppointmentCancellationPort automationAppointmentCancellation, DoctorNotificationService doctorNotifications) {
         AgentConversationService service = new AgentConversationService(conversations, chatHistory, patients,
                 new AgentPersonas(automationClinicInfo, assistantProfiles, channelSettings::findByClinicId),
                 conversationAgent, Clock.systemDefaultZone(), chatAttentionLog);
         service.setReminderReplies(new ReminderReplyHandler(new PatientAppointmentsAdapter(onlineBooking), doctors,
                 agentPendingActions, new AppointmentConfirmationAdapter(onlineBooking)));
+        service.setConfirmationReplies(new ConfirmationReplyHandler(agentPendingActions,
+                new ConfirmActionTool(agentPendingActions, requests, conversations, automationAppointmentCancellation,
+                        doctorNotifications)));
         return service;
     }
 

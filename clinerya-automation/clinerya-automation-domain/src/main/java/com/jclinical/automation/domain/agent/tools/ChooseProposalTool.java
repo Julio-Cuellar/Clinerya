@@ -62,6 +62,7 @@ public final class ChooseProposalTool implements AgentTool {
         }
         Conversations.setRequest(conversations, context.conversationId(), null);
         String label = SlotLabel.of(start);
-        return new ToolOutcome(Map.of("cita_agendada", true, "fecha", label), List.of(), List.of(label));
+        return new ToolOutcome(Map.of("cita_agendada", true, "fecha", label), List.of(), List.of(label))
+                .withClosing("¡Listo! Tu cita quedó agendada para el " + label + ". Te esperamos.");
     }
 }

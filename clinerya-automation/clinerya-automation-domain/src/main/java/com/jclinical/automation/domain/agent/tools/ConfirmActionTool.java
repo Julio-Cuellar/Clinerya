@@ -13,6 +13,7 @@ import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.NewAppoi
 import com.jclinical.automation.domain.ports.out.AppointmentRequestPort.SlotNoLongerAvailableException;
 import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.PendingActionPort;
+import com.jclinical.automation.domain.service.SlotLabel;
 
 import java.time.Duration;
 import java.util.List;
@@ -31,7 +32,7 @@ public final class ConfirmActionTool implements AgentTool {
     public static final String CHANGE = "accion:cambiar";
     public static final List<ConversationOption> CONFIRMATION_OPTIONS = List.of(
             new ConversationOption(CONFIRM, "Sí, confírmalo"), new ConversationOption(CHANGE, "Cambiar"));
-    static final Duration PROPOSAL_TTL = Duration.ofMinutes(30);
+    public static final Duration PROPOSAL_TTL = Duration.ofMinutes(30);
 
     private final PendingActionPort pending;
     private final AppointmentRequestPort requests;
@@ -66,7 +67,8 @@ public final class ConfirmActionTool implements AgentTool {
         }
         pending.clear(context.conversationId());
         if (action.proposedAt().plus(PROPOSAL_TTL).isBefore(context.now())) {
-            return ToolOutcome.of(Map.of("error", "La propuesta venció; vuelve a proponer el horario."));
+            return ToolOutcome.of(Map.of("error", "La propuesta venció; vuelve a proponer el horario."))
+                    .withClosing("Esa propuesta venció porque pasó un rato sin respuesta. ¿Me dices de nuevo qué quieres hacer?");
         }
         return switch (action.kind()) {
             case BOOK -> submit(context, action, null,
@@ -85,18 +87,26 @@ public final class ConfirmActionTool implements AgentTool {
                     action.patientName(), action.doctorName(), replaces, action.serviceId()));
             Conversations.setRequest(conversations, context.conversationId(), requestId);
         } catch (SlotNoLongerAvailableException taken) {
-            return ToolOutcome.of(Map.of("error", "Ese horario se acaba de ocupar; hay que buscar otro."));
+            return ToolOutcome.of(Map.of("error", "Ese horario se acaba de ocupar; hay que buscar otro."))
+                    .withClosing("Ese horario se ocupó hace un momento. ¿Quieres que te busque otros horarios disponibles?");
         }
-        return ToolOutcome.of(Map.of("solicitud_enviada", true, "nota", note));
+        String label = SlotLabel.of(action.start()) + " con " + action.doctorName();
+        String closing = replaces == null
+                ? "Enviamos tu solicitud de cita del " + label + " al médico. Te avisamos por aquí en cuanto responda."
+                : "Enviamos tu solicitud para cambiar tu cita al " + label + ". Tu cita actual se conserva hasta que el "
+                        + "médico apruebe el cambio; te avisamos por aquí en cuanto responda.";
+        return ToolOutcome.of(Map.of("solicitud_enviada", true, "nota", note)).withClosing(closing);
     }
 
     private ToolOutcome cancel(ToolContext context, PendingAction action) {
         try {
             cancellation.cancel(context.clinicId(), action.appointmentId(), action.patientId(), action.note());
         } catch (AppointmentCancellationPort.NotCancellableException gone) {
-            return ToolOutcome.of(Map.of("error", "Esa cita ya no se puede cancelar por aquí."));
+            return ToolOutcome.of(Map.of("error", "Esa cita ya no se puede cancelar por aquí."))
+                    .withClosing("Esa cita ya no se puede cancelar por aquí. Si necesitas ayuda, escríbeme y te comunico con la clínica.");
         }
         alerts.appointmentCancelled(context.clinicId(), action.doctorStaffId(), action.start());
-        return ToolOutcome.of(Map.of("cita_cancelada", true));
+        return ToolOutcome.of(Map.of("cita_cancelada", true)).withClosing("Tu cita del " + SlotLabel.of(action.start())
+                + " con " + action.doctorName() + " quedó cancelada. Si necesitas otra, aquí estoy.");
     }
 }
