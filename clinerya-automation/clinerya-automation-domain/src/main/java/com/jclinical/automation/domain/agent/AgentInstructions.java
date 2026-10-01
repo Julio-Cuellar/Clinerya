@@ -44,7 +44,9 @@ public final class AgentInstructions {
             "Cuando haya que elegir entre opciones (médicos, horarios, citas), escribe una frase breve que las introduzca; "
                     + "las opciones aparecen solas como lista o botones, no las enumeres.");
 
-    public static final String NOT_REGISTERED = "Quien escribe todavía no está registrado como paciente de la clínica.";
+    public static final String NOT_REGISTERED = "Quien escribe todavía no está registrado como paciente de la clínica. "
+            + "Para registrarlo pídele en esta conversación su nombre(s), sus apellidos, su fecha de nacimiento y su sexo; "
+            + "aunque los veas en conversaciones anteriores, pídele que te los confirme antes de registrarlo.";
     public static final String SEVERAL_PATIENTS = "Si hace falta saber de quién se trata, pregúntalo con naturalidad.";
 
     private static final Locale SPANISH = Locale.forLanguageTag("es-MX");

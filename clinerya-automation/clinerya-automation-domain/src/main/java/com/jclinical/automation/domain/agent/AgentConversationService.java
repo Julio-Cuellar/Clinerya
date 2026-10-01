@@ -2,6 +2,7 @@ package com.jclinical.automation.domain.agent;
 
 import com.jclinical.automation.domain.agent.AgentMessage.Assistant;
 import com.jclinical.automation.domain.agent.AgentMessage.User;
+import com.jclinical.automation.domain.agent.tools.SlotsTool;
 import com.jclinical.automation.domain.model.ChatAttentionEvent;
 import com.jclinical.automation.domain.model.ChatAttentionEvent.Action;
 import com.jclinical.automation.domain.model.ChatMessage;
@@ -110,10 +111,11 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         boolean handoff = outcome.handoff() || tooManyMisunderstandings;
         List<String> bubbles = tooManyMisunderstandings && !outcome.handoff() ? List.of(HANDOFF_REPLY) : outcome.bubbles();
         List<ConversationOption> options = handoff ? List.of() : outcome.options();
+        List<ConversationOption> remembered = handoff ? List.of() : withOfferedSlots(options, conversation.offeredOptions());
         // Las herramientas pueden haber guardado algo durante el turno (el id de la solicitud): se parte de lo guardado.
         Conversation latest = conversations.findById(conversation.id()).orElse(conversation);
         conversations.save(copy(latest, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
-                options, handoff ? 0 : misunderstood, now));
+                remembered, handoff ? 0 : misunderstood, now));
         if (handoff) {
             logAttention(message.clinicId(), message.fromPhone(), Action.REQUESTED_BY_AGENT, now);
         }
@@ -170,6 +172,23 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
                 .findFirst()
                 .map(option -> "Elegí \"" + option.label() + "\" [opción " + option.id() + "]")
                 .orElse("Elegí una opción " + STALE_OPTION + " [opción " + message.selectedOptionId() + "]");
+    }
+
+    /**
+     * Los horarios ofrecidos siguen vigentes mientras no se ofrezcan otros: pedir datos o la autorizacion no
+     * debe invalidar el horario que el paciente ya eligio (sin el, el registro no deja la cita lista para el medico).
+     */
+    private static List<ConversationOption> withOfferedSlots(List<ConversationOption> fresh, List<ConversationOption> previous) {
+        if (fresh.stream().anyMatch(AgentConversationService::isSlot)) {
+            return fresh;
+        }
+        List<ConversationOption> kept = new ArrayList<>(fresh);
+        previous.stream().filter(AgentConversationService::isSlot).forEach(kept::add);
+        return List.copyOf(kept);
+    }
+
+    private static boolean isSlot(ConversationOption option) {
+        return option.id().startsWith(SlotsTool.OPTION_PREFIX);
     }
 
     /** Cada burbuja es un mensaje; las opciones viajan con la ultima (lista o botones de WhatsApp). */

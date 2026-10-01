@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Un turno del agente: el modelo propone contestar o usar herramientas; el codigo ejecuta las
@@ -28,6 +29,16 @@ public final class ConversationAgent {
     public static final String OPTIONS_REPLY = "Te dejo las opciones para que elijas:";
     static final String NUDGE = "Ya tienes el resultado de las herramientas. Responde ahora al paciente con un mensaje "
             + "breve basado en él.";
+    static final String MISSING_LIST = "Tu respuesta anuncia una lista, pero en este turno no consultaste ninguna herramienta "
+            + "que la dé, así que el paciente no vería nada. Consulta la herramienta que corresponde (por ejemplo "
+            + "buscar_horarios) y luego responde; las opciones aparecen solas.";
+    static final String BOOKING_CLAIM_NOTE = "No digas que la cita quedó agendada: la agenda solo la aparta cuando el médico "
+            + "acepta la solicitud. Pide que confirme el horario; al confirmar, di que enviaste la solicitud al médico y que "
+            + "le avisaremos en cuanto responda.";
+    /** "ha quedado agendada", "ya está reservada", "te agendé": solo el medico agenda al aceptar la solicitud. */
+    private static final Pattern BOOKING_CLAIM = Pattern.compile(
+            "(?iu)\\b(?:qued[oó]|ha\\s+quedado|est[aá]|fue)\\s+(?:ya\\s+)?(?:agendad|reservad|apartad)[ao]\\b"
+                    + "|\\bte\\s+(?:agend[eé]|reserv[eé])\\b");
 
     /** Una falla se reintenta en silencio; la segunda ya se le dice al paciente. */
     private static final int MAX_FAILURES = 2;
@@ -92,7 +103,8 @@ public final class ConversationAgent {
             if (!bubbles.isEmpty()) {
                 List<String> invented = GroundingGuard.inventedFigures(String.join("\n", bubbles),
                         trusted(systemInstruction, working, facts), patientSaid(working));
-                if (invented.isEmpty()) {
+                String problem = problemWith(bubbles, invented, verbatim == null ? options : verbatimOptions);
+                if (problem == null) {
                     if (verbatim == null) {
                         return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
                     }
@@ -102,14 +114,12 @@ public final class ConversationAgent {
                     return new AgentOutcome(withVerbatim, verbatimOptions, notUnderstood, handoff, false);
                 }
                 if (corrected) {
-                    return fallback != null
-                            ? new AgentOutcome(List.of(fallback), fallbackOptions, notUnderstood, handoff, false)
-                            : new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, handoff, true);
+                    return !invented.isEmpty() && fallback == null
+                            ? new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, handoff, true)
+                            : giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
                 }
                 corrected = true;
-                working.add(new AgentMessage.Note("Tu respuesta incluía datos que no vienen de lo que consultaste ni de "
-                        + "la conversación: " + String.join(", ", invented) + ". Vuelve a escribirla usando solo datos "
-                        + "consultados; si no los tienes, consúltalos con una herramienta o di que lo verificas."));
+                working.add(new AgentMessage.Note(problem));
                 continue;
             }
             if (++failures >= MAX_FAILURES) {
@@ -120,6 +130,22 @@ public final class ConversationAgent {
             }
         }
         return giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+    }
+
+    /** Que corregirle a una respuesta antes de mandarla; null si se puede mandar. */
+    private static String problemWith(List<String> bubbles, List<String> invented, List<ConversationOption> outgoing) {
+        if (!invented.isEmpty()) {
+            return "Tu respuesta incluía datos que no vienen de lo que consultaste ni de la conversación: "
+                    + String.join(", ", invented) + ". Vuelve a escribirla usando solo datos consultados; si no los "
+                    + "tienes, consúltalos con una herramienta o di que lo verificas.";
+        }
+        if (outgoing.isEmpty() && bubbles.getLast().stripTrailing().endsWith(":")) {
+            return MISSING_LIST;
+        }
+        if (BOOKING_CLAIM.matcher(String.join("\n", bubbles)).find()) {
+            return BOOKING_CLAIM_NOTE;
+        }
+        return null;
     }
 
     /** El modelo dejo de responder: lo que ya se hizo se dice, lo ya ofrecido se muestra; si no, que lo repita. */
