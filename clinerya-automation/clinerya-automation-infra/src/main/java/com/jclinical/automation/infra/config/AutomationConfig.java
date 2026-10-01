@@ -270,8 +270,10 @@ public class AutomationConfig {
                 new ConsentTool(automationPatientRegistration, automationClinicInfo, agentPendingActions),
                 new AcceptConsentTool(agentPendingActions),
                 new RegisterPatientTool(automationPatientRegistration, agentPendingActions, doctors));
-        return new ConversationAgent(
+        ConversationAgent agent = new ConversationAgent(
                 new GeminiConversationModel(agentRestClient(), objectMapper, baseUrl, channelSettings), tools);
+        agent.setDiagnostics(line -> org.slf4j.LoggerFactory.getLogger(ConversationAgent.class).warn(">>>> [AGENTE] {}", line));
+        return agent;
     }
 
     @Bean

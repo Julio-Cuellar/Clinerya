@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -48,12 +49,22 @@ public final class ConversationAgent {
             new ToolSpec(HANDOFF, "Úsala cuando el paciente pida hablar con una persona o cuando no puedas ayudarle; "
                     + "después avísale que alguien de la clínica le responderá por este mismo chat.", List.of()));
 
+    /** Los ids internos de las opciones (doctor:..., slot:...) no son para el paciente. */
+    private static final Pattern INTERNAL_ID = Pattern.compile(
+            "(?iu)\\b(?:doctor|slot|servicio|cita|propuesta|paciente|sexo|accion|consentimiento|recordatorio):\\S");
+
     private final ConversationModelPort model;
     private final Map<String, AgentTool> tools = new LinkedHashMap<>();
+    private Consumer<String> diagnostics = line -> { };
 
     public ConversationAgent(ConversationModelPort model, List<AgentTool> tools) {
         this.model = model;
         tools.forEach(tool -> this.tools.put(tool.spec().name(), tool));
+    }
+
+    /** Por que se rechazo una respuesta (cifras, lista sin opciones...): el log de quien opera lo necesita. */
+    public void setDiagnostics(Consumer<String> diagnostics) {
+        this.diagnostics = diagnostics;
     }
 
     public AgentOutcome run(ToolContext context, String systemInstruction, List<AgentMessage> transcript) {
@@ -112,6 +123,10 @@ public final class ConversationAgent {
                 List<String> invented = GroundingGuard.inventedFigures(String.join("\n", bubbles),
                         trusted(systemInstruction, working, facts), patientSaid(working));
                 String problem = problemWith(bubbles, invented, verbatim == null ? options : verbatimOptions);
+                if (problem != null) {
+                    diagnostics.accept("Respuesta rechazada (" + (invented.isEmpty() ? "lista o cita sin respaldo"
+                            : "cifras no respaldadas " + invented) + "): " + String.join(" / ", bubbles));
+                }
                 if (problem == null) {
                     if (verbatim == null) {
                         return new AgentOutcome(bubbles, options, notUnderstood, handoff, false);
@@ -122,7 +137,7 @@ public final class ConversationAgent {
                     return new AgentOutcome(withVerbatim, verbatimOptions, notUnderstood, handoff, false);
                 }
                 if (corrected) {
-                    return !invented.isEmpty() && fallback == null
+                    return !invented.isEmpty() && fallback == null && options.isEmpty()
                             ? new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, handoff, true)
                             : giveUp(closing, fallback, fallbackOptions, options, notUnderstood, handoff);
                 }
@@ -220,7 +235,8 @@ public final class ConversationAgent {
 
     /** Sin burbujas vacias y como maximo 3: lo que sobra se une a la ultima. */
     private static List<String> bubbles(List<String> proposed) {
-        List<String> clean = proposed.stream().filter(text -> text != null && !text.isBlank()).map(String::trim).toList();
+        List<String> clean = proposed.stream().filter(text -> text != null && !text.isBlank()).map(String::trim)
+                .filter(text -> !INTERNAL_ID.matcher(text).find()).toList();
         if (clean.size() <= MAX_BUBBLES) {
             return clean;
         }

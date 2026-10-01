@@ -21,6 +21,8 @@ public final class GroundingGuard {
             "https?://[^\\s<>]+|www\\.[^\\s<>]+|[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+|\\$\\s?\\d[\\d.,:/]*|\\d[\\d.,:/]*");
     private static final Pattern DIGIT_GROUP_SEPARATOR = Pattern.compile("(?<=\\d)[\\s-](?=\\d)");
     private static final Pattern DECIMAL = Pattern.compile("\\d+\\.\\d+");
+    private static final Pattern TIME_ONLY = Pattern.compile("(\\d{1,2}):(\\d{2})");
+    private static final Pattern DATE_ONLY = Pattern.compile("(\\d{1,2})/(\\d{1,2})(/\\d+)?");
 
     private GroundingGuard() {
     }
@@ -35,8 +37,8 @@ public final class GroundingGuard {
         Set<String> fromPatient = values(patientSaid);
         Set<String> invented = new LinkedHashSet<>();
         for (Figure figure : figures(reply)) {
-            boolean backed = fromTrusted.contains(figure.value())
-                    || (!figure.price() && fromPatient.contains(figure.value()));
+            boolean backed = fromTrusted.contains(figure.key())
+                    || (!figure.price() && fromPatient.contains(figure.key()));
             if (!backed) {
                 invented.add(figure.value());
             }
@@ -50,9 +52,9 @@ public final class GroundingGuard {
             if (source == null) {
                 continue;
             }
-            figures(source).forEach(figure -> values.add(figure.value()));
+            figures(source).forEach(figure -> values.add(figure.key()));
             // "222 555 0101" tambien respalda "2225550101".
-            figures(DIGIT_GROUP_SEPARATOR.matcher(source).replaceAll("")).forEach(figure -> values.add(figure.value()));
+            figures(DIGIT_GROUP_SEPARATOR.matcher(source).replaceAll("")).forEach(figure -> values.add(figure.key()));
         }
         return values;
     }
@@ -85,5 +87,27 @@ public final class GroundingGuard {
         return value.replaceAll("[.,:;/)]+$", "");
     }
 
-    private record Figure(String value, boolean price) {}
+    /** Para comparar: "8:00" es "08:00" y "1/10" es "01/10"; lo que se reporta conserva como se escribio. */
+    private static String normalized(String value) {
+        Matcher time = TIME_ONLY.matcher(value);
+        if (time.matches()) {
+            return twoDigits(time.group(1)) + ":" + time.group(2);
+        }
+        Matcher date = DATE_ONLY.matcher(value);
+        if (date.matches()) {
+            return twoDigits(date.group(1)) + "/" + twoDigits(date.group(2)) + (date.group(3) == null ? "" : date.group(3));
+        }
+        return value;
+    }
+
+    private static String twoDigits(String number) {
+        return number.length() == 1 ? "0" + number : number;
+    }
+
+    private record Figure(String value, boolean price) {
+
+        String key() {
+            return price ? value : normalized(value);
+        }
+    }
 }

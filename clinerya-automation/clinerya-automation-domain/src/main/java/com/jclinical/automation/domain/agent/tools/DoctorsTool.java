@@ -18,6 +18,8 @@ public final class DoctorsTool implements AgentTool {
 
     public static final String NAME = "medicos";
     public static final String OPTION_PREFIX = "doctor:";
+    /** Si el modelo no logra redactar la pregunta, sale esta con la lista de medicos. */
+    public static final String CHOOSE_DOCTOR = "¿Con cuál de nuestros médicos te gustaría agendar?";
 
     private final DoctorDirectoryPort doctors;
 
@@ -44,7 +46,8 @@ public final class DoctorsTool implements AgentTool {
                 facts.add(last.displayName());
             });
         }
-        return new ToolOutcome(content, all.size() > 1 ? options(all) : List.of(), facts);
+        ToolOutcome outcome = new ToolOutcome(content, all.size() > 1 ? options(all) : List.of(), facts);
+        return all.size() > 1 ? outcome.withFallback(CHOOSE_DOCTOR) : outcome;
     }
 
     static List<ConversationOption> options(List<DoctorContact> all) {

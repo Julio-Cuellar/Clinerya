@@ -73,7 +73,8 @@ public final class SlotsTool implements AgentTool {
             }
             if (all.size() > 1) {
                 return ToolOutcome.of(Map.of("error", "Primero hay que elegir con qué médico.",
-                        "medicos", all.stream().map(DoctorContact::displayName).toList())).withOptions(DoctorsTool.options(all));
+                        "medicos", all.stream().map(DoctorContact::displayName).toList())).withOptions(DoctorsTool.options(all))
+                        .withFallback(DoctorsTool.CHOOSE_DOCTOR);
             }
             doctor = Optional.of(all.getFirst());
         } else {
@@ -115,7 +116,8 @@ public final class SlotsTool implements AgentTool {
         if (found.isEmpty()) {
             content.put("sin_horarios", true);
             content.put("sugerencia", "Prueba otro día, otro turno o buscar más días.");
-            return new ToolOutcome(content, List.of(), List.of(doctor.get().displayName()));
+            return new ToolOutcome(content, List.of(), List.of(doctor.get().displayName())).withFallback("No encontré horarios con "
+                    + doctor.get().displayName() + " en los próximos días. ¿Busco otro día o con otro médico?");
         }
         List<ConversationOption> options = found.stream()
                 .map(slot -> new ConversationOption(OPTION_PREFIX + doctorId + "|" + slot.start() + "|" + slot.end()
@@ -125,7 +127,9 @@ public final class SlotsTool implements AgentTool {
         content.put("horarios", labels);
         List<String> facts = new ArrayList<>(labels);
         facts.add(doctor.get().displayName());
-        return new ToolOutcome(content, options, facts);
+        String forService = service.map(chosen -> " para " + chosen.name()).orElse("");
+        return new ToolOutcome(content, options, facts).withFallback("Estos son los horarios disponibles con "
+                + doctor.get().displayName() + forService + ":");
     }
 
     /** Horario de una opcion "slot:medico|inicio|fin[|servicio]"; {@code serviceId} puede faltar. */

@@ -97,7 +97,9 @@ public final class ServicesTool implements AgentTool {
                 ? matched.stream().map(item -> new ConversationOption(OPTION_PREFIX + (item.id() == null ? item.name()
                         : item.id().toString()), item.name())).toList()
                 : List.of();
-        return new ToolOutcome(content, options, facts);
+        ToolOutcome outcome = new ToolOutcome(content, options, facts);
+        return options.isEmpty() ? outcome
+                : outcome.withFallback("Estos son los servicios que coinciden con lo que buscas. ¿Cuál te interesa?");
     }
 
     private static Map<String, Object> describe(CatalogTreatment item, boolean showPrices, List<String> facts) {

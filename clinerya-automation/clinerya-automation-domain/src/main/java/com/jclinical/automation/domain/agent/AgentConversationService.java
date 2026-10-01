@@ -134,7 +134,9 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
         boolean handoff = outcome.handoff() || tooManyMisunderstandings;
         List<String> bubbles = tooManyMisunderstandings && !outcome.handoff() ? List.of(HANDOFF_REPLY) : outcome.bubbles();
         List<ConversationOption> options = handoff ? List.of() : outcome.options();
-        List<ConversationOption> remembered = handoff ? List.of() : withOfferedSlots(options, conversation.offeredOptions());
+        List<ConversationOption> remembered = handoff ? List.of()
+                : outcome.failed() && options.isEmpty() ? conversation.offeredOptions()
+                : withOfferedSlots(options, conversation.offeredOptions());
         // Las herramientas pueden haber guardado algo durante el turno (el id de la solicitud): se parte de lo guardado.
         Conversation latest = conversations.findById(conversation.id()).orElse(conversation);
         conversations.save(copy(latest, handoff ? ConversationState.ATENCION_HUMANA : ConversationState.CONVERSANDO,
