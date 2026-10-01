@@ -85,8 +85,9 @@ class GeminiConversationModelTest {
         assertEquals("hola", contents.get(0).at("/parts/0/text").asText());
         assertEquals("model", contents.get(1).get("role").asText());
         assertEquals("info_clinica", contents.get(2).at("/parts/0/functionCall/name").asText());
+        assertEquals(4, contents.size(), "la nota viaja en el mismo turno del usuario que el resultado de la herramienta");
         assertEquals("Clínica Sonrisa", contents.get(3).at("/parts/0/functionResponse/response/nombre").asText());
-        assertTrue(contents.get(4).at("/parts/0/text").asText().contains("Corrige el precio."));
+        assertTrue(contents.get(3).at("/parts/1/text").asText().contains("Corrige el precio."));
         JsonNode declaration = request.at("/tools/0/functionDeclarations/0");
         assertEquals("buscar_horarios", declaration.get("name").asText());
         assertEquals("INTEGER", declaration.at("/parameters/properties/dias/type").asText());
@@ -94,6 +95,56 @@ class GeminiConversationModelTest {
         assertTrue(request.at("/tools/0/functionDeclarations/1/parameters").isMissingNode(), "sin parametros no se declara esquema");
         assertTrue(request.at("/generationConfig/temperature").asDouble() > 0, "la redaccion varia; la guarda protege los datos");
         assertFalse(body.get().contains("clave-de-prueba"), "la clave nunca viaja en el cuerpo");
+    }
+
+    @Test
+    void parallelCallsTravelInOneModelTurnAndTheirResultsInOneUserTurn() throws Exception {
+        AtomicReference<String> body = new AtomicReference<>();
+        server.expect(requestTo(URL)).andExpect(request -> body.set(request.getBody().toString()))
+                .andRespond(withSuccess(text("Listo"), MediaType.APPLICATION_JSON));
+        List<AgentMessage> transcript = List.of(
+                new AgentMessage.User("hola"),
+                new AgentMessage.ToolCall("c1", "info_clinica", new java.util.HashMap<>(
+                        Map.of(GeminiConversationModel.THOUGHT_SIGNATURE, "firma-1"))),
+                new AgentMessage.ToolCall("c2", "doctores", Map.of()),
+                new AgentMessage.ToolResult("c1", "info_clinica", Map.of("nombre", "Clínica Sonrisa")),
+                new AgentMessage.ToolResult("c2", "doctores", Map.of("medicos", List.of("Dra. Ramos"))),
+                new AgentMessage.Note("Responde con lo consultado."));
+
+        model.next(clinicId, "instrucciones", transcript, List.of());
+
+        JsonNode contents = objectMapper.readTree(body.get()).get("contents");
+        assertEquals(3, contents.size(), contents.toString());
+        assertEquals("model", contents.get(1).get("role").asText());
+        assertEquals(2, contents.get(1).get("parts").size());
+        assertEquals("info_clinica", contents.get(1).at("/parts/0/functionCall/name").asText());
+        assertEquals("firma-1", contents.get(1).at("/parts/0/thoughtSignature").asText());
+        assertEquals("doctores", contents.get(1).at("/parts/1/functionCall/name").asText());
+        assertEquals("user", contents.get(2).get("role").asText());
+        assertEquals(3, contents.get(2).get("parts").size());
+        assertEquals("info_clinica", contents.get(2).at("/parts/0/functionResponse/name").asText());
+        assertEquals("doctores", contents.get(2).at("/parts/1/functionResponse/name").asText());
+        assertTrue(contents.get(2).at("/parts/2/text").asText().contains("Responde con lo consultado."));
+    }
+
+    @Test
+    void consecutiveTurnsOfTheSameRoleAreMerged() throws Exception {
+        AtomicReference<String> body = new AtomicReference<>();
+        server.expect(requestTo(URL)).andExpect(request -> body.set(request.getBody().toString()))
+                .andRespond(withSuccess(text("Listo"), MediaType.APPLICATION_JSON));
+        List<AgentMessage> transcript = List.of(
+                new AgentMessage.User("hola"), new AgentMessage.User("¿siguen ahí?"),
+                new AgentMessage.Assistant("Sí, dime."), new AgentMessage.Assistant("¿En qué te ayudo?"),
+                new AgentMessage.User("quiero una cita"));
+
+        model.next(clinicId, "instrucciones", transcript, List.of());
+
+        JsonNode contents = objectMapper.readTree(body.get()).get("contents");
+        assertEquals(3, contents.size(), contents.toString());
+        assertEquals(List.of("user", "model", "user"),
+                List.of(contents.get(0).get("role").asText(), contents.get(1).get("role").asText(), contents.get(2).get("role").asText()));
+        assertEquals("¿siguen ahí?", contents.get(0).at("/parts/1/text").asText());
+        assertEquals("¿En qué te ayudo?", contents.get(1).at("/parts/1/text").asText());
     }
 
     @Test

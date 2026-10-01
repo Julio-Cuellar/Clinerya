@@ -242,6 +242,25 @@ class ConversationAgentTest {
     }
 
     @Test
+    void parallelToolCallsAreSentTogetherFollowedByTheirResultsTogether() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "info_clinica", Map.of()), new ToolCall("c2", "doctores", Map.of()))),
+                new ModelStep.Reply(List.of("Listo.")));
+
+        new ConversationAgent(model, List.of(new RecordingTool("info_clinica", ToolOutcome.of(Map.of("a", 1))),
+                new RecordingTool("doctores", ToolOutcome.of(Map.of("b", 2))))).run(context, "instrucciones", transcript);
+
+        List<AgentMessage> added = model.transcripts.get(1).subList(transcript.size(), model.transcripts.get(1).size());
+        assertEquals(List.of("c1", "c2", "c1", "c2"), added.stream().map(message -> switch (message) {
+            case ToolCall call -> call.id();
+            case ToolResult result -> result.callId();
+            default -> "?";
+        }).toList());
+        assertTrue(added.get(0) instanceof ToolCall && added.get(1) instanceof ToolCall
+                && added.get(2) instanceof ToolResult && added.get(3) instanceof ToolResult, added.toString());
+    }
+
+    @Test
     void anEndlessToolLoopStopsWithoutHandingOff() {
         List<Object> steps = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
