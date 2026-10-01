@@ -171,6 +171,46 @@ class ConversationAgentTest {
     }
 
     @Test
+    void aReplyThatIntroducesOptionsWithoutHavingAnyIsCorrected() {
+        List<ConversationOption> slots = List.of(new ConversationOption("slot:a", "Jue 16:00"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.Reply(List.of("Estos son los horarios disponibles con el Dr. Julio:")),
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "buscar_horarios", Map.of()))),
+                new ModelStep.Reply(List.of("Estos son los horarios disponibles con el Dr. Julio:")));
+
+        AgentOutcome outcome = new ConversationAgent(model,
+                List.of(new RecordingTool("buscar_horarios", ToolOutcome.of(Map.of()).withOptions(slots))))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(slots, outcome.options(), "la lista que anuncia tiene que llegar");
+        AgentMessage note = model.transcripts.get(1).getLast();
+        assertTrue(note instanceof AgentMessage.Note, note.toString());
+    }
+
+    @Test
+    void sayingTheAppointmentIsBookedIsCorrectedBecauseOnlyTheDoctorBooksIt() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.Reply(List.of("¡Listo, Julio! Ya estás registrado y tu cita del jueves ha quedado agendada.")),
+                new ModelStep.Reply(List.of("¡Listo, Julio! Ya estás registrado. ¿Confirmo tu cita del jueves?")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("¡Listo, Julio! Ya estás registrado. ¿Confirmo tu cita del jueves?"), outcome.bubbles());
+        AgentMessage note = model.transcripts.get(1).getLast();
+        assertTrue(note instanceof AgentMessage.Note && ((AgentMessage.Note) note).text().contains("médico"), note.toString());
+    }
+
+    @Test
+    void mentioningAnAppointmentTheyAlreadyHaveIsNotABookingClaim() {
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("Tienes una cita agendada el jueves con el Dr. Julio.")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
+
+        assertEquals(1, model.transcripts.size());
+        assertFalse(outcome.failed());
+    }
+
+    @Test
     void anEndlessToolLoopStopsWithoutHandingOff() {
         List<Object> steps = new ArrayList<>();
         for (int i = 0; i < 20; i++) {

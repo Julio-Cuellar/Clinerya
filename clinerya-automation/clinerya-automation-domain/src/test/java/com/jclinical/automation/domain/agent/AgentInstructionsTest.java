@@ -62,6 +62,12 @@ class AgentInstructionsTest {
     }
 
     @Test
+    void beforeRegisteringItAsksForTheFullNameInThisConversation() {
+        assertTrue(AgentInstructions.NOT_REGISTERED.contains("apellidos"), AgentInstructions.NOT_REGISTERED);
+        assertTrue(AgentInstructions.NOT_REGISTERED.contains("conversaciones anteriores"), AgentInstructions.NOT_REGISTERED);
+    }
+
+    @Test
     void theOptionsInViewAreListedWithTheirIdsSoTypedAnswersCanBeMatched() {
         String text = AgentInstructions.build(new AgentPersona("Clínica Sonrisa", null, null), LocalDateTime.of(2026, 9, 27, 21, 0),
                 List.of(), List.of(new ConversationOption("slot:abc|2026-10-01T16:00|2026-10-01T16:30", "Jue 01/10 16:00")));

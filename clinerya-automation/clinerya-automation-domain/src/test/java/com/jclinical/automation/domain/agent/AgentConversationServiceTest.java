@@ -337,6 +337,44 @@ class AgentConversationServiceTest {
         assertEquals(new User("hola"), model.transcripts.get(0).getFirst());
     }
 
+    // ---- el horario elegido sigue valido mientras se registra --------------------------------
+
+    @Test
+    void aChosenSlotStaysValidWhileThePatientGivesTheirDataAndAccepts() {
+        ConversationOption chosen = new ConversationOption("slot:d|2026-10-01T10:30|2026-10-01T11:00", "Jue 01/10 10:30");
+        ConversationOption other = new ConversationOption("slot:d|2026-10-01T11:00|2026-10-01T11:30", "Jue 01/10 11:00");
+        conversations.save(conversation(ConversationState.CONVERSANDO, List.of(chosen, other), 0));
+        List<ConversationOption> consent = List.of(new ConversationOption("consentimiento:acepto", "Acepto"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.Reply(List.of("¿Me compartes tu nombre completo?")),
+                new ModelStep.CallTools(List.of(new AgentMessage.ToolCall("c1", "pedir_consentimiento", Map.of()))),
+                new ModelStep.Reply(List.of("Acepta la autorización, por favor.")));
+        AgentConversationService service = service(model,
+                new ConversationAgentTest.RecordingTool("pedir_consentimiento", ToolOutcome.of(Map.of()).withOptions(consent)));
+
+        send(service, null, chosen.id());
+        assertEquals(List.of(chosen, other), current().offeredOptions(), "pedir datos no borra el horario elegido");
+
+        List<OutboundReply> replies = send(service, "Julio Cuellar Cortes, 06/01/2006, hombre");
+        assertEquals(consent, replies.getLast().options(), "el paciente solo ve los botones nuevos");
+        assertEquals(List.of(consent.getFirst(), chosen, other), current().offeredOptions());
+    }
+
+    @Test
+    void newSlotsReplaceTheOnesOfferedBefore() {
+        ConversationOption old = new ConversationOption("slot:d|2026-10-01T10:30|2026-10-01T11:00", "Jue 01/10 10:30");
+        conversations.save(conversation(ConversationState.CONVERSANDO, List.of(old), 0));
+        List<ConversationOption> fresh = List.of(new ConversationOption("slot:d|2026-10-02T09:00|2026-10-02T09:30", "Vie 02/10 09:00"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new AgentMessage.ToolCall("c1", "buscar_horarios", Map.of()))),
+                new ModelStep.Reply(List.of("Mira estos otros horarios.")));
+
+        send(service(model, new ConversationAgentTest.RecordingTool("buscar_horarios", ToolOutcome.of(Map.of()).withOptions(fresh))),
+                "¿y el viernes?");
+
+        assertEquals(fresh, current().offeredOptions());
+    }
+
     // ---- respuestas al recordatorio de cita (plan v2, S6) -------------------------------------
 
     private final UUID patientId = UUID.randomUUID();
