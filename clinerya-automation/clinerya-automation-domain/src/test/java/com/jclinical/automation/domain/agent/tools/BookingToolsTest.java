@@ -134,6 +134,9 @@ class BookingToolsTest {
         assertEquals(new AppointmentRequestPort.NewAppointmentRequest(clinicId, conversation.id(), ana.patientId(), ramos,
                 thursday, thursday.plusMinutes(30), conversation.phone(), "Ana López", "Dra. Beatriz Ramos"), sent);
         assertEquals(true, outcome.content().get("solicitud_enviada"));
+        assertTrue(outcome.closing() != null && outcome.closing().contains("solicitud")
+                && outcome.closing().contains("Dra. Beatriz Ramos") && outcome.closing().contains("Jue 01/10 16:00"),
+                String.valueOf(outcome.closing()));
         assertEquals(requests.nextId, conversations.findById(conversation.id()).orElseThrow().requestId());
         assertTrue(pending.find(conversation.id()).isEmpty());
     }
@@ -146,6 +149,7 @@ class BookingToolsTest {
         ToolOutcome outcome = confirm().run(context(NOW.plusMinutes(1), List.of(), ana), Map.of());
 
         assertTrue(outcome.content().containsKey("error"));
+        assertTrue(outcome.closing() != null && outcome.closing().contains("ocupó"), String.valueOf(outcome.closing()));
         assertTrue(pending.find(conversation.id()).isEmpty());
     }
 
@@ -157,6 +161,7 @@ class BookingToolsTest {
         ToolOutcome late = confirm().run(context(NOW.plusMinutes(31), List.of(), ana), Map.of());
 
         assertTrue(late.content().containsKey("error"));
+        assertTrue(late.closing() != null && late.closing().contains("venció"), String.valueOf(late.closing()));
         assertTrue(requests.submitted.isEmpty());
         assertTrue(pending.find(conversation.id()).isEmpty());
     }
@@ -177,6 +182,8 @@ class BookingToolsTest {
 
         assertEquals(List.of(requestId + "|" + friday), requests.chosen);
         assertEquals(true, outcome.content().get("cita_agendada"));
+        assertTrue(outcome.closing() != null && outcome.closing().contains("quedó agendada")
+                && outcome.closing().contains("Vie 02/10 10:00"), String.valueOf(outcome.closing()));
         assertNull(conversations.findById(conversation.id()).orElseThrow().requestId());
     }
 

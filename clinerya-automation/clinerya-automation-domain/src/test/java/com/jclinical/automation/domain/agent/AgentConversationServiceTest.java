@@ -20,6 +20,7 @@ import com.jclinical.automation.domain.ports.out.ConversationRepositoryPort;
 import com.jclinical.automation.domain.ports.out.PatientDirectoryPort;
 import com.jclinical.automation.domain.agent.tools.ConfirmActionTool;
 import com.jclinical.automation.domain.model.PendingAction;
+import com.jclinical.automation.domain.ports.out.AppointmentRequestPort;
 import com.jclinical.automation.domain.ports.out.DoctorDirectoryPort;
 import com.jclinical.automation.domain.ports.out.PatientAppointmentsPort.UpcomingVisit;
 import com.jclinical.automation.domain.ports.out.PendingActionPort;
@@ -335,6 +336,92 @@ class AgentConversationServiceTest {
         assertEquals(0, current().unrecognizedCount());
         assertTrue(current().offeredOptions().isEmpty());
         assertEquals(new User("hola"), model.transcripts.get(0).getFirst());
+    }
+
+    // ---- confirmar o cambiar lo resuelve el codigo, no el modelo -------------------------------
+
+    private final List<UUID> cancelledByTap = new ArrayList<>();
+
+    private AgentConversationService withConfirmations(ScriptedModel model) {
+        patients.add(new PatientDirectoryPort.PatientContact(patientId, "Ana López"));
+        PendingActionPort store = new PendingActionPort() {
+            @Override public void save(PendingAction action) { pendingActions.put(action.conversationId(), action); }
+            @Override public Optional<PendingAction> find(UUID conversationId) { return Optional.ofNullable(pendingActions.get(conversationId)); }
+            @Override public void clear(UUID conversationId) { pendingActions.remove(conversationId); }
+        };
+        AppointmentRequestPort requests = new AppointmentRequestPort() {
+            @Override public UUID submit(NewAppointmentRequest request) { return UUID.randomUUID(); }
+            @Override public UUID chooseOption(UUID clinic, UUID requestId, LocalDateTime start, LocalDateTime end) { return UUID.randomUUID(); }
+            @Override public void declineOptions(UUID clinic, UUID requestId) { }
+        };
+        AgentConversationService service = service(model);
+        service.setConfirmationReplies(new ConfirmationReplyHandler(store, new ConfirmActionTool(store, requests, conversations,
+                (clinic, appointment, patient, reason) -> cancelledByTap.add(appointment), request -> { })));
+        return service;
+    }
+
+    private Conversation withPendingCancellation() {
+        Conversation conversation = conversations.save(conversation(ConversationState.CONVERSANDO,
+                ConfirmActionTool.CONFIRMATION_OPTIONS, 0));
+        pendingActions.put(conversation.id(), new PendingAction(conversation.id(), PendingAction.Kind.CANCEL, patientId,
+                "Ana López", doctorId, "Dra. Ramírez", NOW.plusDays(1), NOW.plusDays(1).plusMinutes(30), appointmentId,
+                NOW.minusMinutes(1)));
+        return conversation;
+    }
+
+    @Test
+    void tappingConfirmCancelsWithoutAskingTheModelAndTheCodeWritesTheText() {
+        Conversation conversation = withPendingCancellation();
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("No debería hablar")));
+
+        List<OutboundReply> replies = send(withConfirmations(model), null, ConfirmActionTool.CONFIRM);
+
+        assertEquals(List.of(appointmentId), cancelledByTap);
+        assertTrue(model.transcripts.isEmpty());
+        assertTrue(replies.getFirst().text().contains("cancelada") && replies.getFirst().text().contains("Dra. Ramírez"),
+                replies.getFirst().text());
+        assertTrue(replies.getLast().options().isEmpty());
+        assertTrue(pendingActions.isEmpty());
+        assertTrue(conversations.findById(conversation.id()).orElseThrow().offeredOptions().isEmpty());
+    }
+
+    @Test
+    void tappingChangeDropsThePendingActionAndHandsItToTheAgent() {
+        withPendingCancellation();
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("Claro, ¿qué prefieres hacer?")));
+
+        send(withConfirmations(model), null, ConfirmActionTool.CHANGE);
+
+        assertTrue(cancelledByTap.isEmpty());
+        assertTrue(pendingActions.isEmpty());
+        AgentMessage last = model.transcripts.getFirst().getLast();
+        assertTrue(last instanceof User user && user.text().contains("cambiar"), last.toString());
+    }
+
+    @Test
+    void aConfirmTapWithNothingPendingStillGoesToTheAgentAsAnOldOption() {
+        conversations.save(conversation(ConversationState.CONVERSANDO, List.of(), 0));
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of("Esa opción ya no está vigente.")));
+
+        send(withConfirmations(model), null, ConfirmActionTool.CONFIRM);
+
+        assertTrue(cancelledByTap.isEmpty());
+        assertEquals(1, model.transcripts.size());
+    }
+
+    @Test
+    void ifTheModelFailsWhileSomethingIsPendingTheConfirmationButtonsComeBack() {
+        Conversation conversation = withPendingCancellation();
+        IllegalStateException down = new IllegalStateException("vacía");
+        ScriptedModel model = new ScriptedModel(down, down);
+
+        List<OutboundReply> replies = send(withConfirmations(model), "sí");
+
+        assertEquals(ConfirmActionTool.CONFIRMATION_OPTIONS, replies.getLast().options());
+        assertTrue(replies.getLast().text().contains("cancelar tu cita"), replies.getLast().text());
+        assertEquals(ConfirmActionTool.CONFIRMATION_OPTIONS,
+                conversations.findById(conversation.id()).orElseThrow().offeredOptions());
+        assertFalse(pendingActions.isEmpty(), "la cancelacion sigue esperando su confirmacion");
     }
 
     // ---- el horario elegido sigue valido mientras se registra --------------------------------

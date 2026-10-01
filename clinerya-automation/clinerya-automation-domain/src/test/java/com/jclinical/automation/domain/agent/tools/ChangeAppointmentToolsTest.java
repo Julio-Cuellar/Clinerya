@@ -116,6 +116,7 @@ class ChangeAppointmentToolsTest {
         assertEquals(List.of(appointmentId + "|Tengo un viaje"), cancelled);
         assertEquals(List.of(ramos + "|" + monday), doctorNotices);
         assertEquals(true, outcome.content().get("cita_cancelada"));
+        assertTrue(outcome.closing() != null && outcome.closing().contains("cancelada"), String.valueOf(outcome.closing()));
     }
 
     @Test

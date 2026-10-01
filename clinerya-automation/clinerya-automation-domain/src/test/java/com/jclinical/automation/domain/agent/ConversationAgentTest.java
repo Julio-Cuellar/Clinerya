@@ -167,6 +167,37 @@ class ConversationAgentTest {
 
         assertEquals(List.of(ConversationAgent.OPTIONS_REPLY), outcome.bubbles());
         assertEquals(slots, outcome.options());
+        assertTrue(outcome.failed(), "el modelo fallo: el servicio decide si hay algo mas importante que mostrar");
+        assertFalse(outcome.handoff());
+    }
+
+    @Test
+    void whenAToolClosesTheActionItsTextReplacesWhateverTheModelSays() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "confirmar_accion", Map.of()))),
+                new ModelStep.Reply(List.of("¿Me confirmas que deseas agendar en este horario?")));
+        ToolOutcome done = ToolOutcome.of(Map.of("cita_agendada", true)).withClosing("¡Listo! Tu cita quedó agendada.");
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("confirmar_accion", done)))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("¡Listo! Tu cita quedó agendada."), outcome.bubbles());
+        assertTrue(outcome.options().isEmpty());
+        assertFalse(outcome.failed());
+    }
+
+    @Test
+    void theClosingTextAlsoGoesOutIfTheModelStopsAnswering() {
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "confirmar_accion", Map.of()))),
+                new IllegalStateException("vacía"), new IllegalStateException("vacía"));
+        ToolOutcome done = ToolOutcome.of(Map.of("cita_cancelada", true)).withClosing("Tu cita quedó cancelada.");
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("confirmar_accion", done)))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("Tu cita quedó cancelada."), outcome.bubbles());
+        assertFalse(outcome.failed());
         assertFalse(outcome.handoff());
     }
 
