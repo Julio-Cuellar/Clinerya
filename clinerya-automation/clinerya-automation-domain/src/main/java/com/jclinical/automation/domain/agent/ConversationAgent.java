@@ -73,8 +73,9 @@ public final class ConversationAgent {
         for (int step = 0; step < MAX_STEPS; step++) {
             ModelStep next = ask(context, systemInstruction, working, specs);
             if (next instanceof ModelStep.CallTools call && !call.calls().isEmpty()) {
+                // Las llamadas viajan juntas y despues sus resultados juntos: asi lo espera el protocolo de Gemini.
+                working.addAll(call.calls());
                 for (ToolCall toolCall : call.calls()) {
-                    working.add(toolCall);
                     if (NOT_UNDERSTOOD.equals(toolCall.name())) {
                         notUnderstood = true;
                         working.add(new ToolResult(toolCall.id(), toolCall.name(), Map.of("ok", true)));

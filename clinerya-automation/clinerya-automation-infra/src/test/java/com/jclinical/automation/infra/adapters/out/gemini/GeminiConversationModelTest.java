@@ -66,6 +66,7 @@ class GeminiConversationModelTest {
         List<AgentMessage> transcript = List.of(
                 new AgentMessage.User("hola"),
                 new AgentMessage.Assistant("¡Hola! ¿En qué te ayudo?"),
+                new AgentMessage.User("¿dónde están?"),
                 new AgentMessage.ToolCall("c1", "info_clinica", Map.of()),
                 new AgentMessage.ToolResult("c1", "info_clinica", Map.of("nombre", "Clínica Sonrisa")),
                 new AgentMessage.Note("Corrige el precio."));
@@ -84,10 +85,10 @@ class GeminiConversationModelTest {
         assertEquals("user", contents.get(0).get("role").asText());
         assertEquals("hola", contents.get(0).at("/parts/0/text").asText());
         assertEquals("model", contents.get(1).get("role").asText());
-        assertEquals("info_clinica", contents.get(2).at("/parts/0/functionCall/name").asText());
-        assertEquals(4, contents.size(), "la nota viaja en el mismo turno del usuario que el resultado de la herramienta");
-        assertEquals("Clínica Sonrisa", contents.get(3).at("/parts/0/functionResponse/response/nombre").asText());
-        assertTrue(contents.get(3).at("/parts/1/text").asText().contains("Corrige el precio."));
+        assertEquals("info_clinica", contents.get(3).at("/parts/0/functionCall/name").asText());
+        assertEquals(5, contents.size(), "la nota viaja en el mismo turno del usuario que el resultado de la herramienta");
+        assertEquals("Clínica Sonrisa", contents.get(4).at("/parts/0/functionResponse/response/nombre").asText());
+        assertTrue(contents.get(4).at("/parts/1/text").asText().contains("Corrige el precio."));
         JsonNode declaration = request.at("/tools/0/functionDeclarations/0");
         assertEquals("buscar_horarios", declaration.get("name").asText());
         assertEquals("INTEGER", declaration.at("/parameters/properties/dias/type").asText());

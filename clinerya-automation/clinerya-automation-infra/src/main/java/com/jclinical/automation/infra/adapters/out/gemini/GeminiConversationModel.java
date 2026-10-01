@@ -140,7 +140,18 @@ public class GeminiConversationModel implements ConversationModelPort {
         request.putObject("systemInstruction").putArray("parts").addObject()
                 .put("text", systemInstruction + BUBBLE_RULE);
         ArrayNode contents = request.putArray("contents");
-        transcript.forEach(message -> contents.add(content(message)));
+        ObjectNode previous = null;
+        for (AgentMessage message : transcript) {
+            ObjectNode content = content(message);
+            // Gemini espera turnos que alternan: las llamadas paralelas van en un turno del modelo, sus resultados
+            // (y las notas internas) en uno solo del usuario.
+            if (previous != null && previous.get("role").asText().equals(content.get("role").asText())) {
+                ((ArrayNode) previous.get("parts")).addAll((ArrayNode) content.get("parts"));
+            } else {
+                contents.add(content);
+                previous = content;
+            }
+        }
         if (!tools.isEmpty()) {
             ArrayNode declarations = request.putArray("tools").addObject().putArray("functionDeclarations");
             tools.forEach(tool -> declarations.add(declaration(tool)));
