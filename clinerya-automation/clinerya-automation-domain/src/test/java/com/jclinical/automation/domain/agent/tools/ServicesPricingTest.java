@@ -56,6 +56,7 @@ class ServicesPricingTest {
         assertEquals(List.of("Consulta de ortodoncia", "Consulta general odontológica"),
                 outcome.options().stream().map(ConversationOption::label).sorted().toList());
         assertEquals(true, outcome.content().get("varias_opciones"));
+        assertTrue(outcome.fallback() != null && outcome.fallback().contains("servicios"), String.valueOf(outcome.fallback()));
     }
 
     @Test

@@ -29,6 +29,17 @@ class GroundingGuardTest {
     }
 
     @Test
+    void timesAndDatesWrittenWithoutLeadingZerosAreTheSameFigure() {
+        List<String> scheduleSources = List.of("{horarios=[Jue 01/10 08:00, Jue 01/10 08:30, Jue 01/10 16:00]}");
+
+        assertTrue(GroundingGuard.inventedFigures("Tengo a las 8:00 y 8:30 el 1/10.", scheduleSources).isEmpty());
+        assertTrue(GroundingGuard.inventedFigures("El Jue 01/10 a las 4:00.", List.of("Jue 1/10 04:00")).isEmpty());
+        assertEquals(List.of("8:15"), GroundingGuard.inventedFigures("Tengo a las 8:15.", scheduleSources),
+                "otra hora sigue siendo inventada");
+        assertEquals(List.of("2/10"), GroundingGuard.inventedFigures("El 2/10 tengo lugar.", scheduleSources));
+    }
+
+    @Test
     void singleDigitsAreConversationNotData() {
         assertTrue(GroundingGuard.inventedFigures("Te comparto 3 opciones; elige 1.", sources).isEmpty());
     }

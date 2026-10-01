@@ -131,6 +131,7 @@ class ReadToolsTest {
         assertEquals(List.of("Dra. Beatriz Ramos", "Dr. Carlos Díaz"), outcome.content().get("medicos"));
         assertEquals(List.of(new ConversationOption("doctor:" + ramos, "Dra. Beatriz Ramos"),
                 new ConversationOption("doctor:" + diaz, "Dr. Carlos Díaz")), outcome.options());
+        assertTrue(outcome.fallback() != null && outcome.fallback().contains("médicos"), String.valueOf(outcome.fallback()));
     }
 
     @Test
@@ -162,6 +163,8 @@ class ReadToolsTest {
         assertEquals(List.of("slot:" + ramos + "|2026-10-01T16:00|2026-10-01T16:30", "slot:" + ramos + "|2026-10-01T16:30|2026-10-01T17:00"),
                 outcome.options().stream().map(ConversationOption::id).toList());
         assertEquals("Jue 01/10 16:00", outcome.options().getFirst().label());
+        assertTrue(outcome.fallback() != null && outcome.fallback().contains("Dra. Beatriz Ramos")
+                && outcome.fallback().endsWith(":"), String.valueOf(outcome.fallback()));
         assertEquals("Dra. Beatriz Ramos", outcome.content().get("medico"));
     }
 
@@ -188,6 +191,7 @@ class ReadToolsTest {
         ToolOutcome ask = new SlotsTool(doctors, new FakeSlots(List.of())).run(context(), Map.of());
         assertTrue(ask.content().containsKey("error"));
         assertEquals(2, ask.options().size(), "se ofrece elegir medico");
+        assertTrue(ask.fallback() != null && ask.fallback().contains("médicos"), String.valueOf(ask.fallback()));
     }
 
     @Test
@@ -203,6 +207,7 @@ class ReadToolsTest {
         assertEquals(NOW.toLocalDate(), slots.lastFrom);
         assertEquals(true, none.content().get("sin_horarios"));
         assertTrue(none.options().isEmpty());
+        assertTrue(none.fallback() != null && none.fallback().contains("No encontré horarios"), String.valueOf(none.fallback()));
     }
 
     // ---- mis_citas ------------------------------------------------------------------------------

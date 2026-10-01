@@ -247,6 +247,18 @@ class AgentConversationServiceTest {
     }
 
     @Test
+    void aFailedTurnKeepsTheOptionsThePatientAlreadyHad() {
+        List<ConversationOption> doctors = List.of(new ConversationOption("doctor:a", "Dra. Ramos"),
+                new ConversationOption("doctor:b", "Dr. Díaz"));
+        conversations.save(conversation(ConversationState.CONVERSANDO, doctors, 0));
+        IllegalStateException down = new IllegalStateException("503");
+
+        send(service(new ScriptedModel(down, down)), "hola");
+
+        assertEquals(doctors, current().offeredOptions(), "los botones anteriores siguen vigentes");
+    }
+
+    @Test
     void threeFailedTurnsInARowHandTheChatToAPerson() {
         IllegalStateException down = new IllegalStateException("503");
         ScriptedModel model = new ScriptedModel(down, down, down, down, down, down);

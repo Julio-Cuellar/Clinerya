@@ -261,6 +261,62 @@ class ConversationAgentTest {
     }
 
     @Test
+    void bubblesThatShowInternalOptionIdsAreDropped() {
+        ScriptedModel model = new ScriptedModel(new ModelStep.Reply(List.of(
+                "Con gusto te ayudo, ¿con cuál médico?", "doctor:Julio Cuellar Cortes | doctor:Dra. Elena Martinez")));
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of()).run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("Con gusto te ayudo, ¿con cuál médico?"), outcome.bubbles());
+    }
+
+    @Test
+    void ifTheGuardRejectsTwiceTheOptionsAlreadyConsultedGoOutNotAGenericMessage() {
+        List<ConversationOption> slots = List.of(new ConversationOption("slot:a", "Jue 16:00"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "buscar_horarios", Map.of()))),
+                new ModelStep.Reply(List.of("Tengo a las 7:45.")), new ModelStep.Reply(List.of("Tengo a las 7:45, seguro.")));
+
+        AgentOutcome outcome = new ConversationAgent(model,
+                List.of(new RecordingTool("buscar_horarios", ToolOutcome.of(Map.of()).withOptions(slots))))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of(ConversationAgent.OPTIONS_REPLY), outcome.bubbles());
+        assertEquals(slots, outcome.options());
+        assertFalse(outcome.handoff());
+    }
+
+    @Test
+    void theToolsOwnLeadInGoesOutWithItsOptionsIfTheGuardRejectsTwice() {
+        List<ConversationOption> slots = List.of(new ConversationOption("slot:a", "Jue 16:00"));
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.CallTools(List.of(new ToolCall("c1", "buscar_horarios", Map.of()))),
+                new ModelStep.Reply(List.of("Tengo a las 7:45.")), new ModelStep.Reply(List.of("Tengo a las 7:45, seguro.")));
+        ToolOutcome found = ToolOutcome.of(Map.of()).withOptions(slots)
+                .withFallback("Estos son los horarios disponibles con el Dr. Julio:");
+
+        AgentOutcome outcome = new ConversationAgent(model, List.of(new RecordingTool("buscar_horarios", found)))
+                .run(context, "instrucciones", transcript);
+
+        assertEquals(List.of("Estos son los horarios disponibles con el Dr. Julio:"), outcome.bubbles());
+        assertEquals(slots, outcome.options());
+        assertFalse(outcome.failed());
+    }
+
+    @Test
+    void theFiguresTheGuardRejectedAreReportedForDiagnosis() {
+        List<String> reported = new ArrayList<>();
+        ScriptedModel model = new ScriptedModel(
+                new ModelStep.Reply(List.of("La limpieza cuesta $700.")), new ModelStep.Reply(List.of("Cuesta $700.")));
+        ConversationAgent agent = new ConversationAgent(model, List.of());
+        agent.setDiagnostics(reported::add);
+
+        agent.run(context, "instrucciones", transcript);
+
+        assertTrue(reported.stream().anyMatch(line -> line.contains("700")), reported.toString());
+    }
+
+    @Test
     void anEndlessToolLoopStopsWithoutHandingOff() {
         List<Object> steps = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
