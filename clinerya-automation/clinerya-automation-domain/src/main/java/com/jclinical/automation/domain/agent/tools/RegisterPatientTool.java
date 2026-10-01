@@ -113,7 +113,8 @@ public final class RegisterPatientTool implements AgentTool {
         String slotId = ToolArgs.text(arguments, "horario");
         boolean offered = context.offeredOptions().stream().anyMatch(o -> o.id().equals(slotId) && slotId.startsWith(SlotsTool.OPTION_PREFIX));
         if (!offered) {
-            return new ToolOutcome(content, List.of(), List.of(name.get()));
+            return new ToolOutcome(content, List.of(), List.of(name.get()))
+                    .withFallback("¡Listo, " + name.get() + "! Ya quedaste registrado como paciente. ¿Te ayudo a agendar tu cita?");
         }
         SlotsTool.ChosenSlot slot = SlotsTool.parse(slotId);
         String doctorName = doctors.listDoctors(context.clinicId()).stream().filter(d -> d.staffId().equals(slot.doctorId()))
@@ -123,7 +124,9 @@ public final class RegisterPatientTool implements AgentTool {
         String label = SlotLabel.of(slot.start());
         content.put("resumen", label + " con " + doctorName + " para " + fullName);
         content.put("pide_confirmacion", true);
-        return new ToolOutcome(content, ConfirmActionTool.CONFIRMATION_OPTIONS, List.of(label, doctorName, fullName));
+        return new ToolOutcome(content, ConfirmActionTool.CONFIRMATION_OPTIONS, List.of(label, doctorName, fullName))
+                .withFallback("¡Listo, " + name.get() + "! Ya quedaste registrado. ¿Confirmo tu cita del " + label + " con "
+                        + doctorName + "?");
     }
 
     private static Optional<Sex> sex(String requested) {

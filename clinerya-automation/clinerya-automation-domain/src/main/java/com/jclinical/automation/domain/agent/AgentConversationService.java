@@ -104,7 +104,8 @@ public final class AgentConversationService implements HandleInboundMessageUseCa
                 contacts.stream().map(PatientContact::displayName).toList(), conversation.offeredOptions());
         AgentOutcome outcome = agent.run(context, instructions, transcript(message, conversation));
 
-        int misunderstood = outcome.notUnderstood() ? conversation.unrecognizedCount() + 1 : 0;
+        // No entender y que el modelo falle cuentan igual: a la tercera seguida, a una persona.
+        int misunderstood = outcome.notUnderstood() || outcome.failed() ? conversation.unrecognizedCount() + 1 : 0;
         boolean tooManyMisunderstandings = misunderstood >= MAX_NOT_UNDERSTOOD;
         boolean handoff = outcome.handoff() || tooManyMisunderstandings;
         List<String> bubbles = tooManyMisunderstandings && !outcome.handoff() ? List.of(HANDOFF_REPLY) : outcome.bubbles();

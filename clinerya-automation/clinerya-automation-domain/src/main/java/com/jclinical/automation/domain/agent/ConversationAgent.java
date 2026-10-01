@@ -11,8 +11,10 @@ import java.util.Map;
 
 /**
  * Un turno del agente: el modelo propone contestar o usar herramientas; el codigo ejecuta las
- * herramientas con el contexto que el mismo arma, limita los pasos y, si el modelo no responde
- * (tras un reintento silencioso), contesta con honestidad y pide que lo atienda una persona.
+ * herramientas con el contexto que el mismo arma y limita los pasos. Si el modelo no responde (tras un
+ * reintento; despues de una herramienta, con un empujon para que conteste con su resultado), sale lo que
+ * la herramienta dejo escrito, las opciones ya ofrecidas o se le pide al paciente que lo repita. Una falla
+ * no pasa el chat a una persona: cuenta para la regla de 3 de la conversacion.
  */
 public final class ConversationAgent {
 
@@ -20,10 +22,12 @@ public final class ConversationAgent {
     public static final String HANDOFF = "pasar_a_persona";
     public static final int MAX_STEPS = 6;
     public static final int MAX_BUBBLES = 3;
-    public static final String UNAVAILABLE_REPLY = "Perdona, en este momento no puedo responderte bien. "
-            + "Ya le avisé a alguien de la clínica para que te atienda por este mismo chat.";
+    public static final String UNAVAILABLE_REPLY = "Perdona, se me cortó la respuesta. ¿Me lo repites, por favor?";
     public static final String UNVERIFIED_REPLY = "Perdona, prefiero no darte un dato que no pude confirmar. "
-            + "Ya le pedí a alguien de la clínica que te lo confirme por este mismo chat.";
+            + "¿Me lo preguntas de otra forma?";
+    public static final String OPTIONS_REPLY = "Te dejo las opciones para que elijas:";
+    static final String NUDGE = "Ya tienes el resultado de las herramientas. Responde ahora al paciente con un mensaje "
+            + "breve basado en él.";
 
     /** Una falla se reintenta en silencio; la segunda ya se le dice al paciente. */
     private static final int MAX_FAILURES = 2;
@@ -48,6 +52,8 @@ public final class ConversationAgent {
         List<String> facts = new ArrayList<>();
         String verbatim = null;
         List<ConversationOption> verbatimOptions = List.of();
+        String fallback = null;
+        List<ConversationOption> fallbackOptions = List.of();
         boolean notUnderstood = false;
         boolean handoff = false;
         boolean corrected = false;
@@ -73,6 +79,10 @@ public final class ConversationAgent {
                             verbatim = outcome.verbatim();
                             verbatimOptions = outcome.options();
                         }
+                        if (outcome.fallback() != null && !outcome.fallback().isBlank()) {
+                            fallback = outcome.fallback();
+                            fallbackOptions = outcome.options();
+                        }
                         working.add(new ToolResult(toolCall.id(), toolCall.name(), outcome.content()));
                     }
                 }
@@ -92,7 +102,9 @@ public final class ConversationAgent {
                     return new AgentOutcome(withVerbatim, verbatimOptions, notUnderstood, handoff, false);
                 }
                 if (corrected) {
-                    return new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, true, false);
+                    return fallback != null
+                            ? new AgentOutcome(List.of(fallback), fallbackOptions, notUnderstood, handoff, false)
+                            : new AgentOutcome(List.of(UNVERIFIED_REPLY), List.of(), notUnderstood, handoff, true);
                 }
                 corrected = true;
                 working.add(new AgentMessage.Note("Tu respuesta incluía datos que no vienen de lo que consultaste ni de "
@@ -101,10 +113,25 @@ public final class ConversationAgent {
                 continue;
             }
             if (++failures >= MAX_FAILURES) {
-                return unavailable();
+                return giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+            }
+            if (!working.isEmpty() && working.getLast() instanceof ToolResult) {
+                working.add(new AgentMessage.Note(NUDGE));
             }
         }
-        return unavailable();
+        return giveUp(fallback, fallbackOptions, options, notUnderstood, handoff);
+    }
+
+    /** El modelo dejo de responder: lo que ya se hizo se dice, lo ya ofrecido se muestra; si no, que lo repita. */
+    private static AgentOutcome giveUp(String fallback, List<ConversationOption> fallbackOptions,
+                                       List<ConversationOption> options, boolean notUnderstood, boolean handoff) {
+        if (fallback != null) {
+            return new AgentOutcome(List.of(fallback), fallbackOptions, notUnderstood, handoff, false);
+        }
+        if (!options.isEmpty()) {
+            return new AgentOutcome(List.of(OPTIONS_REPLY), options, notUnderstood, handoff, false);
+        }
+        return new AgentOutcome(List.of(UNAVAILABLE_REPLY), List.of(), notUnderstood, handoff, true);
     }
 
     private ModelStep ask(ToolContext context, String systemInstruction, List<AgentMessage> working, List<ToolSpec> specs) {
@@ -165,7 +192,4 @@ public final class ConversationAgent {
         return List.copyOf(capped);
     }
 
-    private static AgentOutcome unavailable() {
-        return new AgentOutcome(List.of(UNAVAILABLE_REPLY), List.of(), false, true, true);
-    }
 }
